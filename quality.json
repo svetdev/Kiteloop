@@ -1,0 +1,437 @@
+{
+  "project": "Kiteloop",
+  "complexity": {
+    "tool": "lizard",
+    "sources": [
+      "Kiteloop/Kiteloop",
+      "Kiteloop/KiteloopCore/Sources",
+      "KiteloopMobile/Sources",
+      "scripts",
+      "copilot-bridge-extension/src"
+    ],
+    "languages": [
+      "swift",
+      "python",
+      "typescript"
+    ],
+    "exclude": [
+      "*test-*"
+    ],
+    "exclude_except": [
+      "scripts/core-package/test-move.py"
+    ],
+    "ceilings": {
+      "cc": 8,
+      "lines": 60
+    },
+    "baseline": "quality/complexity-baseline.json"
+  },
+  "crap": {
+    "threshold": 8,
+    "baseline": "Kiteloop/.crap-baseline.json",
+    "sources": [
+      "Kiteloop/Kiteloop",
+      "Kiteloop/KiteloopCore/Sources/KiteloopCore"
+    ],
+    "xccov": {
+      "sources": "Kiteloop/Kiteloop",
+      "bundles": "~/Library/Developer/Xcode/DerivedData/Kiteloop-*/Logs/Test/*.xcresult"
+    },
+    "llvm_cov": {
+      "sources": "Kiteloop/KiteloopCore/Sources/KiteloopCore",
+      "exports": "Kiteloop/KiteloopCore/.build/debug/codecov/KiteloopCore.json"
+    }
+  },
+  "changed_coverage": {
+    "report": ".kiteloop/coverage/suite.lcov",
+    "minimum": 0.8,
+    "min_lines": 20
+  },
+  "hotspots": {
+    "min_cc": 8
+  },
+  "layering": {
+    "skip_dirs": [
+      "Frameworks"
+    ],
+    "allowed": {
+      "Extensions": [],
+      "Models": [
+        "Extensions"
+      ],
+      "Runtime": [
+        "Models",
+        "Extensions"
+      ],
+      "Services": [
+        "Runtime",
+        "Models",
+        "Extensions"
+      ],
+      "ViewModels": [
+        "Services",
+        "Runtime",
+        "Models",
+        "Extensions"
+      ],
+      "Views": null,
+      "App": null,
+      "Testing": null
+    },
+    "always_allowed": [
+      "Testing"
+    ],
+    "roots": [
+      {
+        "root": "Kiteloop/Kiteloop",
+        "exempt": [
+          {
+            "file": "Models/Agent.swift",
+            "name": "RuntimeKind",
+            "reason": "a model naming which runtime runs it; the enum belongs in Models"
+          },
+          {
+            "file": "Models/OpeningContext.swift",
+            "name": "SizeCalibration",
+            "reason": "a model calling a calibration service"
+          },
+          {
+            "file": "Models/OrgManifest.swift",
+            "name": "PackageResolver",
+            "reason": "a model that resolves packages; the resolution belongs in a service"
+          },
+          {
+            "file": "Models/OrgManifest.swift",
+            "name": "AgentScanPath",
+            "reason": "AgentScanPath is a value; it belongs in Models"
+          },
+          {
+            "file": "Models/OrgManifest.swift",
+            "name": "AgentSource",
+            "reason": "AgentSource is a value; it belongs in Models"
+          },
+          {
+            "file": "Models/TaskMetric.swift",
+            "name": "RunWorkEvidence",
+            "reason": "a model reading a service's verdict type; the type belongs in Models"
+          },
+          {
+            "file": "Runtime/ClaudeCodeCLIRuntime.swift",
+            "name": "KiteloopControlServer",
+            "reason": "the runtime reads the control server's port; inject the port"
+          },
+          {
+            "file": "Runtime/ClaudeCodeCLIRuntime.swift",
+            "name": "CLIResolver",
+            "reason": "the runtime locates its own claude/node binaries through the resolver; inject the resolved paths"
+          },
+          {
+            "file": "Runtime/ClaudeCodeCLIRuntime.swift",
+            "name": "ToolScopeResolver",
+            "reason": "the runtime resolves a session's tool scope through the resolver; inject the resolved scope"
+          },
+          {
+            "file": "Runtime/ClaudeCodeCLIRuntime.swift",
+            "name": "ProcessTree",
+            "reason": "the runtime terminates a session's process tree through the resolver; inject a termination callback"
+          },
+          {
+            "file": "Runtime/ContextEngine.swift",
+            "name": "SkillRegistry",
+            "reason": "the context engine protocol's parameter is typed to the package's skill registry; put registry access behind a protocol in Runtime"
+          },
+          {
+            "file": "Runtime/DefaultContextEngine.swift",
+            "name": "MemoryManager",
+            "reason": "the context engine reads memory; inject it"
+          },
+          {
+            "file": "Runtime/DefaultContextEngine.swift",
+            "name": "SkillRegistry",
+            "reason": "the context engine composes a system prompt from the package's skill registry; put registry access behind a protocol in Runtime"
+          },
+          {
+            "file": "Services/BacklogAIEditor.swift",
+            "name": "BacklogViewModel",
+            "reason": "a service driving a view model; the backlog state belongs in a service"
+          },
+          {
+            "file": "Services/BacklogAutopilot.swift",
+            "name": "BacklogViewModel",
+            "reason": "the autopilot reads the backlog through its view model"
+          },
+          {
+            "file": "Services/Control/ControlSessionRegistry.swift",
+            "name": "ProjectSession",
+            "reason": "the registry holds view-model sessions; a session protocol in Services would cut it"
+          },
+          {
+            "file": "Services/Control/KiteloopControlServer.swift",
+            "name": "BacklogViewModel",
+            "reason": "the server reads the backlog through its view model"
+          },
+          {
+            "file": "Services/CoordinatorBlockedTriage.swift",
+            "name": "BacklogViewModel",
+            "reason": "triage reads the backlog through its view model"
+          },
+          {
+            "file": "Services/CoordinatorQueueRefill.swift",
+            "name": "BacklogViewModel",
+            "reason": "refill reads the backlog through its view model"
+          },
+          {
+            "file": "Services/ItemRunHistory.swift",
+            "name": "AutopilotHistorySummary",
+            "reason": "a service building a view's summary type; the type belongs in Services"
+          },
+          {
+            "file": "Services/RetryCeiling.swift",
+            "name": "BacklogViewModel",
+            "reason": "the ceiling reads the backlog through its view model"
+          },
+          {
+            "file": "Services/TeamConfigWatcher.swift",
+            "name": "ProjectSession",
+            "reason": "the watcher updates a view-model session; hand it a callback"
+          }
+        ]
+      },
+      {
+        "root": "Kiteloop/KiteloopCore/Sources/KiteloopCore",
+        "exempt": [
+          {
+            "file": "Models/BacklogWorkflowConfig.swift",
+            "name": "StoreProblemReporter",
+            "reason": "the store reports a load/save failure through the shared reporter; inject it"
+          },
+          {
+            "file": "Models/BacklogWorkflowConfig.swift",
+            "name": "QuarantiningJSONFile",
+            "reason": "the store loads itself through the shared JSON reader; inject it"
+          },
+          {
+            "file": "Models/KiteloopProject.swift",
+            "name": "StoreProblemReporter",
+            "reason": "the store reports a load/save failure through the shared reporter; inject it"
+          },
+          {
+            "file": "Models/KiteloopProject.swift",
+            "name": "QuarantiningJSONFile",
+            "reason": "the store loads itself through the shared JSON reader; inject it"
+          },
+          {
+            "file": "Models/BedrockConfig.swift",
+            "name": "StoreProblemReporter",
+            "reason": "SpawnTimeConfigRead reads global config off disk at spawn time, deliberately outside GlobalConfigStore (which is @MainActor), and reports a read failure through the shared reporter; inject it"
+          },
+          {
+            "file": "Models/BedrockConfig.swift",
+            "name": "GlobalConfig",
+            "reason": "SpawnTimeConfigRead decodes the settings file into GlobalConfig directly, again to dodge GlobalConfigStore's main-actor hop; the decode belongs in a service"
+          },
+          {
+            "file": "Models/BedrockConfig.swift",
+            "name": "TokenStore",
+            "reason": "ClaudeAuthConfig reads the API key from the token store when building a spawned process's environment; inject the token"
+          },
+          {
+            "file": "Models/CostEntry.swift",
+            "name": "DayKey",
+            "reason": "a model deriving its own day-bucket key at init; the derivation belongs in a service"
+          },
+          {
+            "file": "Models/KiteloopProject.swift",
+            "name": "AtomicFileWriter",
+            "reason": "the project saves its own config through the shared atomic writer; inject it"
+          }
+        ]
+      },
+      {
+        "root": "KiteloopMobile/Sources",
+        "exempt": []
+      }
+    ]
+  },
+  "hygiene": {
+    "roots": [
+      "Kiteloop/KiteloopTests",
+      "Kiteloop/KiteloopCore/Tests/KiteloopCoreTests",
+      "KiteloopMobile/Tests"
+    ],
+    "skip_dirs": [
+      "Support",
+      "Fixtures"
+    ],
+    "habits": {
+      "fixed sleeps": {
+        "pattern": "Task\\.sleep\\(|\\busleep\\(|Thread\\.sleep\\(",
+        "ceiling": 62,
+        "use": "eventually { \u2026 } (Kiteloop/KiteloopCore/Tests/KiteloopTestSupport/Eventually.swift)"
+      },
+      "loopback port probes": {
+        "pattern": "UInt16\\.random\\(",
+        "ceiling": 0,
+        "use": "ControlServerHarness.start"
+      },
+      "isListening copies": {
+        "pattern": "func isListening\\(",
+        "ceiling": 0,
+        "use": "ControlServerHarness"
+      },
+      "hand-built loopback sessions": {
+        "pattern": "connectionProxyDictionary",
+        "ceiling": 0,
+        "use": "ControlServerHarness.loopbackSession()"
+      },
+      "hand-built temp directories": {
+        "pattern": "\\.temporaryDirectory\\b|NSTemporaryDirectory\\(\\)",
+        "ceiling": 47,
+        "use": "makeTemporaryDirectory(prefix:)"
+      },
+      "file-local wait helpers": {
+        "pattern": "func (waitUntil|settle|eventually)\\(",
+        "ceiling": 3,
+        "use": "eventually (Kiteloop/KiteloopCore/Tests/KiteloopTestSupport/Eventually.swift)"
+      }
+    }
+  },
+  "doc_size": [
+    {
+      "file": "CLAUDE.md",
+      "ceiling": 2100
+    }
+  ],
+  "doc_citations": [
+    {
+      "file": "docs/features.md",
+      "roots": [
+        "Kiteloop/Kiteloop",
+        "Kiteloop/KiteloopTests",
+        "Kiteloop/KiteloopUITests",
+        "Kiteloop/KiteloopCore/Sources/KiteloopCore",
+        "Kiteloop/KiteloopCore/Tests/KiteloopCoreTests",
+        "KiteloopMobile"
+      ],
+      "extensions": [
+        ".swift"
+      ]
+    }
+  ],
+  "reachability": {
+    "roots": [
+      "Kiteloop/Kiteloop",
+      "Kiteloop/KiteloopCore/Sources/KiteloopCore",
+      "KiteloopMobile/Sources"
+    ],
+    "pattern": "Services/*",
+    "references": "identifiers",
+    "language": "swift",
+    "extensions": [
+      ".swift"
+    ],
+    "skip_dirs": [],
+    "exclude": [],
+    "exempt": {}
+  },
+  "escapes": {
+    "roots": [
+      "Kiteloop/Kiteloop",
+      "Kiteloop/KiteloopCore/Sources",
+      "KiteloopMobile/Sources",
+      "scripts",
+      "copilot-bridge-extension/src"
+    ],
+    "languages": [
+      "swift",
+      "python",
+      "typescript",
+      "shell"
+    ],
+    "skip_dirs": [],
+    "exclude": [],
+    "baseline": "quality/escapes-baseline.json"
+  },
+  "duplication": {
+    "roots": [
+      "Kiteloop/Kiteloop",
+      "Kiteloop/KiteloopCore/Sources",
+      "KiteloopMobile/Sources",
+      "scripts",
+      "copilot-bridge-extension/src"
+    ],
+    "languages": [
+      "swift",
+      "python",
+      "typescript"
+    ],
+    "exclude": [],
+    "min_lines": 10,
+    "baseline": "quality/duplication-baseline.json"
+  },
+  "conventions": {
+    "rules": [
+      {
+        "name": "blocking sleep in production code",
+        "pattern": "\\b(Thread\\.sleep|usleep)\\(",
+        "roots": [
+          "Kiteloop/Kiteloop",
+          "Kiteloop/KiteloopCore/Sources",
+          "KiteloopMobile/Sources"
+        ],
+        "extensions": [
+          ".swift"
+        ],
+        "message": "Orchestrator is @MainActor \u2014 never block it with synchronous I/O: await Task.sleep, or move the wait off the main actor."
+      }
+    ],
+    "baseline": "quality/conventions-baseline.json"
+  },
+  "guard_suites": {
+    "preflight": "scripts/run-unit-suite.sh",
+    "roots": [
+      "quality/tests",
+      "scripts",
+      "scripts/core-package"
+    ],
+    "exempt": {},
+    "not_suites": {
+      "scripts/core-package/test-move.py": "the tool that git mv's an app-hosted test into the package, not a test itself"
+    }
+  },
+  "mutation": {
+    "package": "Kiteloop/KiteloopCore",
+    "sources": "Kiteloop/KiteloopCore/Sources/KiteloopCore"
+  },
+  "commands": [
+    {
+      "name": "target-membership",
+      "run": "python3 scripts/check-target-membership.py --quiet"
+    },
+    {
+      "name": "test-host-hook",
+      "run": "bash scripts/check-test-host-hook.sh --quiet"
+    },
+    {
+      "name": "repo-map",
+      "run": "python3 scripts/check-repo-map.py --quiet"
+    },
+    {
+      "name": "control-api-docs",
+      "run": "python3 scripts/check-control-api-docs.py --quiet"
+    },
+    {
+      "name": "companion-api-list",
+      "run": "python3 scripts/check-companion-api-list.py --quiet"
+    },
+    {
+      "name": "doc-links",
+      "run": "python3 scripts/check-doc-links.py --quiet"
+    },
+    {
+      "name": "cleat-self-tests",
+      "run": "bash quality/tests/run.sh",
+      "postflight": true
+    }
+  ]
+}

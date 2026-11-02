@@ -1,0 +1,129 @@
+# The iOS companion: observe and steer the Mac app over the tailnet through the
+# control API. Same conventions as the Mac app: @Observable view models, thin
+# views, services own the transport. `xcodegen generate` writes the pbxproj.
+name: KiteloopMobile
+options:
+  bundleIdPrefix: ai.kasatkin
+  deploymentTarget:
+    iOS: "17.0"
+# Project-level, so a regenerate keeps the language mode the targets build in.
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+targets:
+  KiteloopMobile:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Shared
+    dependencies:
+      - target: KiteloopMobileWidgets
+    # The team id lives in Signing.xcconfig, which includes the gitignored
+    # Signing.local.xcconfig where a developer's own goes.
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
+    # Push notifications: `development` here; exporting for TestFlight signs
+    # the production entitlement in its place.
+    entitlements:
+      path: Sources/KiteloopMobile.entitlements
+      properties:
+        aps-environment: development
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.kasatkin.kiteloop.mobile
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "5.10"
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1"
+        # Portrait only: the phone is for reading and typing to agents, and a
+        # rotated keyboard leaves no room for the conversation.
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        # The control API rides plain HTTP inside the tailnet for the spike;
+        # WireGuard is the transport security until `tailscale serve` adds TLS.
+        INFOPLIST_KEY_NSAppTransportSecurity: ""
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+    info:
+      path: Sources/Info.plist
+      properties:
+        # Read from the build settings, so the TestFlight script's build number
+        # and MARKETING_VERSION reach the bundle.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        # A turn sent from the phone shows on the lock screen until it ends.
+        NSSupportsLiveActivities: true
+        NSCameraUsageDescription: "Scans the pairing QR code the Mac app shows, so connecting needs no typing."
+        NSLocalNetworkUsageDescription: "Connects to the Kiteloop app on your Mac over your own Wi-Fi network."
+        # Plain HTTP to whatever tailnet or LAN address the Mac hands out in the
+        # pairing QR. NSAllowsLocalNetworking must not sit beside this key: from
+        # iOS 10 its presence makes NSAllowsArbitraryLoads ignored, and a
+        # Tailscale address (100.64/10) is not "local" to ATS, so the phone
+        # refused http://100.64.0.1:4517 with a transport-policy error
+        # (2026-09-06). Sources/Info.plist is generated from this block.
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+
+  # The Live Activity for a turn sent from the phone (Widgets/), sharing its
+  # attributes with the app (Shared/).
+  KiteloopMobileWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Shared
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.kasatkin.kiteloop.mobile.widgets
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Kiteloop
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        CODE_SIGN_STYLE: Automatic
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
+  KiteloopMobileTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: KiteloopMobile
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.kasatkin.kiteloop.mobile.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+# Mirrors Kiteloop/project.yml's `schemes:` block for the Mac app.
+schemes:
+  KiteloopMobile:
+    build:
+      targets:
+        KiteloopMobile: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - KiteloopMobileTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

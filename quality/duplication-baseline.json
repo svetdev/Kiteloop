@@ -1,0 +1,17 @@
+{
+ "provenance": {
+  "tool": "built-in",
+  "version": null,
+  "config": "35debe7cd6c7"
+ },
+ "entries": [
+  {
+   "file": ".",
+   "text": "duplicated share of significant lines",
+   "line": 0,
+   "percent": 0.7,
+   "duplicated_lines": 609,
+   "total_lines": 87312
+  }
+ ]
+}

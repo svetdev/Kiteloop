@@ -1,0 +1,10 @@
+// How a local build of the iOS companion is signed.
+//
+// With no team, the simulator build works and a device build does not. Your
+// own Apple team id goes in Signing.local.xcconfig beside this file —
+// gitignored, included last so its line wins:
+//
+//   DEVELOPMENT_TEAM = ABCDE12345
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"

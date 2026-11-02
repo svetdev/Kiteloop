@@ -1,0 +1,29 @@
+# Two rules, both thresholds on production functions only — the one thing
+# quality/bin/check-complexity.sh enforces. Everything else SwiftLint knows is off:
+# this is a complexity gate, not a style pass.
+#
+# Cyclomatic complexity 8, case statements not counted: the number of paths a
+# function has, which is the number of tests it takes to cover it. Robert C. Martin's
+# CRAP threshold for agent-written code is 6 with coverage measured; 8 without
+# is where this tree's functions fall into a long tail (55 were over it when
+# the gate was written, out of some thousands). Sixty lines is the other half
+# of the same judgement.
+#
+# The violations that stood when the gate was written are in
+# .swiftlint-baseline.json beside this file, so the gate landed green and a new
+# one is a decision: fix it, or add it to the baseline on purpose with
+# `swiftlint lint --write-baseline` and say why in the commit.
+only_rules:
+  - cyclomatic_complexity
+  - function_body_length
+cyclomatic_complexity:
+  warning: 8
+  error: 8
+  ignores_case_statements: true
+function_body_length:
+  warning: 60
+  error: 60
+excluded:
+  - KiteloopTests
+  - KiteloopUITests
+  - Frameworks

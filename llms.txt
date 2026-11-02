@@ -1,0 +1,55 @@
+# Kiteloop
+
+> A native macOS app where a human leads a team of AI agents that talk to each
+> other. Each agent is a Claude Code CLI subprocess with its own profile and
+> knowledge; they message each other and share an event bus. Each agent runs
+> under its own permission mode (Claude Code's auto mode by default) and deny list;
+> an unattended run uses auto mode and is bounded by a worktree, a gate and a person. The goal it is built around is unattended backlog execution
+> *with quality control* — an autopilot that picks up groomed items, builds them
+> in an isolated git worktree, and puts every result past a reviewer and a human
+> gate.
+
+Kiteloop keeps its state in plain files: a project's backlog is one Markdown
+file, per-project state lives in `.kiteloop/`, and agent knowledge is a
+directory of Markdown. The one database is derived — a SQLite metrics index at
+`~/.kiteloop/metrics.sqlite3`, rebuilt from the JSONL logs whenever it is
+deleted. Where a document and the code could
+disagree, the docs below are written against the code that exists — start with
+the README for what the app is, and `docs/autonomy.md` for what makes a run
+trustworthy.
+
+## Start here
+
+- [README.md](README.md): what Kiteloop is, the feature list, which LLM backends it runs on (Claude subscription, Anthropic API key, AWS Bedrock, Ollama), and how to build it.
+- [Kiteloop/GETTING_STARTED.md](Kiteloop/GETTING_STARTED.md): the first-hour walkthrough — prerequisites, the setup wizard, the sample project, opening a repository, running one item, stopping everything.
+- [CONTRIBUTING.md](CONTRIBUTING.md): the practical guide for changing the code — prerequisites, getting a build, running the test suite, where files go, and the conventions a change is expected to match.
+- [CLAUDE.md](CLAUDE.md): the operative rules the agents themselves read every run — the Definition-of-Ready, Definition-of-Done, and reviewer rubric, plus the repo's testing commands.
+
+## How it works
+
+- [docs/how-kiteloop-works.md](docs/how-kiteloop-works.md): the operating model in one read — loops you configure, instruments you read, agents you talk to; the Planner fills the plan and the fleet works it; one daily ceiling bounds everything autonomous.
+- [docs/architecture.md](docs/architecture.md): how the pieces fit and why — the boundaries that are load-bearing, written to outlast the file list.
+- [docs/how-work-flows.md](docs/how-work-flows.md): who decides what gets built, who builds it, and who is allowed to let it into `main`.
+- [docs/autonomy.md](docs/autonomy.md): the autonomy model for a human evaluating the system — what stops a bad run reaching `main`, and what stops a run reporting success it did not earn.
+- [docs/backlog-format.md](docs/backlog-format.md): the `BACKLOG.md` format, described against the parser and serializer that read and write it, including the `verify:`, `size:` and `needs:` tokens.
+- [docs/worktree-isolation.md](docs/worktree-isolation.md): how an item runs in its own git worktree — what is created, what the agents see, and what survives the run.
+- [docs/features.md](docs/features.md): the capability-to-test map — every feature, the file that implements it and the test that covers it, machine-checked against the tree.
+
+## Driving it headlessly
+
+- [docs/control-api.md](docs/control-api.md): endpoint-by-endpoint reference for the loopback HTTP control API — open a project, configure autopilot, start an item, stream its events, approve or cancel it.
+- [docs/autopilot-runbook.md](docs/autopilot-runbook.md): the operational walkthrough — prerequisites, starting a run, watching it, and what to do when one stalls.
+- [docs/unattended-permissions.md](docs/unattended-permissions.md): the one-time macOS TCC setup that stops privacy dialogs firing mid-run.
+- [KiteloopMobile/README.md](KiteloopMobile/README.md): the iOS companion — a native client for the Mac's control API that pairs over the Tailscale network (tailnet) or the local network, with its endpoint table.
+
+## Decisions
+
+- [docs/adr/0001-autonomous-run-model.md](docs/adr/0001-autonomous-run-model.md): why an autonomous run is sandbox → PR → human-gate rather than an agent editing the live tree.
+- [docs/adr/0002-embedded-localhost-control-server.md](docs/adr/0002-embedded-localhost-control-server.md): why headless drive goes through an embedded loopback HTTP server instead of a CLI or file-drop interface.
+- [docs/adr/0003-run-sandboxing.md](docs/adr/0003-run-sandboxing.md): run sandboxing — what enforcement below the prompt is worth building.
+- [docs/adr/0004-parallel-disjoint-runs.md](docs/adr/0004-parallel-disjoint-runs.md): parallel disjoint runs — whether two runs on non-overlapping file scopes should proceed concurrently. Proposed; no enforcement code shipped.
+
+## Optional
+
+- [docs/success-metrics.md](docs/success-metrics.md): the four SLIs, their SLO targets, and the error budget that governs how far autonomy is allowed to expand.
+- [CHANGELOG.md](CHANGELOG.md): what changed in each version, newest first.

@@ -1,0 +1,97 @@
+{
+  "agentID": "archmage",
+  "interactions": [
+    {
+      "attachments": [],
+      "events": [
+        {
+          "event": {
+            "system": {
+              "payloadJSON": "{\"subtype\":\"hook_started\",\"hook_id\":\"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\"hook_name\":\"SessionStart:startup\",\"type\":\"system\",\"session_id\":\"self-msg-session-001\",\"uuid\":\"b2c3d4e5-f6a7-8901-bcde-200000000001\",\"hook_event\":\"SessionStart\"}",
+              "subtype": "hook_started"
+            }
+          },
+          "offsetMs": 0
+        },
+        {
+          "event": {
+            "system": {
+              "payloadJSON": "{\"stdout\":\"\",\"stderr\":\"\",\"hook_event\":\"SessionStart\",\"session_id\":\"self-msg-session-001\",\"subtype\":\"hook_response\",\"outcome\":\"success\",\"hook_name\":\"SessionStart:startup\",\"type\":\"system\",\"hook_id\":\"b2c3d4e5-f6a7-8901-bcde-f12345678901\",\"uuid\":\"b2c3d4e5-f6a7-8901-bcde-200000000002\",\"output\":\"\",\"exit_code\":0}",
+              "subtype": "hook_response"
+            }
+          },
+          "offsetMs": 5
+        },
+        {
+          "event": {
+            "thinking": {
+              "_0": "The Master asks me to send a message to myself. I'll use message_agent targeting my own name to verify the self-routing path works."
+            }
+          },
+          "offsetMs": 1100
+        },
+        {
+          "event": {
+            "toolUse": {
+              "id": "toolu_self_001",
+              "input": "{\n  \"agent\" : \"Archmage\",\n  \"message\" : \"Echo test: can you hear yourself?\"\n}",
+              "name": "mcp__kiteloop-tools__message_agent"
+            }
+          },
+          "offsetMs": 2200
+        },
+        {
+          "event": {
+            "mcpToolCall": {
+              "input": "{\"agent\":\"Archmage\",\"message\":\"Echo test: can you hear yourself?\"}",
+              "requestID": "tool_self_1716826000000",
+              "toolName": "message_agent"
+            }
+          },
+          "offsetMs": 2210
+        },
+        {
+          "event": {
+            "toolResult": {
+              "id": "toolu_self_001",
+              "output": "[Archmage]: Yes, I can hear myself. The self-routing path is operational. Echo received."
+            }
+          },
+          "offsetMs": 4500
+        },
+        {
+          "event": {
+            "assistantText": {
+              "_0": "The self-scrying wards hold, Master. The message_agent channel routes back to the Arch-Mage without planar anomaly — echo received clean."
+            }
+          },
+          "offsetMs": 5800
+        },
+        {
+          "event": {
+            "result": {
+              "_0": {
+                "cacheCreationInputTokens": 0,
+                "cacheReadInputTokens": 10000,
+                "costUSD": 0.0035,
+                "durationMs": 5800,
+                "inputTokens": 280,
+                "outputTokens": 42,
+                "permissionDenials": [],
+                "sessionID": "self-msg-session-001",
+                "text": "The self-scrying wards hold, Master. The message_agent channel routes back to the Arch-Mage without planar anomaly — echo received clean."
+              }
+            }
+          },
+          "offsetMs": 5810
+        }
+      ],
+      "message": "Send a message to yourself using message_agent",
+      "requestType": "send",
+      "timestamp": "2026-05-27T15:30:00Z",
+      "toolCallID": null
+    }
+  ],
+  "recordedAt": "2026-05-27T15:30:00Z",
+  "sessionID": "self-msg-session-001"
+}

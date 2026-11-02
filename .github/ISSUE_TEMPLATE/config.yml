@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security report
+    url: https://github.com/svetdev/Kiteloop/blob/main/SECURITY.md
+    about: A vulnerability goes by email or private vulnerability reporting, never in a public issue.

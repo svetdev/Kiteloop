@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#D9552F"/>
+      <stop offset="100%" stop-color="#B93A1D"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <g stroke="#FFF7EE" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="24">
+    <!-- wave: crest hook, face sweeping down, running right along the water to the kite tip -->
+    <path d="M 69 394
+             Q 146 289, 234 273
+             C 251 388, 212 537, 256 647
+             C 284 718, 311 740, 377 751
+             C 476 751, 520 735, 553 713
+             C 630 696, 707 669, 768 647"/>
+    <!-- kite line from the rider's hands out to the kite, ending in the curled tip -->
+    <path d="M 355 394
+             Q 465 443, 531 476
+             Q 669 482, 806 471
+             C 861 432, 927 427, 949 471
+             C 971 520, 955 586, 916 619
+             C 872 658, 806 658, 768 647"/>
+    <!-- rider: head -->
+    <circle cx="428" cy="385" r="33" fill="#FFF7EE" stroke="none"/>
+    <!-- rider: body down to the board -->
+    <path d="M 420 415 C 405 455, 398 485, 386 535"/>
+    <!-- rider: back leg -->
+    <path d="M 398 490 Q 415 515, 428 540"/>
+    <!-- rider: arm forward to the line -->
+    <path d="M 419 430 Q 396 415, 372 398"/>
+    <!-- rider: arm trailing up behind -->
+    <path d="M 437 412 Q 465 385, 490 362"/>
+    <!-- board: lens shape under the rider -->
+    <path d="M 270 570 C 278 535, 320 516, 390 516 C 458 516, 498 535, 505 570"/>
+    <path d="M 270 570 Q 390 585, 505 570"/>
+  </g>
+</svg>

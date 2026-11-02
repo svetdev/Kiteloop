@@ -1,0 +1,10 @@
+# Every branch adds its one line at the top of the current section, so two
+# branches finishing close together conflict here and nowhere else. Union keeps
+# both lines instead of stopping the merge — the resolution a human made by
+# hand for eight items on 2026-08-25.
+CHANGELOG.md merge=union
+
+# Language statistics and diffs on GitHub: cleat is tooling, not the app,
+# and the project file is generated.
+quality/** linguist-vendored
+*.pbxproj linguist-generated=true

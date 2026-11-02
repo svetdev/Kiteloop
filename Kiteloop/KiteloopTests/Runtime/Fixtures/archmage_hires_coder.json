@@ -1,0 +1,169 @@
+{
+  "agentID": "archmage",
+  "interactions": [
+    {
+      "attachments": [],
+      "events": [
+        {
+          "event": {
+            "system": {
+              "payloadJSON": "{\"subtype\":\"hook_started\",\"hook_id\":\"f1a2b3c4-d5e6-7890-abcd-ef1234567890\",\"hook_name\":\"SessionStart:startup\",\"type\":\"system\",\"session_id\":\"hire-session-001\",\"uuid\":\"a1b2c3d4-e5f6-7890-abcd-000000000001\",\"hook_event\":\"SessionStart\"}",
+              "subtype": "hook_started"
+            }
+          },
+          "offsetMs": 0
+        },
+        {
+          "event": {
+            "system": {
+              "payloadJSON": "{\"stdout\":\"\",\"stderr\":\"\",\"hook_event\":\"SessionStart\",\"session_id\":\"hire-session-001\",\"subtype\":\"hook_response\",\"outcome\":\"success\",\"hook_name\":\"SessionStart:startup\",\"type\":\"system\",\"hook_id\":\"f1a2b3c4-d5e6-7890-abcd-ef1234567890\",\"uuid\":\"a1b2c3d4-e5f6-7890-abcd-000000000002\",\"output\":\"\",\"exit_code\":0}",
+              "subtype": "hook_response"
+            }
+          },
+          "offsetMs": 5
+        },
+        {
+          "event": {
+            "thinking": {
+              "_0": "The Master requests a Coder familiar. I shall invoke the hire_agent tool to summon one from the catalog."
+            }
+          },
+          "offsetMs": 1200
+        },
+        {
+          "event": {
+            "toolUse": {
+              "id": "toolu_hire_001",
+              "input": "{\n  \"role\" : \"coder\"\n}",
+              "name": "mcp__kiteloop-tools__hire_agent"
+            }
+          },
+          "offsetMs": 2500
+        },
+        {
+          "event": {
+            "mcpToolCall": {
+              "input": "{\"role\":\"coder\"}",
+              "requestID": "tool_hire_1716825600000",
+              "toolName": "hire_agent"
+            }
+          },
+          "offsetMs": 2510
+        },
+        {
+          "event": {
+            "toolResult": {
+              "id": "toolu_hire_001",
+              "output": "Hired 'Coder' (coder) with model sonnet. They're ready to work."
+            }
+          },
+          "offsetMs": 4800
+        },
+        {
+          "event": {
+            "assistantText": {
+              "_0": "The summoning is complete, Master. A Coder familiar has been bound to the Kiteloop — model sonnet, ready to receive incantations. You'll find them in your sidebar, awaiting instructions."
+            }
+          },
+          "offsetMs": 6200
+        },
+        {
+          "event": {
+            "result": {
+              "_0": {
+                "cacheCreationInputTokens": 0,
+                "cacheReadInputTokens": 12000,
+                "costUSD": 0.0042,
+                "durationMs": 6200,
+                "inputTokens": 350,
+                "outputTokens": 48,
+                "permissionDenials": [],
+                "sessionID": "hire-session-001",
+                "text": "The summoning is complete, Master. A Coder familiar has been bound to the Kiteloop — model sonnet, ready to receive incantations. You'll find them in your sidebar, awaiting instructions."
+              }
+            }
+          },
+          "offsetMs": 6210
+        }
+      ],
+      "message": "Hire a coder",
+      "requestType": "send",
+      "timestamp": "2026-05-27T14:35:00Z",
+      "toolCallID": null
+    },
+    {
+      "attachments": [],
+      "events": [
+        {
+          "event": {
+            "thinking": {
+              "_0": "The Master wants to dismiss the Coder. I'll use the fire_agent tool."
+            }
+          },
+          "offsetMs": 800
+        },
+        {
+          "event": {
+            "toolUse": {
+              "id": "toolu_fire_001",
+              "input": "{\n  \"name\" : \"Coder\"\n}",
+              "name": "mcp__kiteloop-tools__fire_agent"
+            }
+          },
+          "offsetMs": 1500
+        },
+        {
+          "event": {
+            "mcpToolCall": {
+              "input": "{\"name\":\"Coder\"}",
+              "requestID": "tool_fire_1716825610000",
+              "toolName": "fire_agent"
+            }
+          },
+          "offsetMs": 1510
+        },
+        {
+          "event": {
+            "toolResult": {
+              "id": "toolu_fire_001",
+              "output": "Dismissed 'Coder' from the team."
+            }
+          },
+          "offsetMs": 2200
+        },
+        {
+          "event": {
+            "assistantText": {
+              "_0": "The Coder familiar has been released from service, Master. Their binding is dissolved."
+            }
+          },
+          "offsetMs": 3100
+        },
+        {
+          "event": {
+            "result": {
+              "_0": {
+                "cacheCreationInputTokens": 0,
+                "cacheReadInputTokens": 14000,
+                "costUSD": 0.0038,
+                "durationMs": 3100,
+                "inputTokens": 420,
+                "outputTokens": 28,
+                "permissionDenials": [],
+                "sessionID": "hire-session-001",
+                "text": "The Coder familiar has been released from service, Master. Their binding is dissolved."
+              }
+            }
+          },
+          "offsetMs": 3110
+        }
+      ],
+      "message": "Fire the Coder",
+      "requestType": "send",
+      "timestamp": "2026-05-27T14:36:00Z",
+      "toolCallID": null
+    }
+  ],
+  "recordedAt": "2026-05-27T14:35:00Z",
+  "sessionID": "hire-session-001"
+}

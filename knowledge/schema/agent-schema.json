@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentPackage",
+  "description": "Versioned agent package for kiteloop-knowledge",
+  "type": "object",
+  "required": ["handle", "version", "template", "knowledge"],
+  "properties": {
+    "handle": {
+      "type": "string",
+      "pattern": "^@[a-z0-9-]+$",
+      "description": "Stable cross-agent address. Must be unique within a project."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version. Canonical source of truth."
+    },
+    "repos": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Repository identifiers this agent is registered against."
+    },
+    "template": {
+      "type": "object",
+      "required": ["name", "model", "systemPrompt"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable display name."
+        },
+        "model": {
+          "type": "string",
+          "enum": ["opus", "sonnet", "haiku"],
+          "description": "Claude model tier."
+        },
+        "systemPrompt": {
+          "type": "string",
+          "description": "Path to system prompt file relative to agent directory (e.g., 'profile.md')."
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Emoji or avatar identifier."
+        },
+        "group": {
+          "type": "string",
+          "description": "Agent group for categorization."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Single-line agent description."
+        },
+        "tools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Allowed tool identifiers."
+        },
+        "mcpServers": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Required MCP server identifiers."
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Skill identifiers available to this agent."
+        },
+        "denied": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Explicitly denied tools."
+        },
+        "permissionMode": {
+          "type": "string",
+          "enum": ["auto", "default", "plan", "acceptEdits", "bypassPermissions"],
+          "default": "auto"
+        },
+        "effort": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "xhigh"],
+          "default": "high"
+        },
+        "thinkingEnabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "runtimeKind": {
+          "type": "string",
+          "enum": ["claude", "copilot", "ollama"],
+          "description": "Which runtime backend spawns this agent."
+        }
+      }
+    },
+    "knowledge": {
+      "type": "object",
+      "required": ["critical", "files", "imports"],
+      "properties": {
+        "critical": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Filenames from knowledge/ to inline into CLAUDE.md (must be < 2k tokens each)."
+        },
+        "files": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Filenames from knowledge/ to symlink for on-demand reading."
+        },
+        "imports": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^shared:.+"
+          },
+          "description": "References to shared/ docs (e.g., 'shared:api-conventions')."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

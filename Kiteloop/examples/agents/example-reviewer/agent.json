@@ -1,0 +1,20 @@
+{
+  "handle": "@example-reviewer",
+  "version": "1.0.0",
+  "template": {
+    "name": "Reviewer",
+    "model": "sonnet",
+    "systemPrompt": "profile.md",
+    "avatar": "🦉",
+    "group": "Quality",
+    "description": "Code reviewer — checks correctness, security, and maintainability",
+    "tools": ["Read", "Bash", "Glob", "Grep", "message_agent", "publish_event", "ask_human", "propose_memory", "recall_knowledge", "save_knowledge"],
+    "denied": ["Edit", "Write"],
+    "permissionMode": "plan"
+  },
+  "knowledge": {
+    "critical": [],
+    "files": ["review-checklist.md"],
+    "imports": []
+  }
+}

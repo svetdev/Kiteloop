@@ -1,0 +1,751 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		065CC9642EA2E9EFCEF4E8ED /* ConnectionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D25893BB95DFD567D300FBC8 /* ConnectionStoreTests.swift */; };
+		131BBEE9001F271B6DA4A069 /* ControlClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A97B40CA92C1C1D1285E7F7 /* ControlClient.swift */; };
+		171FC582FBAAEE155A46889E /* ProjectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F33A42F92DCE6D627EF5DD4 /* ProjectView.swift */; };
+		200F18EC2080CA6620AF40EA /* PushRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B952F42DFB8D496C118B48 /* PushRegistration.swift */; };
+		27CEDB82BB7964AE0769C56F /* PhotoAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61E078373C4A2840C6E3BF45 /* PhotoAttachment.swift */; };
+		2DB6826233C2E4F5780F42EE /* LeversViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28C55927888D5BAB24A28EE5 /* LeversViewModel.swift */; };
+		2DFD894A7E3F550628AD02D4 /* LiveActivityControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E8F7F3053A60DB4D51C1BF /* LiveActivityControllerTests.swift */; };
+		33B6A5E72DB30701ECAAAF51 /* PhotoAttachmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7745DA207CBF4CFA11558037 /* PhotoAttachmentTests.swift */; };
+		3AFDBE68BB3F95F2D06E3855 /* RefreshStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7794C5545DD75A3EAABB43E /* RefreshStateTests.swift */; };
+		3E3BCA31BE554A738EC77724 /* StatusCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E67EB542C1EE0955ED2E481B /* StatusCard.swift */; };
+		3EB31B255984220237A4012B /* ProjectViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B644C56C5916103F925D393 /* ProjectViewModel.swift */; };
+		5673A898D02B502F1DFDB92A /* QueueFilingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE68A9592E2A75BA6153889F /* QueueFilingTests.swift */; };
+		5AE167AFFF5E707AA1F62661 /* AgentsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49192DC9AD41DC09762EE6F /* AgentsViewModel.swift */; };
+		5F0501DED6AB5752C594FE31 /* KiteloopMobileApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4327F300EE7CB9A648AF672 /* KiteloopMobileApp.swift */; };
+		63610BD1E35FE329394CB1E1 /* ConnectionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E560BDE232EDCFB82C98D6C4 /* ConnectionStore.swift */; };
+		671AF415BD822C636B07D889 /* UsageReplyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD04BE4857524B2F1C07567 /* UsageReplyTests.swift */; };
+		744986760FE313D857484F1C /* KiteloopMobileWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B1719F17F31161B9ADD21A15 /* KiteloopMobileWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		7688870B84D6CC5C29B552FA /* ConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 088D5375C5C3046E750A8B16 /* ConnectView.swift */; };
+		77E4863BECE2E7EEFC30940C /* AgentActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43BDEAC0DACE3104807017EF /* AgentActivityAttributes.swift */; };
+		7CD5047F932433E2523C9713 /* MarkdownTextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1C178F68A7A882AA617C9B /* MarkdownTextTests.swift */; };
+		84354D179E10D751CB8E5BE8 /* APICompatibilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E8BD8BE22B791750BF3C599 /* APICompatibilityTests.swift */; };
+		8F4FD287AF59D1F423580296 /* WorkspaceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86D10122B054FC07D9D3CC49 /* WorkspaceViews.swift */; };
+		8F892306130FA8BBEA4137E7 /* QueueViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A5653FFCAC112D675B19A2D /* QueueViewModel.swift */; };
+		92583985D3688EC47D9A4ED3 /* GateReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D737018CDD01CBA4A8DD7E98 /* GateReviewView.swift */; };
+		933FF61CAC30A98481BCA365 /* RefreshStatusBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A4FB8EF548C374C84FC259E /* RefreshStatusBar.swift */; };
+		A5BEDA7714F67CDA5362DEB5 /* PairingLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85F4C6F7A38D5256688CFB1 /* PairingLinkTests.swift */; };
+		B1BF879DF2307B58A98CD6FE /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 147BD8642BCA9F40B6ADCE2E /* ChatView.swift */; };
+		B67AFA933467FE41C51E93EE /* AgentActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43BDEAC0DACE3104807017EF /* AgentActivityAttributes.swift */; };
+		B7B8921836494D48132B013D /* ProjectStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A86FB510B3BCF38FF6F1F08 /* ProjectStateTests.swift */; };
+		C0CFC4A5619D8710EA76C966 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4991933D36E9BD949EE36E72 /* MarkdownText.swift */; };
+		CC82D88E205F8FEEFDD4A381 /* WorkspaceViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2535653E38701DADD7146F1 /* WorkspaceViewsTests.swift */; };
+		CF4BF0203B8719D03433D34B /* ControlModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C79A54D8AF85913B808E7BA1 /* ControlModelsTests.swift */; };
+		D03332C0A74C35B160477ABB /* PushRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A42FB4DD834D660FB749F2 /* PushRegistrationTests.swift */; };
+		D60FFAC8855631DD2251C53C /* ScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8554181B11E79BB72A1EA8E2 /* ScannerView.swift */; };
+		DDDCD475270949FEA5F0CE50 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B777BB5CF7BBA20B05AB69 /* Keychain.swift */; };
+		E99369AEDDD8B6E837BD5D92 /* ProjectChipRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB0123964EE2A6DE93404DF /* ProjectChipRow.swift */; };
+		EA5278019845DCB4CE42D9EC /* QueueListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD8FF2C8DAB714346A69A12 /* QueueListView.swift */; };
+		EC6CAEB3F0260C4CA4F38C3E /* KiteloopMobileWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A448DB2B546B61BD9764A3 /* KiteloopMobileWidgets.swift */; };
+		ED8870DED4F76C4C5A38D858 /* AgentsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03B3DD063E07F7ADBC78F3E /* AgentsViewModelTests.swift */; };
+		F05D3185F4E1EB353A6EA67F /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD6CC29BDC3CFFA7C1428F7 /* LiveActivityController.swift */; };
+		F2A9D95B06253D116D85F647 /* NowViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3331099E9BE7F538250FE4D3 /* NowViewModel.swift */; };
+		F4ACF57DF6F632A4EB50FF5A /* ControlModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0245089751D0632E93676044 /* ControlModels.swift */; };
+		F5D36A79AE10652D8F6FB9BA /* RefreshState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC14D76228D3E2BF8D629CA /* RefreshState.swift */; };
+		F7A24FBC24014FFC2BAB25EC /* ControlClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 226751D01C951CF9EF528154 /* ControlClientTests.swift */; };
+		FA0341920FB6128940792556 /* FleetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47E23077747B86ECF5D81970 /* FleetView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		449C372CAFFDC3F1A540FDC2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3CFC841C9CA1927F483F2975 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1CE7963535CD4A8BDAAC15FC;
+			remoteInfo = KiteloopMobileWidgets;
+		};
+		FE24CDE24639A6C680C4FBBF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3CFC841C9CA1927F483F2975 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A3A9C340D2C7014EE3EF7873;
+			remoteInfo = KiteloopMobile;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		96AFACFD3B3A353E4F20F207 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				744986760FE313D857484F1C /* KiteloopMobileWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		01476A3735C68CFAC00D047F /* KiteloopMobile.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = KiteloopMobile.entitlements; sourceTree = "<group>"; };
+		0245089751D0632E93676044 /* ControlModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlModels.swift; sourceTree = "<group>"; };
+		088D5375C5C3046E750A8B16 /* ConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectView.swift; sourceTree = "<group>"; };
+		0A86FB510B3BCF38FF6F1F08 /* ProjectStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStateTests.swift; sourceTree = "<group>"; };
+		0C25DCB97330E97D9E8A911B /* KiteloopMobileTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = KiteloopMobileTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0DD04BE4857524B2F1C07567 /* UsageReplyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageReplyTests.swift; sourceTree = "<group>"; };
+		147BD8642BCA9F40B6ADCE2E /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		1A5653FFCAC112D675B19A2D /* QueueViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueViewModel.swift; sourceTree = "<group>"; };
+		1F33A42F92DCE6D627EF5DD4 /* ProjectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectView.swift; sourceTree = "<group>"; };
+		226751D01C951CF9EF528154 /* ControlClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlClientTests.swift; sourceTree = "<group>"; };
+		28C55927888D5BAB24A28EE5 /* LeversViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeversViewModel.swift; sourceTree = "<group>"; };
+		2F14806F4A39A8A739B28DE9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		3331099E9BE7F538250FE4D3 /* NowViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowViewModel.swift; sourceTree = "<group>"; };
+		40B952F42DFB8D496C118B48 /* PushRegistration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistration.swift; sourceTree = "<group>"; };
+		43BDEAC0DACE3104807017EF /* AgentActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentActivityAttributes.swift; sourceTree = "<group>"; };
+		47E23077747B86ECF5D81970 /* FleetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetView.swift; sourceTree = "<group>"; };
+		4991933D36E9BD949EE36E72 /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
+		4A97B40CA92C1C1D1285E7F7 /* ControlClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlClient.swift; sourceTree = "<group>"; };
+		4FD6CC29BDC3CFFA7C1428F7 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
+		5A1C178F68A7A882AA617C9B /* MarkdownTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTextTests.swift; sourceTree = "<group>"; };
+		5CA95EB4CD9196ABAEFD1650 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
+		5EB0123964EE2A6DE93404DF /* ProjectChipRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectChipRow.swift; sourceTree = "<group>"; };
+		61E078373C4A2840C6E3BF45 /* PhotoAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAttachment.swift; sourceTree = "<group>"; };
+		65A42FB4DD834D660FB749F2 /* PushRegistrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRegistrationTests.swift; sourceTree = "<group>"; };
+		6B644C56C5916103F925D393 /* ProjectViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectViewModel.swift; sourceTree = "<group>"; };
+		7745DA207CBF4CFA11558037 /* PhotoAttachmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoAttachmentTests.swift; sourceTree = "<group>"; };
+		80A448DB2B546B61BD9764A3 /* KiteloopMobileWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopMobileWidgets.swift; sourceTree = "<group>"; };
+		81E8F7F3053A60DB4D51C1BF /* LiveActivityControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityControllerTests.swift; sourceTree = "<group>"; };
+		8554181B11E79BB72A1EA8E2 /* ScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScannerView.swift; sourceTree = "<group>"; };
+		86D10122B054FC07D9D3CC49 /* WorkspaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViews.swift; sourceTree = "<group>"; };
+		96B777BB5CF7BBA20B05AB69 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Keychain.swift; sourceTree = "<group>"; };
+		9A4FB8EF548C374C84FC259E /* RefreshStatusBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshStatusBar.swift; sourceTree = "<group>"; };
+		9E8BD8BE22B791750BF3C599 /* APICompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APICompatibilityTests.swift; sourceTree = "<group>"; };
+		A03B3DD063E07F7ADBC78F3E /* AgentsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsViewModelTests.swift; sourceTree = "<group>"; };
+		B1719F17F31161B9ADD21A15 /* KiteloopMobileWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = KiteloopMobileWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		B2535653E38701DADD7146F1 /* WorkspaceViewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViewsTests.swift; sourceTree = "<group>"; };
+		B4327F300EE7CB9A648AF672 /* KiteloopMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopMobileApp.swift; sourceTree = "<group>"; };
+		BE68A9592E2A75BA6153889F /* QueueFilingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueFilingTests.swift; sourceTree = "<group>"; };
+		C79A54D8AF85913B808E7BA1 /* ControlModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlModelsTests.swift; sourceTree = "<group>"; };
+		D25893BB95DFD567D300FBC8 /* ConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStoreTests.swift; sourceTree = "<group>"; };
+		D737018CDD01CBA4A8DD7E98 /* GateReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateReviewView.swift; sourceTree = "<group>"; };
+		D7794C5545DD75A3EAABB43E /* RefreshStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshStateTests.swift; sourceTree = "<group>"; };
+		DD72B72982D565A57C4FA345 /* KiteloopMobile.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KiteloopMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E0A02BA82A19F31D37AAE80E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E560BDE232EDCFB82C98D6C4 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
+		E67EB542C1EE0955ED2E481B /* StatusCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCard.swift; sourceTree = "<group>"; };
+		F49192DC9AD41DC09762EE6F /* AgentsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsViewModel.swift; sourceTree = "<group>"; };
+		F85F4C6F7A38D5256688CFB1 /* PairingLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairingLinkTests.swift; sourceTree = "<group>"; };
+		FAD8FF2C8DAB714346A69A12 /* QueueListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueListView.swift; sourceTree = "<group>"; };
+		FBC14D76228D3E2BF8D629CA /* RefreshState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshState.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		0079905C2A466C238C228120 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				DD72B72982D565A57C4FA345 /* KiteloopMobile.app */,
+				0C25DCB97330E97D9E8A911B /* KiteloopMobileTests.xctest */,
+				B1719F17F31161B9ADD21A15 /* KiteloopMobileWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		547BFC413A8BB8605A3F18BE /* KiteloopMobile */ = {
+			isa = PBXGroup;
+			children = (
+				5CA95EB4CD9196ABAEFD1650 /* Signing.xcconfig */,
+			);
+			name = KiteloopMobile;
+			path = .;
+			sourceTree = "<group>";
+		};
+		61EB821C34AA6E7DB42C53DE /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				147BD8642BCA9F40B6ADCE2E /* ChatView.swift */,
+				088D5375C5C3046E750A8B16 /* ConnectView.swift */,
+				47E23077747B86ECF5D81970 /* FleetView.swift */,
+				D737018CDD01CBA4A8DD7E98 /* GateReviewView.swift */,
+				4991933D36E9BD949EE36E72 /* MarkdownText.swift */,
+				5EB0123964EE2A6DE93404DF /* ProjectChipRow.swift */,
+				1F33A42F92DCE6D627EF5DD4 /* ProjectView.swift */,
+				FAD8FF2C8DAB714346A69A12 /* QueueListView.swift */,
+				9A4FB8EF548C374C84FC259E /* RefreshStatusBar.swift */,
+				8554181B11E79BB72A1EA8E2 /* ScannerView.swift */,
+				E67EB542C1EE0955ED2E481B /* StatusCard.swift */,
+				86D10122B054FC07D9D3CC49 /* WorkspaceViews.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		7959B99B76038604F784E7C1 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				E560BDE232EDCFB82C98D6C4 /* ConnectionStore.swift */,
+				4A97B40CA92C1C1D1285E7F7 /* ControlClient.swift */,
+				96B777BB5CF7BBA20B05AB69 /* Keychain.swift */,
+				4FD6CC29BDC3CFFA7C1428F7 /* LiveActivityController.swift */,
+				61E078373C4A2840C6E3BF45 /* PhotoAttachment.swift */,
+				40B952F42DFB8D496C118B48 /* PushRegistration.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		8CD401EE0D78762604BCC141 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				43BDEAC0DACE3104807017EF /* AgentActivityAttributes.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		90207EFDBE2AA0BD83A5A15F /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				2F14806F4A39A8A739B28DE9 /* Info.plist */,
+				01476A3735C68CFAC00D047F /* KiteloopMobile.entitlements */,
+				B4327F300EE7CB9A648AF672 /* KiteloopMobileApp.swift */,
+				AEF60A8122CCF05718143756 /* Models */,
+				7959B99B76038604F784E7C1 /* Services */,
+				CC3C745D1CC5E0695B3039D8 /* ViewModels */,
+				61EB821C34AA6E7DB42C53DE /* Views */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		9400ABB885D22251F5D0A368 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				A03B3DD063E07F7ADBC78F3E /* AgentsViewModelTests.swift */,
+				9E8BD8BE22B791750BF3C599 /* APICompatibilityTests.swift */,
+				D25893BB95DFD567D300FBC8 /* ConnectionStoreTests.swift */,
+				226751D01C951CF9EF528154 /* ControlClientTests.swift */,
+				C79A54D8AF85913B808E7BA1 /* ControlModelsTests.swift */,
+				81E8F7F3053A60DB4D51C1BF /* LiveActivityControllerTests.swift */,
+				5A1C178F68A7A882AA617C9B /* MarkdownTextTests.swift */,
+				F85F4C6F7A38D5256688CFB1 /* PairingLinkTests.swift */,
+				7745DA207CBF4CFA11558037 /* PhotoAttachmentTests.swift */,
+				0A86FB510B3BCF38FF6F1F08 /* ProjectStateTests.swift */,
+				65A42FB4DD834D660FB749F2 /* PushRegistrationTests.swift */,
+				BE68A9592E2A75BA6153889F /* QueueFilingTests.swift */,
+				D7794C5545DD75A3EAABB43E /* RefreshStateTests.swift */,
+				0DD04BE4857524B2F1C07567 /* UsageReplyTests.swift */,
+				B2535653E38701DADD7146F1 /* WorkspaceViewsTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		AEF60A8122CCF05718143756 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				0245089751D0632E93676044 /* ControlModels.swift */,
+				FBC14D76228D3E2BF8D629CA /* RefreshState.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		C0DA23B5D801F82B2C34F956 /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				E0A02BA82A19F31D37AAE80E /* Info.plist */,
+				80A448DB2B546B61BD9764A3 /* KiteloopMobileWidgets.swift */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		CC3C745D1CC5E0695B3039D8 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				F49192DC9AD41DC09762EE6F /* AgentsViewModel.swift */,
+				28C55927888D5BAB24A28EE5 /* LeversViewModel.swift */,
+				3331099E9BE7F538250FE4D3 /* NowViewModel.swift */,
+				6B644C56C5916103F925D393 /* ProjectViewModel.swift */,
+				1A5653FFCAC112D675B19A2D /* QueueViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		D20C78AD015AB25306CF1F08 = {
+			isa = PBXGroup;
+			children = (
+				547BFC413A8BB8605A3F18BE /* KiteloopMobile */,
+				8CD401EE0D78762604BCC141 /* Shared */,
+				90207EFDBE2AA0BD83A5A15F /* Sources */,
+				9400ABB885D22251F5D0A368 /* Tests */,
+				C0DA23B5D801F82B2C34F956 /* Widgets */,
+				0079905C2A466C238C228120 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1CE7963535CD4A8BDAAC15FC /* KiteloopMobileWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 54529E59F97E05947A24B307 /* Build configuration list for PBXNativeTarget "KiteloopMobileWidgets" */;
+			buildPhases = (
+				B39E70B3F300041DFC0EECD1 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = KiteloopMobileWidgets;
+			packageProductDependencies = (
+			);
+			productName = KiteloopMobileWidgets;
+			productReference = B1719F17F31161B9ADD21A15 /* KiteloopMobileWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		A3A9C340D2C7014EE3EF7873 /* KiteloopMobile */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 203C8112002A790E1BEDA70A /* Build configuration list for PBXNativeTarget "KiteloopMobile" */;
+			buildPhases = (
+				2C4DB1E852F329E8CA6D891F /* Sources */,
+				96AFACFD3B3A353E4F20F207 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5905B55B7126BCA531F6A6E5 /* PBXTargetDependency */,
+			);
+			name = KiteloopMobile;
+			packageProductDependencies = (
+			);
+			productName = KiteloopMobile;
+			productReference = DD72B72982D565A57C4FA345 /* KiteloopMobile.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BBBFD5FC91A44769880ADE6F /* KiteloopMobileTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3F2A5711A3081AA645D604FB /* Build configuration list for PBXNativeTarget "KiteloopMobileTests" */;
+			buildPhases = (
+				CEA7CA7F535F751AF253C2AD /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3B00F6E1DF89712C877B87A8 /* PBXTargetDependency */,
+			);
+			name = KiteloopMobileTests;
+			packageProductDependencies = (
+			);
+			productName = KiteloopMobileTests;
+			productReference = 0C25DCB97330E97D9E8A911B /* KiteloopMobileTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3CFC841C9CA1927F483F2975 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					1CE7963535CD4A8BDAAC15FC = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					A3A9C340D2C7014EE3EF7873 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 6CE2F9A83A891F4CBAA5E5E5 /* Build configuration list for PBXProject "KiteloopMobile" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = D20C78AD015AB25306CF1F08;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 0079905C2A466C238C228120 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A3A9C340D2C7014EE3EF7873 /* KiteloopMobile */,
+				1CE7963535CD4A8BDAAC15FC /* KiteloopMobileWidgets */,
+				BBBFD5FC91A44769880ADE6F /* KiteloopMobileTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		2C4DB1E852F329E8CA6D891F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B67AFA933467FE41C51E93EE /* AgentActivityAttributes.swift in Sources */,
+				5AE167AFFF5E707AA1F62661 /* AgentsViewModel.swift in Sources */,
+				B1BF879DF2307B58A98CD6FE /* ChatView.swift in Sources */,
+				7688870B84D6CC5C29B552FA /* ConnectView.swift in Sources */,
+				63610BD1E35FE329394CB1E1 /* ConnectionStore.swift in Sources */,
+				131BBEE9001F271B6DA4A069 /* ControlClient.swift in Sources */,
+				F4ACF57DF6F632A4EB50FF5A /* ControlModels.swift in Sources */,
+				FA0341920FB6128940792556 /* FleetView.swift in Sources */,
+				92583985D3688EC47D9A4ED3 /* GateReviewView.swift in Sources */,
+				DDDCD475270949FEA5F0CE50 /* Keychain.swift in Sources */,
+				5F0501DED6AB5752C594FE31 /* KiteloopMobileApp.swift in Sources */,
+				2DB6826233C2E4F5780F42EE /* LeversViewModel.swift in Sources */,
+				F05D3185F4E1EB353A6EA67F /* LiveActivityController.swift in Sources */,
+				C0CFC4A5619D8710EA76C966 /* MarkdownText.swift in Sources */,
+				F2A9D95B06253D116D85F647 /* NowViewModel.swift in Sources */,
+				27CEDB82BB7964AE0769C56F /* PhotoAttachment.swift in Sources */,
+				E99369AEDDD8B6E837BD5D92 /* ProjectChipRow.swift in Sources */,
+				171FC582FBAAEE155A46889E /* ProjectView.swift in Sources */,
+				3EB31B255984220237A4012B /* ProjectViewModel.swift in Sources */,
+				200F18EC2080CA6620AF40EA /* PushRegistration.swift in Sources */,
+				EA5278019845DCB4CE42D9EC /* QueueListView.swift in Sources */,
+				8F892306130FA8BBEA4137E7 /* QueueViewModel.swift in Sources */,
+				F5D36A79AE10652D8F6FB9BA /* RefreshState.swift in Sources */,
+				933FF61CAC30A98481BCA365 /* RefreshStatusBar.swift in Sources */,
+				D60FFAC8855631DD2251C53C /* ScannerView.swift in Sources */,
+				3E3BCA31BE554A738EC77724 /* StatusCard.swift in Sources */,
+				8F4FD287AF59D1F423580296 /* WorkspaceViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B39E70B3F300041DFC0EECD1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				77E4863BECE2E7EEFC30940C /* AgentActivityAttributes.swift in Sources */,
+				EC6CAEB3F0260C4CA4F38C3E /* KiteloopMobileWidgets.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CEA7CA7F535F751AF253C2AD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				84354D179E10D751CB8E5BE8 /* APICompatibilityTests.swift in Sources */,
+				ED8870DED4F76C4C5A38D858 /* AgentsViewModelTests.swift in Sources */,
+				065CC9642EA2E9EFCEF4E8ED /* ConnectionStoreTests.swift in Sources */,
+				F7A24FBC24014FFC2BAB25EC /* ControlClientTests.swift in Sources */,
+				CF4BF0203B8719D03433D34B /* ControlModelsTests.swift in Sources */,
+				2DFD894A7E3F550628AD02D4 /* LiveActivityControllerTests.swift in Sources */,
+				7CD5047F932433E2523C9713 /* MarkdownTextTests.swift in Sources */,
+				A5BEDA7714F67CDA5362DEB5 /* PairingLinkTests.swift in Sources */,
+				33B6A5E72DB30701ECAAAF51 /* PhotoAttachmentTests.swift in Sources */,
+				B7B8921836494D48132B013D /* ProjectStateTests.swift in Sources */,
+				D03332C0A74C35B160477ABB /* PushRegistrationTests.swift in Sources */,
+				5673A898D02B502F1DFDB92A /* QueueFilingTests.swift in Sources */,
+				3AFDBE68BB3F95F2D06E3855 /* RefreshStateTests.swift in Sources */,
+				671AF415BD822C636B07D889 /* UsageReplyTests.swift in Sources */,
+				CC82D88E205F8FEEFDD4A381 /* WorkspaceViewsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		3B00F6E1DF89712C877B87A8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A3A9C340D2C7014EE3EF7873 /* KiteloopMobile */;
+			targetProxy = FE24CDE24639A6C680C4FBBF /* PBXContainerItemProxy */;
+		};
+		5905B55B7126BCA531F6A6E5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1CE7963535CD4A8BDAAC15FC /* KiteloopMobileWidgets */;
+			targetProxy = 449C372CAFFDC3F1A540FDC2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		02370F46076CE92FE01C54C3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.kasatkin.kiteloop.mobile.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KiteloopMobile.app/KiteloopMobile";
+			};
+			name = Debug;
+		};
+		05F486EAB37D87C2B4F843DD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5CA95EB4CD9196ABAEFD1650 /* Signing.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/KiteloopMobile.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Sources/Info.plist;
+				INFOPLIST_KEY_NSAppTransportSecurity = "";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.kasatkin.kiteloop.mobile;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.10;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		3B5CAA75955DDC8F8CF076F3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.kasatkin.kiteloop.mobile.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/KiteloopMobile.app/KiteloopMobile";
+			};
+			name = Release;
+		};
+		3F5C655C808C4C6FB4103EA6 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+		67B1761589EE51535C1FF491 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		68A2C398E698DF5A0C2A5E01 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5CA95EB4CD9196ABAEFD1650 /* Signing.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sources/KiteloopMobile.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Sources/Info.plist;
+				INFOPLIST_KEY_NSAppTransportSecurity = "";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.kasatkin.kiteloop.mobile;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.10;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AC7C9DE484DF88BBC1047CAF /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5CA95EB4CD9196ABAEFD1650 /* Signing.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Kiteloop;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.kasatkin.kiteloop.mobile.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		BAF8E96551C6AC9D13D35814 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5CA95EB4CD9196ABAEFD1650 /* Signing.xcconfig */;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Widgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Kiteloop;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.kasatkin.kiteloop.mobile.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		203C8112002A790E1BEDA70A /* Build configuration list for PBXNativeTarget "KiteloopMobile" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				05F486EAB37D87C2B4F843DD /* Debug */,
+				68A2C398E698DF5A0C2A5E01 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		3F2A5711A3081AA645D604FB /* Build configuration list for PBXNativeTarget "KiteloopMobileTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				02370F46076CE92FE01C54C3 /* Debug */,
+				3B5CAA75955DDC8F8CF076F3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		54529E59F97E05947A24B307 /* Build configuration list for PBXNativeTarget "KiteloopMobileWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BAF8E96551C6AC9D13D35814 /* Debug */,
+				AC7C9DE484DF88BBC1047CAF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6CE2F9A83A891F4CBAA5E5E5 /* Build configuration list for PBXProject "KiteloopMobile" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3F5C655C808C4C6FB4103EA6 /* Debug */,
+				67B1761589EE51535C1FF491 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 3CFC841C9CA1927F483F2975 /* Project object */;
+}

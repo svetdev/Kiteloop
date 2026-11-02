@@ -1,0 +1,1024 @@
+[
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "func send() async {",
+  "cc": 72,
+  "coverage": 0.47,
+  "crap": 850.7
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func continueFromCurrentIndex() async {",
+  "cc": 36,
+  "coverage": 0.23,
+  "crap": 629.6
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/MultilineTextInput.swift",
+  "text": "override func keyDown(with event: NSEvent) {",
+  "cc": 18,
+  "coverage": 0.0,
+  "crap": 342.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ProjectSession.swift",
+  "text": "static func bootstrap(",
+  "cc": 14,
+  "coverage": 0.0,
+  "crap": 210.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "func authorizeMCPServer(requestID: String, envValues: [String: String]) async {",
+  "cc": 11,
+  "coverage": 0.0,
+  "crap": 132.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/MarkdownRenderer.swift",
+  "text": "private static func parseInline(_ text: String, baseFont: NSFont, textColor: NSColor, paragraphStyle: NSParagraphStyle) -> NSAttributedString {",
+  "cc": 11,
+  "coverage": 0.0,
+  "crap": 132.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/InputBar.swift",
+  "text": "private func completeFilePath() -> Bool {",
+  "cc": 10,
+  "coverage": 0.0,
+  "crap": 110.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/InputBar.swift",
+  "text": "private func updateMentionMatches(for text: String) {",
+  "cc": 10,
+  "coverage": 0.0,
+  "crap": 110.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func awaitWorkflowCompletion(executionID: String) async -> ExecutionStatus {",
+  "cc": 21,
+  "coverage": 0.43,
+  "crap": 101.8
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/MarkdownRenderer.swift",
+  "text": "static func render(_ markdown: String, isDark: Bool) -> NSAttributedString {",
+  "cc": 9,
+  "coverage": 0.0,
+  "crap": 90.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+  "text": "private func runBacklogItemInCurrentAgent(_ item: BacklogItem, session: ProjectSession) {",
+  "cc": 8,
+  "coverage": 0.0,
+  "crap": 72.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func processStream(",
+  "cc": 28,
+  "coverage": 0.63,
+  "crap": 66.3
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+  "text": "func sendMCPToolResult(requestID: String, result: String, to session: AgentSession) {",
+  "cc": 7,
+  "coverage": 0.0,
+  "crap": 56.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func handleRecallKnowledge(input: String) async -> String {",
+  "cc": 7,
+  "coverage": 0.0,
+  "crap": 56.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func handleHireAgent(input: String) async -> String {",
+  "cc": 7,
+  "coverage": 0.0,
+  "crap": 56.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "func respondToPermission(requestID: String, approved: Bool, alwaysAllow: Bool = false) {",
+  "cc": 7,
+  "coverage": 0.0,
+  "crap": 56.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Backlog/BacklogItemDetailView.swift",
+  "text": "private func runRow(_ run: ItemRunHistory.Row) -> some View {",
+  "cc": 7,
+  "coverage": 0.0,
+  "crap": 56.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/MarkdownRenderer.swift",
+  "text": "private static func renderTable(_ lines: [String], isDark: Bool) -> NSAttributedString {",
+  "cc": 7,
+  "coverage": 0.0,
+  "crap": 56.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/HookConfigView.swift",
+  "text": "private func loadHooks() {",
+  "cc": 7,
+  "coverage": 0.0,
+  "crap": 56.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func saveMessages() {",
+  "cc": 8,
+  "coverage": 0.1,
+  "crap": 55.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+  "text": "private func runEvents(runId: String) -> HTTPServer.Response {",
+  "cc": 8,
+  "coverage": 0.16,
+  "crap": 45.8
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+  "text": "private func startToolRequestPipeReader(sessionID: String, pipePath: String) {",
+  "cc": 6,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func runCheckFixRound(",
+  "cc": 6,
+  "coverage": 0.0,
+  "crap": 42.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func addressPullRequestComments(",
+  "cc": 6,
+  "coverage": 0.0,
+  "crap": 42.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func runCommentPass(",
+  "cc": 6,
+  "coverage": 0.0,
+  "crap": 42.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func runGoalLoop(condition: String, initialMessage: String) async {",
+  "cc": 6,
+  "coverage": 0.0,
+  "crap": 42.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/MarkdownRenderer.swift",
+  "text": "private static func parseLine(_ line: String, baseFont: NSFont, textColor: NSColor, paragraphStyle: NSParagraphStyle, isDark: Bool) -> NSAttributedString {",
+  "cc": 6,
+  "coverage": 0.0,
+  "crap": 42.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+  "text": "private func openProjectAt(_ url: URL) async -> ControlSessionRegistry.OpenOutcome {",
+  "cc": 6,
+  "coverage": 0.0,
+  "crap": 42.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/MCPServerConfigView.swift",
+  "text": "private func saveServers() {",
+  "cc": 6,
+  "coverage": 0.0,
+  "crap": 42.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "func start(initiator: RunInitiator = .human) async {",
+  "cc": 21,
+  "coverage": 0.72,
+  "crap": 30.7
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+  "text": "func sendPermissionResponse(approved: Bool, requestID: String, to session: AgentSession) {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAIEditor.swift",
+  "text": "func propose(instruction: String, backlog: BacklogFile, projectPath: String) async {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func chargeDailyBudget(",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func verifyCoverageGap(",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Orchestrator.swift",
+  "text": "func forkAside(of sourceAgentID: String, cwd: URL, sourceSessionID: String) async throws -> Agent {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/TaskScopingEngine.swift",
+  "text": "private func buildPrompt(item: BacklogItem, detail: BacklogItemDetail?, epic: String?, projectPath: String) -> String {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/BacklogViewModel.swift",
+  "text": "func moveItem(itemID: String, toEpic epicName: String) {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func handleTaskUpdate(input: String) -> String {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "func respondToHuman(answer: String) async {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func runLoopMode(instruction: String) async {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/InputBar.swift",
+  "text": "private func handleKeyAction(_ action: InputKeyAction) -> Bool {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+  "text": "private func detailView(for agentID: String, session: ProjectSession) -> some View {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+  "text": "private func refreshRunningProjects() async {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/EpicBacklogView.swift",
+  "text": "private func itemRowContent(_ item: BacklogItem, isRetired: Bool) -> some View {",
+  "cc": 5,
+  "coverage": 0.0,
+  "crap": 30.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+  "text": "private func provision(sessionID: String, agent: Agent, cwd: URL, strategy: ResumeStrategy, options: SessionOptions) throws {",
+  "cc": 21,
+  "coverage": 0.78,
+  "crap": 19.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+  "text": "private func setAutopilot(body: Data) -> HTTPServer.Response {",
+  "cc": 22,
+  "coverage": 0.88,
+  "crap": 22.7
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogParser.swift",
+  "text": "package static func findBacklogPath(vaultURL: URL, repoPath: String) -> URL? {",
+  "cc": 20,
+  "coverage": 0.92,
+  "crap": 20.2
+ },
+ {
+  "file": "Kiteloop/Kiteloop/AppDelegate.swift",
+  "text": "func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+  "text": "func sendToolResult(toolCallID: String, content: String, to session: AgentSession) -> AsyncStream<StreamEvent> {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+  "text": "func interrupt(session: AgentSession) {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/AgentCardService.swift",
+  "text": "func resolve(agentID: String, projectID: String?, templates: [AgentTemplate]) -> AgentCard? {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func allowReviewerToRun(",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func restartAgentsAfterNoWork(itemID: String, signal: String, costUSD: Double) async {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func followPullRequestChecks(",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/HealthMonitor.swift",
+  "text": "private func tick() {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/PackageResolver.swift",
+  "text": "func availableUpdates(lock: TeamLock) -> [AgentUpdate] {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/PackageResolver.swift",
+  "text": "func sharedImportsURL() -> URL? {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "func denyMCPServer(requestID: String) {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Backlog/AutopilotView.swift",
+  "text": "private func syncAgentMessages() {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/ChatView.swift",
+  "text": "private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/InputBar.swift",
+  "text": "private func longestCommonPrefix(_ strings: [String]) -> String {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+  "text": "private func resolveSecurityScopedBookmark(forPath path: String) -> URL? {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/NewAgentSheet.swift",
+  "text": "private func agentRow(label: String, description: String, id: String, avatar: String?, group: String?) -> some View {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/EpicBacklogView.swift",
+  "text": "private func estimateBadge(_ item: BacklogItem) -> some View {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/AppPreferencesView.swift",
+  "text": "private func saveControlServer() {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/AppPreferencesView.swift",
+  "text": "private static func ipv4Addresses() -> [String] {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/HookConfigView.swift",
+  "text": "private func saveHooks() {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/MCPServerConfigView.swift",
+  "text": "private func loadServers() {",
+  "cc": 4,
+  "coverage": 0.0,
+  "crap": 20.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func handleSaveKnowledge(input: String) async -> String {",
+  "cc": 10,
+  "coverage": 0.54,
+  "crap": 19.6
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogParser.swift",
+  "text": "package static func parseDetail(_ content: String, fallbackID: String? = nil) -> BacklogItemDetail? {",
+  "cc": 18,
+  "coverage": 0.88,
+  "crap": 18.6
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogParser.swift",
+  "text": "package static func parseWithIssues(_ content: String) -> Result {",
+  "cc": 18,
+  "coverage": 0.98,
+  "crap": 18.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/ToolInterceptor.swift",
+  "text": "static func handle(",
+  "cc": 6,
+  "coverage": 0.33,
+  "crap": 17.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/StatusLineService.swift",
+  "text": "package func updateSessionData(model: String? = nil, costUSD: Double? = nil,",
+  "cc": 12,
+  "coverage": 0.69,
+  "crap": 16.4
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/RunScheduling.swift",
+  "text": "static func decide(portfolio: PortfolioSnapshot,",
+  "cc": 15,
+  "coverage": 0.94,
+  "crap": 15.1
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Models/StreamEvent.swift",
+  "text": "static func parse(_ jsonLine: String) throws -> StreamEvent {",
+  "cc": 15,
+  "coverage": 0.99,
+  "crap": 15.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/KnowledgePathResolver.swift",
+  "text": "static func resolveBuiltInPath() -> URL? {",
+  "cc": 6,
+  "coverage": 0.37,
+  "crap": 14.9
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+  "text": "private func historicalBody(_ record: PersistedRunRecord) -> [String: Any] {",
+  "cc": 14,
+  "coverage": 0.88,
+  "crap": 14.3
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/CoordinatorQueueRefill.swift",
+  "text": "private func perform(_ decision: QueueRefill.PassDecision,",
+  "cc": 14,
+  "coverage": 1.0,
+  "crap": 14.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/WorkflowEngine.swift",
+  "text": "func handleEvent(_ event: WorkflowEvent) async throws -> TransitionResult {",
+  "cc": 13,
+  "coverage": 0.94,
+  "crap": 13.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogSerializer.swift",
+  "text": "package static func serializeItem(_ item: BacklogItem) -> String {",
+  "cc": 13,
+  "coverage": 0.97,
+  "crap": 13.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+  "text": "private func setCoordinatorRefill(body: Data) -> HTTPServer.Response {",
+  "cc": 13,
+  "coverage": 0.99,
+  "crap": 13.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+  "text": "private func listRuns(project: String?, limit: String?) -> HTTPServer.Response {",
+  "cc": 13,
+  "coverage": 1.0,
+  "crap": 13.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+  "text": "private func runStatus(runId: String) async -> HTTPServer.Response {",
+  "cc": 5,
+  "coverage": 0.34,
+  "crap": 12.2
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/KnowledgePathResolver.swift",
+  "text": "private static func resolveRelativeToRepo() -> URL? {",
+  "cc": 7,
+  "coverage": 0.53,
+  "crap": 12.1
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Models/OrgManifest.swift",
+  "text": "private nonisolated static func read(from scanPaths: [AgentScanPath]) -> OrgManifest? {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "nonisolated static func branchLink(",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "func executionHistory() async -> [WorkflowExecution] {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func judgeRun(item: BacklogItem, itemResult: ItemResult,",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func refreshStaleGateItems() async {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func apply(",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Orchestrator.swift",
+  "text": "func resolveWorkflowApproval(executionID: String, approved: Bool, reason: String?) {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/RunKnowledgeDistiller.swift",
+  "text": "func run(events: [Event]) async -> [String] {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/BacklogViewModel.swift",
+  "text": "func updateItemSize(itemID: String, size: ItemSize) {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func handleFireAgent(input: String) -> String {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func attemptRecovery() async {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "func switchToSession(_ session: ChatSession) async {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ProjectSession.swift",
+  "text": "func syncTeamFromConfig(templates: [AgentTemplate], projectURL: URL) {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/SetupWizardViewModel.swift",
+  "text": "func installKnowledge() async {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/SetupWizardViewModel.swift",
+  "text": "private func detectFirstAWSProfile() -> String? {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Backlog/AutopilotView.swift",
+  "text": "private func spanRow(_ span: BacklogAutopilot.ExecutionSpan, isLast: Bool) -> some View {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Backlog/AutopilotView.swift",
+  "text": "private func selectableItemRow(_ item: BacklogItem, isSelected: Bool) -> some View {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/InputBar.swift",
+  "text": "private func expandBangSyntax() {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/MultilineTextInput.swift",
+  "text": "func recalcHeight() {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Chat/ToolCallView.swift",
+  "text": "init(path: String, projectRoot: String) {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+  "text": "private func projectTab(for project: KiteloopProject) -> some View {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/CoordinatorPanel.swift",
+  "text": "private func groomingControls(_ controls: CoordinatorPanelModel.Controls) -> some View {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/EpicBacklogView.swift",
+  "text": "private func openRequestedItem(_ itemID: String) {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/EpicBacklogView.swift",
+  "text": "private func retiredItemIDs(in file: BacklogFile) -> Set<String> {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/FleetBoard.swift",
+  "text": "private func stateCell(_ project: PortfolioSnapshot.Project) -> some View {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/FleetBoard.swift",
+  "text": "private func idleWithWorkCell(_ project: PortfolioSnapshot.Project,",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/FleetRunControls.swift",
+  "text": "private func armingConfirmSurface(_ preview: CoordinatorRunScheduler.ArmingPreview) -> some View {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/TaskInsightsView.swift",
+  "text": "private func cacheColor(_ rate: Double?) -> Color {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Portfolio/TaskInsightsView.swift",
+  "text": "private func deltaLabel(estimate: Double, actual: Double) -> String {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/PluginManagerView.swift",
+  "text": "private func installPlugin() async {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/PluginManagerView.swift",
+  "text": "static func removePlugins(",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Settings/SpecialistRegistryView.swift",
+  "text": "private func scan() {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Sidebar/AgentConfigSheet.swift",
+  "text": "private func loadConfig() {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Views/Sidebar/AgentConfigSheet.swift",
+  "text": "private func save() {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/RepoCloneService.swift",
+  "text": "package func refreshStatuses(repos: [String]) {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/RepoCloneService.swift",
+  "text": "package func pullAll() async {",
+  "cc": 3,
+  "coverage": 0.0,
+  "crap": 12.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/WorkspaceGenerator.swift",
+  "text": "private func stripFrontmatter(_ content: String) -> String {",
+  "cc": 4,
+  "coverage": 0.21,
+  "crap": 11.8
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/MemoryManager.swift",
+  "text": "func composeSystemContext(agent: Agent, skillRegistry: SkillRegistry?) async -> String {",
+  "cc": 11,
+  "coverage": 0.83,
+  "crap": 11.6
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/RepoCloneService.swift",
+  "text": "nonisolated private func directorySize(_ url: URL) -> Int64 {",
+  "cc": 4,
+  "coverage": 0.22,
+  "crap": 11.5
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func handleWebScroll(input: String) async -> String {",
+  "cc": 11,
+  "coverage": 0.98,
+  "crap": 11.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/StructuredOutputExtractor.swift",
+  "text": "package static func balancedSlices(in text: String, open: Character, close: Character) -> [String] {",
+  "cc": 11,
+  "coverage": 1.0,
+  "crap": 11.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/WorkflowEngine.swift",
+  "text": "func resolveHumanApproval(",
+  "cc": 10,
+  "coverage": 0.94,
+  "crap": 10.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+  "text": "private func listBacklog(project: String?) async -> HTTPServer.Response {",
+  "cc": 10,
+  "coverage": 1.0,
+  "crap": 10.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/RunQualityJudge.swift",
+  "text": "nonisolated static func jsonObjects(in text: String) -> [String] {",
+  "cc": 10,
+  "coverage": 1.0,
+  "crap": 10.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/DefinitionOfReady.swift",
+  "text": "package static func evaluate(item: BacklogItem, detail: BacklogItemDetail?,",
+  "cc": 10,
+  "coverage": 1.0,
+  "crap": 10.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+  "text": "private func setupToolBridge(sessionID: String, agent: Agent) -> ToolBridge? {",
+  "cc": 3,
+  "coverage": 0.08,
+  "crap": 9.9
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+  "text": "private func replaceAttendedSessions(itemID: String) async {",
+  "cc": 3,
+  "coverage": 0.09,
+  "crap": 9.8
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+  "text": "package static func build(root: URL,",
+  "cc": 9,
+  "coverage": 0.8,
+  "crap": 9.6
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/CoordinatorRunScheduler.swift",
+  "text": "private func performStart(_ target: RunScheduling.Target,",
+  "cc": 9,
+  "coverage": 0.88,
+  "crap": 9.2
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+  "text": "package static func classify(_ span: String) -> Citation? {",
+  "cc": 9,
+  "coverage": 0.9,
+  "crap": 9.1
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/MemoryLibrarian.swift",
+  "text": "static func parse(_ reply: String, corpus: Corpus) -> (proposals: [MemoryProposal], notes: [String]) {",
+  "cc": 9,
+  "coverage": 0.94,
+  "crap": 9.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/HookEngine.swift",
+  "text": "private func matchesRule(_ rule: KiteloopHookRule, event: HookEvent, context: HookContext) -> Bool {",
+  "cc": 9,
+  "coverage": 1.0,
+  "crap": 9.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/StrandedWorkSweep.swift",
+  "text": "static func sweep(doneItemIDs: [String], git: Git) -> StrandedWorkReport {",
+  "cc": 9,
+  "coverage": 1.0,
+  "crap": 9.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+  "text": "package static func shellWords(in segment: String) -> [String] {",
+  "cc": 9,
+  "coverage": 1.0,
+  "crap": 9.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+  "text": "package static func topLevelSegments(in command: String) -> [String] {",
+  "cc": 9,
+  "coverage": 1.0,
+  "crap": 9.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/SkillRegistry.swift",
+  "text": "private func appendCommandFiles(into discovered: inout [Skill]) {",
+  "cc": 8,
+  "coverage": 0.76,
+  "crap": 8.8
+ },
+ {
+  "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+  "text": "private func processConsultStream(_ stream: AsyncStream<StreamEvent>, handle: String, agentName: String) async {",
+  "cc": 6,
+  "coverage": 0.58,
+  "crap": 8.7
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/HotspotReportReader.swift",
+  "text": "private static func parse(_ line: String) -> Row? {",
+  "cc": 6,
+  "coverage": 0.62,
+  "crap": 8.0
+ },
+ {
+  "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/SessionStore.swift",
+  "text": "private func loadAll() {",
+  "cc": 8,
+  "coverage": 0.94,
+  "crap": 8.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/HookEngine.swift",
+  "text": "func evaluate(event: HookEvent, context: HookContext) async -> HookEvaluationResult {",
+  "cc": 8,
+  "coverage": 0.96,
+  "crap": 8.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Runtime/CopilotBridgeRuntime.swift",
+  "text": "private func performSend(message: String, sessionID: String, continuation: AsyncStream<StreamEvent>.Continuation) async {",
+  "cc": 8,
+  "coverage": 0.96,
+  "crap": 8.0
+ },
+ {
+  "file": "Kiteloop/Kiteloop/Services/BacklogTemplate.swift",
+  "text": "private func resolve(_ values: [String: String]) throws -> [String: String] {",
+  "cc": 8,
+  "coverage": 0.97,
+  "crap": 8.0
+ }
+]

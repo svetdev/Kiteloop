@@ -1,0 +1,1227 @@
+{
+ "provenance": {
+  "tool": "lizard",
+  "version": "1.24.0",
+  "config": "b92d1a9140de"
+ },
+ "entries": [
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func setCoordinatorScheduling(body: Data) -> HTTPServer.Response {",
+   "line": 2718,
+   "cc": 13,
+   "lines": 43
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Orchestrator.swift",
+   "text": "self.init(",
+   "line": 97,
+   "cc": 11,
+   "lines": 886
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/PullRequestComments.swift",
+   "text": "outputKey: .init(",
+   "line": 305,
+   "cc": 4,
+   "lines": 295
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+   "text": "private func awaitWorkflowCompletion(executionID: String) async -> ExecutionStatus {",
+   "line": 5402,
+   "cc": 11,
+   "lines": 77
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/MultilineTextInput.swift",
+   "text": "override func keyDown(with event: NSEvent) {",
+   "line": 145,
+   "cc": 35,
+   "lines": 93
+  },
+  {
+   "file": "scripts/core-package/core-inits.py",
+   "text": "def main(PKG):",
+   "line": 28,
+   "cc": 29,
+   "lines": 44
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogParser.swift",
+   "text": "package static func findBacklogPath(vaultURL: URL, repoPath: String) -> URL? {",
+   "line": 24,
+   "cc": 28,
+   "lines": 78
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ProjectSession.swift",
+   "text": "static func bootstrap(",
+   "line": 119,
+   "cc": 26,
+   "lines": 204
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+   "text": "private func provision(sessionID: String, agent: Agent, cwd: URL, strategy: ResumeStrategy, options: SessionOptions) throws {",
+   "line": 421,
+   "cc": 23,
+   "lines": 143
+  },
+  {
+   "file": "scripts/kiteloop-verify.py",
+   "text": "def run_loop(client, report, project, item, approve, timeout_min, repo_path):",
+   "line": 657,
+   "cc": 24,
+   "lines": 62
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogParser.swift",
+   "text": "package static func parseWithIssues(_ content: String) -> Result {",
+   "line": 205,
+   "cc": 22,
+   "lines": 173
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/ToolCallView.swift",
+   "text": "static func icon(for name: String) -> String {",
+   "line": 173,
+   "cc": 23,
+   "lines": 26
+  },
+  {
+   "file": "scripts/core-package/core-move.py",
+   "text": "def main(argv):",
+   "line": 145,
+   "cc": 23,
+   "lines": 87
+  },
+  {
+   "file": "scripts/kiteloop-verify.py",
+   "text": "def suite_record(report, record_path=None, repo_path=None):",
+   "line": 431,
+   "cc": 23,
+   "lines": 172
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/EventBus.swift",
+   "text": "package func publish(_ event: KiteloopEvent) {",
+   "line": 87,
+   "cc": 2,
+   "lines": 172
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Models/StreamEvent.swift",
+   "text": "static func parse(_ jsonLine: String) throws -> StreamEvent {",
+   "line": 87,
+   "cc": 21,
+   "lines": 121
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/WorkflowEngine.swift",
+   "text": "private func evaluateCondition(",
+   "line": 764,
+   "cc": 22,
+   "lines": 50
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/InputBar.swift",
+   "text": "private func handleKeyAction(_ action: InputKeyAction) -> Bool {",
+   "line": 255,
+   "cc": 22,
+   "lines": 63
+  },
+  {
+   "file": "scripts/kiteloop-verify.py",
+   "text": "def main():",
+   "line": 993,
+   "cc": 22,
+   "lines": 109
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/MemoryLibrarian.swift",
+   "text": "static func parse(_ reply: String, corpus: Corpus) -> (proposals: [MemoryProposal], notes: [String]) {",
+   "line": 257,
+   "cc": 21,
+   "lines": 80
+  },
+  {
+   "file": "scripts/core-package/core-move.py",
+   "text": "def annotate(text):",
+   "line": 50,
+   "cc": 21,
+   "lines": 27
+  },
+  {
+   "file": "scripts/kiteloop-verify.py",
+   "text": "def configure_autopilot(client, report, project, *, session_cap, per_item_cap, margin,",
+   "line": 721,
+   "cc": 21,
+   "lines": 44
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/WebPreviewViewModel.swift",
+   "text": "static func inventoryJS(generation: Int, limit: Int) -> String {",
+   "line": 451,
+   "cc": 1,
+   "lines": 155
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/CleanCodeLoopBuilder.swift",
+   "text": "private static func shellNode(id: String, command: String, timeout: Int) -> WorkflowNode {",
+   "line": 241,
+   "cc": 1,
+   "lines": 145
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/TokenStore.swift",
+   "text": "package static func get(_ key: String) -> String? { shared.get(key) }",
+   "line": 40,
+   "cc": 1,
+   "lines": 144
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/RunScheduling.swift",
+   "text": "static func decide(portfolio: PortfolioSnapshot,",
+   "line": 569,
+   "cc": 18,
+   "lines": 103
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogSerializer.swift",
+   "text": "package static func serializeItem(_ item: BacklogItem) -> String {",
+   "line": 73,
+   "cc": 16,
+   "lines": 61
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/HookEngine.swift",
+   "text": "private func executeShell(rule: KiteloopHookRule, context: HookContext, startedAt: Date) async -> HookExecutionRecord {",
+   "line": 100,
+   "cc": 9,
+   "lines": 128
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func setCoordinatorRefill(body: Data) -> HTTPServer.Response {",
+   "line": 2199,
+   "cc": 17,
+   "lines": 78
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Components/AgentAvatarView.swift",
+   "text": "private func defaultEmoji(for name: String) -> String {",
+   "line": 145,
+   "cc": 17,
+   "lines": 20
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/TranscriptView.swift",
+   "text": "private func renderTranscript() -> NSAttributedString {",
+   "line": 40,
+   "cc": 16,
+   "lines": 122
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogAIEditor.swift",
+   "text": "static func apply(_ ops: [BacklogEditOp], to viewModel: BacklogViewModel) -> [String] {",
+   "line": 148,
+   "cc": 16,
+   "lines": 61
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogTemplate.swift",
+   "text": "private static func parseHeader(_ lines: [String], name: String) throws -> BacklogTemplate {",
+   "line": 123,
+   "cc": 16,
+   "lines": 52
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "func authorizeMCPServer(requestID: String, envValues: [String: String]) async {",
+   "line": 2845,
+   "cc": 16,
+   "lines": 74
+  },
+  {
+   "file": "scripts/core-package/core-pick.py",
+   "text": "def keep_interpolations(text):",
+   "line": 29,
+   "cc": 16,
+   "lines": 32
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorRunScheduler.swift",
+   "text": "private func performStart(_ target: RunScheduling.Target,",
+   "line": 531,
+   "cc": 13,
+   "lines": 119
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Settings/AppPreferencesView.swift",
+   "text": "private func loadGlobalDefaults() {",
+   "line": 371,
+   "cc": 6,
+   "lines": 119
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "package init(pathExists: @escaping @Sendable (String) -> Bool,",
+   "line": 373,
+   "cc": 2,
+   "lines": 115
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogAIEditor.swift",
+   "text": "private static func map(_ raw: RawOp) -> MappedOp {",
+   "line": 449,
+   "cc": 15,
+   "lines": 43
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func listRuns(project: String?, limit: String?) -> HTTPServer.Response {",
+   "line": 2812,
+   "cc": 7,
+   "lines": 62
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorQueueRefill.swift",
+   "text": "private func perform(_ decision: QueueRefill.PassDecision,",
+   "line": 765,
+   "cc": 15,
+   "lines": 93
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/ToolInterceptor.swift",
+   "text": "static func handle(",
+   "line": 19,
+   "cc": 15,
+   "lines": 51
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/InputBar.swift",
+   "text": "let words = localText.split(separator: \" \", omittingEmptySubsequences: false).map(String.init)",
+   "line": 376,
+   "cc": 15,
+   "lines": 62
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+   "text": "private func projectTab(for project: KiteloopProject) -> some View {",
+   "line": 694,
+   "cc": 15,
+   "lines": 102
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogParser.swift",
+   "text": "package static func parseRegistry(_ yaml: String) -> [RegistryEntry] {",
+   "line": 123,
+   "cc": 15,
+   "lines": 62
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/ImprovementLoopBuilder.swift",
+   "text": "package static func build(from contract: Contract) -> WorkflowGraph {",
+   "line": 80,
+   "cc": 1,
+   "lines": 112
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+   "text": "(\"changedFiles\", changedFileCount.map(String.init)),",
+   "line": 3328,
+   "cc": 5,
+   "lines": 109
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/CopilotBridgeRuntime.swift",
+   "text": "private func performSend(message: String, sessionID: String, continuation: AsyncStream<StreamEvent>.Continuation) async {",
+   "line": 96,
+   "cc": 14,
+   "lines": 48
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func stampTemplate(body: Data) async -> HTTPServer.Response {",
+   "line": 4490,
+   "cc": 14,
+   "lines": 66
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/HookEngine.swift",
+   "text": "func evaluate(event: HookEvent, context: HookContext) async -> HookEvaluationResult {",
+   "line": 22,
+   "cc": 14,
+   "lines": 45
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "private func handleRecallKnowledge(input: String) async -> String {",
+   "line": 2465,
+   "cc": 14,
+   "lines": 61
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/InputBar.swift",
+   "text": "private func updateMentionMatches(for text: String) {",
+   "line": 468,
+   "cc": 14,
+   "lines": 66
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/MarkdownRenderer.swift",
+   "text": "private static func parseInline(_ text: String, baseFont: NSFont, textColor: NSColor, paragraphStyle: NSParagraphStyle) -> NSAttributedString {",
+   "line": 115,
+   "cc": 14,
+   "lines": 79
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Models/ChatAttachment.swift",
+   "text": "package static func mimeType(for filename: String) -> String {",
+   "line": 20,
+   "cc": 14,
+   "lines": 18
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Models/WebNavigationPolicy.swift",
+   "text": "package static func decide(",
+   "line": 28,
+   "cc": 14,
+   "lines": 27
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/StatusLineService.swift",
+   "text": "package func updateSessionData(model: String? = nil, costUSD: Double? = nil,",
+   "line": 35,
+   "cc": 14,
+   "lines": 43
+  },
+  {
+   "file": "scripts/kiteloop-verify.py",
+   "text": "def smoke(client, report):",
+   "line": 260,
+   "cc": 14,
+   "lines": 44
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/WorktreeSession.swift",
+   "text": "func end(outcome: BacklogAutopilot.ItemResult.Outcome) async -> Teardown {",
+   "line": 377,
+   "cc": 13,
+   "lines": 52
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Backlog/AutopilotTranscript.swift",
+   "text": "static func resultLine(tool: String, input: [String: Any], output: String) -> String {",
+   "line": 241,
+   "cc": 13,
+   "lines": 28
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/MarkdownRenderer.swift",
+   "text": "static func render(_ markdown: String, isDark: Bool) -> NSAttributedString {",
+   "line": 5,
+   "cc": 13,
+   "lines": 69
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogParser.swift",
+   "text": "func flushSection() {",
+   "line": 894,
+   "cc": 13,
+   "lines": 34
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/DefinitionOfReady.swift",
+   "text": "package static func evaluate(item: BacklogItem, detail: BacklogItemDetail?,",
+   "line": 186,
+   "cc": 13,
+   "lines": 51
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "package static func shellWords(in segment: String) -> [String] {",
+   "line": 1528,
+   "cc": 13,
+   "lines": 26
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/WorkflowReservationQueue.swift",
+   "text": "private func wakeNextWaiter(for agent: String) {",
+   "line": 81,
+   "cc": 13,
+   "lines": 25
+  },
+  {
+   "file": "scripts/kiteloop-verify.py",
+   "text": "def disagreement_sentence(rows, columns, commit, exit_status):",
+   "line": 385,
+   "cc": 13,
+   "lines": 44
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func listBacklog(project: String?) async -> HTTPServer.Response {",
+   "line": 789,
+   "cc": 12,
+   "lines": 97
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+   "text": "private func runCommentPass(",
+   "line": 7477,
+   "cc": 7,
+   "lines": 71
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "private func handleSaveKnowledge(input: String) async -> String {",
+   "line": 2527,
+   "cc": 12,
+   "lines": 94
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Portfolio/EpicBacklogView.swift",
+   "text": "private func itemRowContent(_ item: BacklogItem, isRetired: Bool) -> some View {",
+   "line": 409,
+   "cc": 7,
+   "lines": 94
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorQueueRefill.swift",
+   "text": "private func draft(target: QueueRefill.Target,",
+   "line": 1443,
+   "cc": 9,
+   "lines": 93
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+   "text": "private func runCheckFixRound(",
+   "line": 6384,
+   "cc": 7,
+   "lines": 91
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/RecordedInteraction.swift",
+   "text": "static func from(_ event: StreamEvent) -> CodableStreamEvent {",
+   "line": 69,
+   "cc": 11,
+   "lines": 38
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/RecordedInteraction.swift",
+   "text": "func toStreamEvent() -> StreamEvent {",
+   "line": 109,
+   "cc": 11,
+   "lines": 41
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/AutonomyLadder.swift",
+   "text": "static func assess(_ x: Inputs) -> [Rung] {",
+   "line": 44,
+   "cc": 12,
+   "lines": 53
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func endingWithoutResult(",
+   "line": 3574,
+   "cc": 12,
+   "lines": 49
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private static func transcriptMessage(_ msg: Message) -> [String: Any]? {",
+   "line": 4087,
+   "cc": 12,
+   "lines": 20
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func approveItem(entry: ControlSessionRegistry.Entry, itemId: String, approve: Bool, reason: String?, runId: String? = nil) async -> HTTPServer.Response {",
+   "line": 4567,
+   "cc": 12,
+   "lines": 79
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/MemoryManager.swift",
+   "text": "func composeSystemContext(agent: Agent, skillRegistry: SkillRegistry?) async -> String {",
+   "line": 312,
+   "cc": 12,
+   "lines": 46
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/RetryCeiling.swift",
+   "text": "static func evaluate(itemID: String, projectPath: String?,",
+   "line": 232,
+   "cc": 12,
+   "lines": 42
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/WorkflowEngine.swift",
+   "text": "func resolveHumanApproval(",
+   "line": 424,
+   "cc": 12,
+   "lines": 70
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "private func handleWebScroll(input: String) async -> String {",
+   "line": 1981,
+   "cc": 12,
+   "lines": 46
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "private static nonisolated func broadcastOffMain(",
+   "line": 2282,
+   "cc": 10,
+   "lines": 47
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "func performSearch() {",
+   "line": 2932,
+   "cc": 11,
+   "lines": 23
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Backlog/AutopilotTranscript.swift",
+   "text": "static func verb(for tool: String) -> String {",
+   "line": 181,
+   "cc": 12,
+   "lines": 15
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/MarkdownRenderer.swift",
+   "text": "private static func renderTable(_ lines: [String], isDark: Bool) -> NSAttributedString {",
+   "line": 229,
+   "cc": 12,
+   "lines": 61
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/Control/HTTPServer.swift",
+   "text": "package static func reason(_ status: Int) -> String {",
+   "line": 394,
+   "cc": 12,
+   "lines": 16
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "package static func topLevelSegments(in command: String) -> [String] {",
+   "line": 1563,
+   "cc": 12,
+   "lines": 36
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/StructuredOutputExtractor.swift",
+   "text": "package static func balancedSlices(in text: String, open: Character, close: Character) -> [String] {",
+   "line": 57,
+   "cc": 12,
+   "lines": 37
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+   "text": "private func recordMetric(",
+   "line": 3949,
+   "cc": 7,
+   "lines": 89
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+   "text": "nonisolated static func load(_ recents: [RecentProject], vaultURL: URL?,",
+   "line": 2030,
+   "cc": 5,
+   "lines": 86
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/ImprovementLoopBuilder.swift",
+   "text": "\"changes_summary\": .init(type: \"string\", required: true, description: \"What was changed\"),",
+   "line": 89,
+   "cc": 3,
+   "lines": 84
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/StrandedWorkSweep.swift",
+   "text": "static func sweep(doneItemIDs: [String], git: Git) -> StrandedWorkReport {",
+   "line": 153,
+   "cc": 11,
+   "lines": 83
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+   "text": "private func detailView(for agentID: String, session: ProjectSession) -> some View {",
+   "line": 1222,
+   "cc": 8,
+   "lines": 83
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/CleanCodeLoopBuilder.swift",
+   "text": "\"acceptance\": .init(type: \"string\", required: true, description: \"Given/When/Then scenarios the change must satisfy\"),",
+   "line": 127,
+   "cc": 2,
+   "lines": 83
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BlockedTriage.swift",
+   "text": "static func failure(of run: Run, policy: Policy = Policy()) -> Failure {",
+   "line": 172,
+   "cc": 11,
+   "lines": 24
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func startRun(body: Data) async -> HTTPServer.Response {",
+   "line": 2898,
+   "cc": 11,
+   "lines": 81
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/HookEngine.swift",
+   "text": "private func matchesRule(_ rule: KiteloopHookRule, event: HookEvent, context: HookContext) -> Bool {",
+   "line": 262,
+   "cc": 11,
+   "lines": 16
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/MetricIndex.swift",
+   "text": "private static func classify(",
+   "line": 1066,
+   "cc": 10,
+   "lines": 15
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/RunQualityJudge.swift",
+   "text": "nonisolated static func jsonObjects(in text: String) -> [String] {",
+   "line": 313,
+   "cc": 11,
+   "lines": 29
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/RunWorkEvidence.swift",
+   "text": "static func inspect(projectRoot: URL?, branch: String?, isolated: Bool) async -> Verdict {",
+   "line": 98,
+   "cc": 11,
+   "lines": 46
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/WorktreeManager.swift",
+   "text": "func sweep(activeKeys: Set<String> = []) -> SweepReport {",
+   "line": 490,
+   "cc": 11,
+   "lines": 46
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "private func runGoalLoop(condition: String, initialMessage: String) async {",
+   "line": 3297,
+   "cc": 11,
+   "lines": 57
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Backlog/AutopilotTranscript.swift",
+   "text": "static func make(from messages: [Message], limit: Int = defaultRowLimit) -> Transcript {",
+   "line": 80,
+   "cc": 11,
+   "lines": 43
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+   "text": "private func openProjectAt(_ url: URL) async -> ControlSessionRegistry.OpenOutcome {",
+   "line": 1421,
+   "cc": 11,
+   "lines": 66
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/SetupWizard/SetupWizardView.swift",
+   "text": "private func repoRow(_ repo: String) -> some View {",
+   "line": 195,
+   "cc": 11,
+   "lines": 51
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Models/KiteloopProject.swift",
+   "text": "package static func gitignoreAddition(for contents: String) -> String? {",
+   "line": 145,
+   "cc": 11,
+   "lines": 19
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Models/Message.swift",
+   "text": "package func encode(to encoder: Encoder) throws {",
+   "line": 167,
+   "cc": 10,
+   "lines": 14
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Models/Message.swift",
+   "text": "package init(from decoder: Decoder) throws {",
+   "line": 182,
+   "cc": 10,
+   "lines": 14
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "package static func looksLikePath(_ token: String) -> Bool {",
+   "line": 1174,
+   "cc": 11,
+   "lines": 43
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "package static func build(root: URL,",
+   "line": 1714,
+   "cc": 11,
+   "lines": 71
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/PullRequestChecks.swift",
+   "text": "package static func next(",
+   "line": 138,
+   "cc": 11,
+   "lines": 35
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/ToolCallLabel.swift",
+   "text": "package static func rowSummary(tool: String, input: [String: Any], limit: Int = 80) -> String {",
+   "line": 66,
+   "cc": 11,
+   "lines": 32
+  },
+  {
+   "file": "scripts/core-package/core-pick.py",
+   "text": "def scan(app_dir, pkg_dir):",
+   "line": 76,
+   "cc": 11,
+   "lines": 14
+  },
+  {
+   "file": "scripts/core-package/pbx-register.py",
+   "text": "def group_for(g, rel):",
+   "line": 27,
+   "cc": 11,
+   "lines": 12
+  },
+  {
+   "file": "scripts/kiteloop-verify.py",
+   "text": "def suite_table(text):",
+   "line": 327,
+   "cc": 11,
+   "lines": 28
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorQueueRefill.swift",
+   "text": "private func groom(pass: InFlightPass,",
+   "line": 919,
+   "cc": 7,
+   "lines": 78
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/WorkflowEngine.swift",
+   "text": "func handleEvent(_ event: WorkflowEvent) async throws -> TransitionResult {",
+   "line": 249,
+   "cc": 10,
+   "lines": 78
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/DebateOrchestrator.swift",
+   "text": "func run(contract: DebateContract) async -> DebateResult {",
+   "line": 59,
+   "cc": 8,
+   "lines": 76
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func groomBacklogItem(body: Data) -> HTTPServer.Response {",
+   "line": 3967,
+   "cc": 10,
+   "lines": 42
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/ItemDossier.swift",
+   "text": "static func rows(item: BacklogItem,",
+   "line": 173,
+   "cc": 10,
+   "lines": 68
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/ItemDossier.swift",
+   "text": "private static func reason(_ kind: ItemAction.Kind, _ context: Context) -> String? {",
+   "line": 372,
+   "cc": 10,
+   "lines": 23
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/ItemGitTruth.swift",
+   "text": "static func read(projectRoot: URL?, itemID: String) async -> ItemGitTruth {",
+   "line": 116,
+   "cc": 10,
+   "lines": 52
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/RunEconomics.swift",
+   "text": "static func make(records: [TaskMetricRecord], projectPath: String?,",
+   "line": 234,
+   "cc": 10,
+   "lines": 40
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/RunKnowledgeDistiller.swift",
+   "text": "static func isNotable(_ event: Event) -> Bool {",
+   "line": 64,
+   "cc": 10,
+   "lines": 10
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/WorktreeSession.swift",
+   "text": "static func begin(",
+   "line": 129,
+   "cc": 10,
+   "lines": 64
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/BacklogItemDetailViewModel.swift",
+   "text": "func resolveGate(approve: Bool, reason: String = \"\") async {",
+   "line": 304,
+   "cc": 10,
+   "lines": 28
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "private func processConsultStream(_ stream: AsyncStream<StreamEvent>, handle: String, agentName: String) async {",
+   "line": 1543,
+   "cc": 10,
+   "lines": 45
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "private func saveMessages() {",
+   "line": 3185,
+   "cc": 10,
+   "lines": 51
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+   "text": "private func runBacklogItemInCurrentAgent(_ item: BacklogItem, session: ProjectSession) {",
+   "line": 1817,
+   "cc": 10,
+   "lines": 28
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Models/MCPConfig.swift",
+   "text": "package init(from decoder: Decoder) throws {",
+   "line": 59,
+   "cc": 10,
+   "lines": 29
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogParser.swift",
+   "text": "package static func parseItemLineWithUnrecognisedFields(_ line: String, verifyDefault: String?) -> ItemLine? {",
+   "line": 679,
+   "cc": 10,
+   "lines": 55
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "let parts = citation.text.split(separator: \".\").map(String.init)",
+   "line": 640,
+   "cc": 10,
+   "lines": 60
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "package static func classify(_ span: String) -> Citation? {",
+   "line": 975,
+   "cc": 10,
+   "lines": 41
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "package static func looksLikeSymbol(_ token: String) -> Bool {",
+   "line": 1335,
+   "cc": 10,
+   "lines": 17
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/GroundingCheck.swift",
+   "text": "package static func looksLikeFilename(_ literal: String) -> Bool {",
+   "line": 1922,
+   "cc": 10,
+   "lines": 13
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/WorktreeBuildOutput.swift",
+   "text": "package static func redirectingBuilds(in command: String, toDerivedDataPath path: String) -> String {",
+   "line": 48,
+   "cc": 10,
+   "lines": 54
+  },
+  {
+   "file": "copilot-bridge-extension/src/socketServer.ts",
+   "text": "private async handleRequest(socket: net.Socket, rawLine: string): Promise<void> {",
+   "line": 66,
+   "cc": 10,
+   "lines": 46
+  },
+  {
+   "file": "scripts/core-package/core-pick.py",
+   "text": "def main(argv):",
+   "line": 130,
+   "cc": 10,
+   "lines": 22
+  },
+  {
+   "file": "scripts/kiteloop-verify.py",
+   "text": "def run_one(client, project, item, timeout_min):",
+   "line": 605,
+   "cc": 10,
+   "lines": 50
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/ItemDossier.swift",
+   "text": "static func detect(status: BacklogItemStatus,",
+   "line": 30,
+   "cc": 8,
+   "lines": 74
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogAutopilot.swift",
+   "text": "static func buildCommentPassGraph(workerAgentID: String) -> WorkflowGraph {",
+   "line": 6964,
+   "cc": 1,
+   "lines": 71
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Chat/SelectableMarkdownView.swift",
+   "text": "override init(frame: NSRect) {",
+   "line": 50,
+   "cc": 2,
+   "lines": 70
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/MainWindow.swift",
+   "text": "private func backlogAutopilot(for session: ProjectSession) -> BacklogAutopilot {",
+   "line": 1736,
+   "cc": 4,
+   "lines": 69
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ProjectSession.swift",
+   "text": "private(set) var chatViewModels: [String: ChatViewModel] = [:]",
+   "line": 45,
+   "cc": 3,
+   "lines": 68
+  },
+  {
+   "file": "Kiteloop/Kiteloop/AppDelegate.swift",
+   "text": "func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {",
+   "line": 131,
+   "cc": 9,
+   "lines": 46
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogTemplate.swift",
+   "text": "private func resolve(_ values: [String: String]) throws -> [String: String] {",
+   "line": 322,
+   "cc": 9,
+   "lines": 34
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func resumeAutopilot(body: Data) -> HTTPServer.Response {",
+   "line": 1961,
+   "cc": 9,
+   "lines": 34
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func runEvents(runId: String) -> HTTPServer.Response {",
+   "line": 3690,
+   "cc": 9,
+   "lines": 28
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func approveRun(runId: String, body: Data) async -> HTTPServer.Response {",
+   "line": 3891,
+   "cc": 9,
+   "lines": 35
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/Control/KiteloopControlServer.swift",
+   "text": "private func backlogItemDetail(query: [String: String]) -> HTTPServer.Response {",
+   "line": 4108,
+   "cc": 9,
+   "lines": 18
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorKnowledge.swift",
+   "text": "static func merge(existing: String, newLearnings: [String]) -> String {",
+   "line": 58,
+   "cc": 9,
+   "lines": 50
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorRunScheduler.swift",
+   "text": "private func syncTimer() {",
+   "line": 393,
+   "cc": 9,
+   "lines": 34
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorRunScheduler.swift",
+   "text": "private static func loadHistory(from url: URL, now: Date)",
+   "line": 956,
+   "cc": 9,
+   "lines": 49
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/PortfolioSnapshot.swift",
+   "text": "static func runState(status: BacklogAutopilot.Status, runQueue: [BacklogItem]) -> RunState? {",
+   "line": 591,
+   "cc": 9,
+   "lines": 18
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "func activityLabel(tool: String, input: String) -> Activity {",
+   "line": 1240,
+   "cc": 9,
+   "lines": 30
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "private func runLoopMode(instruction: String) async {",
+   "line": 3256,
+   "cc": 9,
+   "lines": 40
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/WebPreviewViewModel.swift",
+   "text": "func click(",
+   "line": 626,
+   "cc": 9,
+   "lines": 39
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/WebPreviewViewModel.swift",
+   "text": "func type(",
+   "line": 697,
+   "cc": 9,
+   "lines": 40
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Backlog/AutopilotView.swift",
+   "text": "private func spanRow(_ span: BacklogAutopilot.ExecutionSpan, isLast: Bool) -> some View {",
+   "line": 1022,
+   "cc": 9,
+   "lines": 62
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Settings/BacklogFlowSettingsView.swift",
+   "text": "private func color(for stage: BacklogItemStatus) -> Color {",
+   "line": 89,
+   "cc": 9,
+   "lines": 11
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Models/Skill.swift",
+   "text": "package static func parse(content: String, sourceURL: URL) throws -> Skill {",
+   "line": 39,
+   "cc": 9,
+   "lines": 58
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/PullRequestPublisher.swift",
+   "text": "package static func open(",
+   "line": 45,
+   "cc": 9,
+   "lines": 44
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/RunTranscriptStore.swift",
+   "text": "package func prune(now: Date = Date()) -> PruneReport {",
+   "line": 303,
+   "cc": 9,
+   "lines": 65
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/SessionStore.swift",
+   "text": "private func loadAll() {",
+   "line": 125,
+   "cc": 9,
+   "lines": 38
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/SkillRegistry.swift",
+   "text": "private func appendCommandFiles(into discovered: inout [Skill]) {",
+   "line": 97,
+   "cc": 9,
+   "lines": 26
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/StructuredOutputExtractor.swift",
+   "text": "private static func stringify(_ value: Any) -> String? {",
+   "line": 111,
+   "cc": 9,
+   "lines": 19
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/VerifyCoverage.swift",
+   "text": "package static func loadReporting(from url: URL?) -> (map: Map, problem: String?) {",
+   "line": 101,
+   "cc": 9,
+   "lines": 32
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/WorkflowCheckpointStore.swift",
+   "text": "package func latestCheckpoint(executionID: String) throws -> WorkflowCheckpoint? {",
+   "line": 93,
+   "cc": 9,
+   "lines": 27
+  },
+  {
+   "file": "scripts/core-package/core-pick.py",
+   "text": "def blockers(app_dir, app, raw, dep, inpkg, limit):",
+   "line": 113,
+   "cc": 9,
+   "lines": 15
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorQueueRefill.swift",
+   "text": "private func fileDraft(_ proposal: Proposal,",
+   "line": 1254,
+   "cc": 4,
+   "lines": 65
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogSerializer.swift",
+   "text": "package static func serialize(_ file: BacklogFile) -> String {",
+   "line": 8,
+   "cc": 8,
+   "lines": 64
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/MemoryLibrarianPass.swift",
+   "text": "func run(agents: [Agent], now: Date = Date()) async -> MemoryLibrarian.Outcome {",
+   "line": 65,
+   "cc": 4,
+   "lines": 63
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/WebPreviewViewModel.swift",
+   "text": "static func typeJS(generation: Int, index: Int) -> String {",
+   "line": 744,
+   "cc": 1,
+   "lines": 62
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/CoordinatorQueueRefill.swift",
+   "text": "func answerFromSource(project name: String,",
+   "line": 1361,
+   "cc": 6,
+   "lines": 61
+  }
+ ]
+}

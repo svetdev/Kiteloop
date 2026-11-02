@@ -1,0 +1,61 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+DerivedData/
+.derived/
+build/
+*.profraw
+
+# Release artifacts (scripts/make-release.sh)
+dist/
+
+# A developer's own signing identity and team, included by the tracked
+# Signing.xcconfig beside it (Kiteloop/ and KiteloopMobile/).
+Signing.local.xcconfig
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+
+# Node
+node_modules/
+copilot-bridge-extension/out/
+
+# Kiteloop runtime state (per-project agent memory, logs, sessions)
+.kiteloop/
+
+# Python bytecode (harness)
+__pycache__/
+*.pyc
+Kiteloop/.dd/
+
+# Personal Claude Code skills. `.claude/settings.json` stays tracked — it holds
+# the PreToolUse hook that refuses `xcodebuild test` while Kiteloop is running,
+# which is project config every clone needs. Skills are the operator's own
+# tooling and would have to earn a row in docs/repo-map.md to be tracked.
+.claude/skills/
+
+# Claude Code's per-machine and runtime files beside the tracked settings.json.
+.claude/settings.local.json
+.claude/worktrees/
+.claude/checkpoints/
+.claude/mailbox/
+.claude/routines/.state/
+.claude/scheduled_tasks.json
+.claude/scheduled_tasks.lock
+.claude/agent-registry.json
+.claude/agent-memory-local
+.claude/first-run
+.claude/assistant-daemon-state.json
+quality/.running/
+quality/.events.jsonl
+
+# QA flow storyboards are generated on every run (scripts/qa/run-ui-flow.sh)
+Kiteloop/KiteloopUITests/QA/storyboards/

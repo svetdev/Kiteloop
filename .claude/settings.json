@@ -1,0 +1,36 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); cmd=$(printf '%s' \"$input\" | jq -r '.tool_input.command // \"\" | gsub(\"\\\\\\\\\\\\n\"; \"\")'); printf '%s' \"$cmd\" | grep -Eq 'xcodebuild([[:space:]]+-[^[:space:]]+([[:space:]]+[^-[:space:]][^[:space:]]*)*|[[:space:]]+(clean|build|archive|analyze|install|docbuild))*[[:space:]]+test(-without-building)?([[:space:]]|$)' || exit 0; case \"$cmd\" in *KiteloopMobile.xcodeproj*) exit 0 ;; esac; why=$(pgrep -a -f \"Kiteloop[.]app/Contents/MacOS/Kiteloop\" 2>&1 >/dev/null); st=$?; if [ \"$st\" -eq 1 ]; then exit 0; fi; if [ \"$st\" -eq 0 ]; then reason=\"Kiteloop is running: \\`xcodebuild ... test\\` and \\`... test-without-building\\` launch Kiteloop.app as the XCTest host, which terminates the running instance and any autopilot run inside it. Use the build-only verify, or quit Kiteloop first.\"; else reason=\"Cannot tell whether Kiteloop is running: pgrep exited $st, which is neither a match (0) nor a clean \\\"nothing matched\\\" (1), so the process list was never read${why:+ \u2014 $why}. \\`xcodebuild ... test\\` and \\`... test-without-building\\` launch Kiteloop.app as the XCTest host and terminate a running instance along with any autopilot run inside it, so an answer that is not \\\"no\\\" cannot stand in for one. Use the build-only verify, or fix pgrep.\"; fi; jq -nc --arg r \"$reason\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"deny\",permissionDecisionReason:$r}}'",
+            "timeout": 10,
+            "statusMessage": "Checking for app-hosted test run"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$(git -C \"${CLAUDE_PROJECT_DIR:-.}\" rev-parse --show-toplevel 2>/dev/null || printf %s \"${CLAUDE_PROJECT_DIR:-.}\")/quality/bin/gate.py\" --guard"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -n \"${KITELOOP_TOOL_PIPE:-}\" ] && exit 0; python3 \"$(git -C \"${CLAUDE_PROJECT_DIR:-.}\" rev-parse --show-toplevel 2>/dev/null || printf %s \"${CLAUDE_PROJECT_DIR:-.}\")/quality/bin/gate.py\" --hook --changed"
+          }
+        ]
+      }
+    ]
+  }
+}

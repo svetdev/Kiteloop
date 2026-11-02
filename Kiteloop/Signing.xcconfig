@@ -1,0 +1,19 @@
+// How a local build of the Mac app is signed.
+//
+// These defaults are what a fresh clone, CI and scripts/make-release.sh build
+// with: ad-hoc signed, no team. They work anywhere Xcode does. A developer's
+// own identity goes in Signing.local.xcconfig beside this file — gitignored,
+// included last so its lines win:
+//
+//   CODE_SIGN_IDENTITY = Kiteloop Local Signing
+//
+// Why anyone would bother: macOS keys its unattended-permission grants (Full
+// Disk Access and the like) to the signing certificate, and an ad-hoc
+// signature is a new one on every build, so the prompts come back after each
+// rebuild. A self-signed certificate of your own keeps them — see
+// docs/unattended-permissions.md.
+CODE_SIGN_IDENTITY = -
+CODE_SIGN_STYLE = Manual
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"

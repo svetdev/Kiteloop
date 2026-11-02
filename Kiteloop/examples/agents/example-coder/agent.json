@@ -1,0 +1,19 @@
+{
+  "handle": "@example-coder",
+  "version": "1.0.0",
+  "template": {
+    "name": "Coder",
+    "model": "sonnet",
+    "systemPrompt": "profile.md",
+    "avatar": "🤖",
+    "group": "Engineering",
+    "description": "General-purpose coding agent — writes, debugs, and refactors code",
+    "tools": ["Read", "Edit", "Write", "Bash", "Glob", "Grep", "message_agent", "publish_event", "propose_memory", "recall_knowledge", "save_knowledge"],
+    "permissionMode": "acceptEdits"
+  },
+  "knowledge": {
+    "critical": [],
+    "files": ["workflows.md"],
+    "imports": []
+  }
+}

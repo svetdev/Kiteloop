@@ -1,0 +1,9 @@
+{
+  "run": "./scripts/qa/run-ui-flow.sh {spec}",
+  "smoke": "./scripts/qa/run-ui-flow.sh Kiteloop/KiteloopUITests/QA/KiteloopQASmoke.swift",
+  "spec": "Kiteloop/KiteloopUITests/QA/{id}.swift",
+  "storyboard": "Kiteloop/KiteloopUITests/QA/storyboards/{id}.md",
+  "clean": "./scripts/check-target-membership.py --quiet && ./quality/bin/check-complexity.sh --quiet && ./quality/bin/check-layering.py --quiet && ./quality/bin/check-test-hygiene.py --quiet",
+  "harden": "./scripts/qa/harden-changed.sh",
+  "guide": "Write the flow as an XCUITest: one `final class` subclassing QAStoryboardTestCase (Kiteloop/KiteloopUITests/QA/QAStoryboardTestCase.swift; read it and KiteloopQASmoke.swift first). Register the new file with `./scripts/qa/register-ui-flow.py <its path>` — an unregistered file never runs. Wrap each QA-procedure step in step(\"<what the person sees>\") { … } so its screenshot is taken, and assert what the step promises inside it. The app runs in UI-testing mode against a mock agent: launchAndOpenProject(), sendMessage(_:) and waitForResponse(containing:) in KiteloopUITests.swift drive it, and a reply the feature needs comes from a scenario in Kiteloop/Kiteloop/Testing/UITestingSupport.swift (add one, selected with app.launchEnvironment[\"UI_TEST_SCENARIO\"]). Never run `xcodebuild … test` yourself: the run command builds a separate QA copy so the running Kiteloop is untouched."
+}

@@ -1,0 +1,394 @@
+{
+ "provenance": {
+  "tool": "escapes",
+  "version": "1",
+  "config": "db33bfb8aff2"
+ },
+ "entries": [
+  {
+   "file": "Kiteloop/Kiteloop/Models/ModelPricing.swift",
+   "text": "calendar.timeZone = TimeZone(secondsFromGMT: 0)!",
+   "line": 182,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Models/StreamEvent.swift",
+   "text": "enum StreamEvent: @unchecked Sendable {",
+   "line": 3,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/AgentRuntime.swift",
+   "text": "return runtimes[kind] ?? runtimes[.claude]!",
+   "line": 101,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/AgentRuntime.swift",
+   "text": "runtimes[.claude]!",
+   "line": 109,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/ClaudeCodeCLIRuntime.swift",
+   "text": "final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {",
+   "line": 7,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/CopilotBridgeRuntime.swift",
+   "text": "final class CopilotBridgeRuntime: AgentRuntime, @unchecked Sendable {",
+   "line": 7,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/CopilotBridgeRuntime.swift",
+   "text": "guard writeToSocket(socket, data: requestLine.data(using: .utf8)!) else {",
+   "line": 205,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/CopilotBridgeRuntime.swift",
+   "text": "dest.update(from: src.baseAddress!, count: count)",
+   "line": 333,
+   "escape": "force unwrap",
+   "count": 2
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/KiteloopToolSchemas.swift",
+   "text": "struct ToolSchema: @unchecked Sendable {",
+   "line": 12,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/OllamaRuntime.swift",
+   "text": "final class OllamaRuntime: AgentRuntime, @unchecked Sendable {",
+   "line": 7,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/RecordingAgentRuntime.swift",
+   "text": "final class RecordingAgentRuntime: AgentRuntime, @unchecked Sendable {",
+   "line": 15,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/ReplayAgentRuntime.swift",
+   "text": "final class ReplayAgentRuntime: AgentRuntime, @unchecked Sendable {",
+   "line": 16,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/AgentKnowledgeStore.swift",
+   "text": "final class AgentKnowledgeStore: @unchecked Sendable, KnowledgeProviding {",
+   "line": 6,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogTemplate.swift",
+   "text": "// swiftlint:disable:next force_try",
+   "line": 472,
+   "escape": "swiftlint:disable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/BacklogTemplate.swift",
+   "text": "try! BacklogTemplate.parse(Self.skeletonSource(for: self), name: rawValue)",
+   "line": 473,
+   "escape": "force try",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/HealthMonitor.swift",
+   "text": "final class HealthMonitor: @unchecked Sendable {",
+   "line": 5,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/ItemDossier.swift",
+   "text": ": \"the run in flight is on \\(context.inFlightItemID!), not this item\"",
+   "line": 409,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/PackageResolver.swift",
+   "text": "/// `report` is sync and the reporter is `@unchecked Sendable`, so the scan",
+   "line": 110,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/RetryCeiling.swift",
+   "text": "+ ((trimmed?.isEmpty ?? true) ? \"\" : \": \\(trimmed!)\")",
+   "line": 512,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/RunQualityJudge.swift",
+   "text": "dims[key] = clamp(score(key)!)",
+   "line": 276,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/TeamConfigWatcher.swift",
+   "text": "final class TeamConfigWatcher: @unchecked Sendable {",
+   "line": 6,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/TraceStore.swift",
+   "text": "let firstTurn = turns.min(by: { $0.startTime < $1.startTime })!",
+   "line": 102,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Testing/MockAgentRuntime.swift",
+   "text": "final class MockAgentRuntime: AgentRuntime, @unchecked Sendable {",
+   "line": 4,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "let roles = (agentCatalogStore?.templates.map { agentCatalogStore!.templateHandle(for: $0) } ?? AgentTemplate.catalog.keys.sorted()).joined(separator: \", \")",
+   "line": 3101,
+   "escape": "force unwrap",
+   "count": 2
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "let elapsed = Int(Date().timeIntervalSince(activeGoal!.startedAt))",
+   "line": 3855,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "messages.append(Message(id: UUID(), timestamp: .now, sender: .system, content: .text(\"Loop ended after \\(activeGoal!.turns) turns (\\(elapsed)s, $\\(String(format: \"%.4f\", activeGoal!.totalCostUSD)))\")))",
+   "line": 3856,
+   "escape": "force unwrap",
+   "count": 2
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/ChatViewModel.swift",
+   "text": "messages.append(Message(id: UUID(), timestamp: .now, sender: .system, content: .text(\"Goal loop ended after \\(activeGoal!.turns) turns (max reached).\")))",
+   "line": 3879,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/WebPreviewViewModel.swift",
+   "text": "func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {",
+   "line": 1866,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/WebPreviewViewModel.swift",
+   "text": "func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {",
+   "line": 1873,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/WebPreviewViewModel.swift",
+   "text": "func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {",
+   "line": 1879,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/ViewModels/WebPreviewViewModel.swift",
+   "text": "func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {",
+   "line": 1885,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Settings/AgentCatalogView.swift",
+   "text": "return order.map { TemplateSection(group: $0, templates: groups[$0]!) }",
+   "line": 190,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Sidebar/AgentConfigSheet.swift",
+   "text": "serverSection(name: serverName, entry: config.mcpServers[serverName]!)",
+   "line": 36,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Views/Sidebar/KiteloopSidebar.swift",
+   "text": "return order.map { AgentGroup(key: $0, agents: groups[$0]!) }",
+   "line": 540,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/AtomicFileWriter.swift",
+   "text": "Darwin.write(fd, buffer.baseAddress!.advanced(by: offset), data.count - offset)",
+   "line": 208,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BacklogFileWatcher.swift",
+   "text": "package final class BacklogFileWatcher: @unchecked Sendable {",
+   "line": 27,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/BuildEnvironment.swift",
+   "text": "return merged.keys.sorted().map { Export(name: $0, value: merged[$0]!) }",
+   "line": 102,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/Control/HTTPServer.swift",
+   "text": "package final class HTTPServer: @unchecked Sendable {",
+   "line": 13,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/Control/HTTPServer.swift",
+   "text": "package final class SSEWriter: @unchecked Sendable {",
+   "line": 363,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/DirectoryWatcher.swift",
+   "text": "package final class DirectoryWatcher: @unchecked Sendable {",
+   "line": 4,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/KiteloopFileLogger.swift",
+   "text": "package final class KiteloopFileLogger: @unchecked Sendable {",
+   "line": 8,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/MentionParser.swift",
+   "text": "private static let mentionPattern = try! NSRegularExpression(",
+   "line": 18,
+   "escape": "force try",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/NotificationStore.swift",
+   "text": "let cutoff = Calendar.current.date(byAdding: .day, value: -7, to: Date())!",
+   "line": 269,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/PremiseReport.swift",
+   "text": "private static let leading = try! NSRegularExpression(",
+   "line": 90,
+   "escape": "force try",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/PremiseReport.swift",
+   "text": "private static let trailing = try! NSRegularExpression(",
+   "line": 97,
+   "escape": "force try",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/PullRequestComments.swift",
+   "text": "query($owner:String!,$repo:String!,$number:Int!){\\",
+   "line": 193,
+   "escape": "force unwrap",
+   "count": 3
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/PullRequestComments.swift",
+   "text": "mutation($thread:ID!,$body:String!){\\",
+   "line": 568,
+   "escape": "force unwrap",
+   "count": 2
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/PullRequestComments.swift",
+   "text": "mutation($thread:ID!){resolveReviewThread(input:{threadId:$thread}){thread{isResolved}}}",
+   "line": 574,
+   "escape": "force unwrap",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/StoreProblemReporter.swift",
+   "text": "package final class StoreProblemReporter: @unchecked Sendable {",
+   "line": 21,
+   "escape": "unchecked Sendable",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/WorkflowStateTemplater.swift",
+   "text": "private static let placeholderRegex = try! NSRegularExpression(",
+   "line": 16,
+   "escape": "force try",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/WorkflowStateTemplater.swift",
+   "text": "private static let conditionalRegex = try! NSRegularExpression(",
+   "line": 21,
+   "escape": "force try",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/WorkflowStateTemplater.swift",
+   "text": "let fullRange = Range(match.range, in: result)!",
+   "line": 49,
+   "escape": "force unwrap",
+   "count": 2
+  },
+  {
+   "file": "copilot-bridge-extension/src/copilotBridge.ts",
+   "text": "(options as any).maxTokens = maxTokens;",
+   "line": 37,
+   "escape": "any",
+   "count": 1
+  },
+  {
+   "file": "copilot-bridge-extension/src/socketServer.ts",
+   "text": "} catch (err: any) {",
+   "line": 81,
+   "escape": "any",
+   "count": 2
+  },
+  {
+   "file": "scripts/run-unit-suite.sh",
+   "text": "# shellcheck disable=SC2086",
+   "line": 1446,
+   "escape": "shellcheck disable",
+   "count": 1
+  }
+ ]
+}

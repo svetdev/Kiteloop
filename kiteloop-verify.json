@@ -1,0 +1,48 @@
+{
+  "rules": [
+    {
+      "glob": "**",
+      "command": "xcodebuild -project Kiteloop.xcodeproj -scheme Kiteloop",
+      "run": "cd Kiteloop && xcodebuild -project Kiteloop.xcodeproj -scheme Kiteloop -destination \"platform=macOS\" build-for-testing"
+    },
+    {
+      "glob": "Kiteloop/Kiteloop/**/*.swift",
+      "command": "xcodebuild -project Kiteloop.xcodeproj -scheme Kiteloop",
+      "run": "cd Kiteloop && xcodebuild -project Kiteloop.xcodeproj -scheme Kiteloop -destination \"platform=macOS\" build-for-testing"
+    },
+    {
+      "glob": "Kiteloop/Kiteloop.xcodeproj/**",
+      "command": "xcodebuild -project Kiteloop.xcodeproj -scheme Kiteloop",
+      "run": "cd Kiteloop && xcodebuild -project Kiteloop.xcodeproj -scheme Kiteloop -destination \"platform=macOS\" build-for-testing"
+    },
+    {
+      "glob": "Kiteloop/KiteloopCore/**/*.swift",
+      "command": "scripts/run-core-tests.sh",
+      "run": "./scripts/run-core-tests.sh"
+    },
+    {
+      "glob": "**/*.swift",
+      "command": "./quality/bin/check-complexity.sh"
+    },
+    {
+      "glob": "**/*.swift",
+      "command": "./quality/bin/check-layering.py"
+    },
+    {
+      "glob": "Kiteloop/KiteloopTests/**",
+      "command": "./quality/bin/check-test-hygiene.py"
+    },
+    {
+      "glob": "Kiteloop/KiteloopCore/Tests/**",
+      "command": "./quality/bin/check-test-hygiene.py"
+    },
+    {
+      "glob": "CLAUDE.md",
+      "command": "./quality/bin/check-doc-size.py"
+    },
+    {
+      "glob": "docs/features.md",
+      "command": "./quality/bin/check-features-map.py"
+    }
+  ]
+}

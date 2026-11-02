@@ -1,0 +1,65 @@
+{
+ "provenance": {
+  "tool": "conventions",
+  "version": "1",
+  "config": "828286393765"
+ },
+ "entries": [
+  {
+   "file": "Kiteloop/Kiteloop/Runtime/CopilotBridgeRuntime.swift",
+   "text": "Thread.sleep(forTimeInterval: 0.5 * Double(attempt + 1))",
+   "line": 355,
+   "rule": "blocking sleep in production code",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/WorktreeManager.swift",
+   "text": "usleep(500_000)",
+   "line": 1377,
+   "rule": "blocking sleep in production code",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/Kiteloop/Services/WorktreeManager.swift",
+   "text": "usleep(200_000)",
+   "line": 1382,
+   "rule": "blocking sleep in production code",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/ProcessTree.swift",
+   "text": "usleep(500_000)",
+   "line": 50,
+   "rule": "blocking sleep in production code",
+   "count": 2
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/StatusLineService.swift",
+   "text": "usleep(500_000)",
+   "line": 184,
+   "rule": "blocking sleep in production code",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/StatusLineService.swift",
+   "text": "usleep(50_000)",
+   "line": 189,
+   "rule": "blocking sleep in production code",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/SubprocessOutput.swift",
+   "text": "usleep(500_000)",
+   "line": 267,
+   "rule": "blocking sleep in production code",
+   "count": 1
+  },
+  {
+   "file": "Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/SubprocessOutput.swift",
+   "text": "usleep(200_000)",
+   "line": 272,
+   "rule": "blocking sleep in production code",
+   "count": 1
+  }
+ ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "kiteloop-copilot-bridge",
+  "displayName": "Kiteloop Copilot Bridge",
+  "description": "Exposes GitHub Copilot's language model API over a Unix socket for Kiteloop",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publisher": "kasatkin",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.4.0"
+  }
+}

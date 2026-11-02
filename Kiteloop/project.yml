@@ -1,0 +1,139 @@
+# `Kiteloop.xcodeproj/project.pbxproj` is checked in, and it — not this file — is
+# the project Xcode and `xcodebuild` actually read. It is hand-edited, so this
+# spec is not the source of truth: it is a second copy that has to be kept in
+# step by hand, and `xcodegen generate` overwrites the real project with whatever
+# is written here. Change a build setting in the pbxproj and mirror it below in
+# the same commit; the two drifting apart is how a regeneration silently
+# downgrades the language mode or drops the signing identity.
+name: Kiteloop
+options:
+  bundleIdPrefix: ai.kasatkin
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  minimumXcodeGenVersion: "2.40"
+
+packages:
+  Highlightr:
+    url: https://github.com/raspu/Highlightr
+    from: "2.2.1"
+  # The host-less core (KiteloopCore/Package.swift): code the app runs that
+  # needs no app, with tests that run under `swift test` and no test host.
+  KiteloopCore:
+    path: KiteloopCore
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # `package` declarations in KiteloopCore are visible to a target that
+    # carries the same package name; this is how the app sees them.
+    SWIFT_PACKAGE_NAME: kiteloopcore  # the identity SPM passes as -package-name, not the name
+    # Empty for every build but a QA one; see PRODUCT_BUNDLE_IDENTIFIER below.
+    KITELOOP_QA_SUFFIX: ""
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+targets:
+  Kiteloop:
+    type: application
+    platform: macOS
+    sources:
+      - path: Kiteloop
+        excludes:
+          - "**/*.xcassets"
+          - "Frameworks/**"
+      - path: Kiteloop/Resources
+    resources:
+      - path: examples
+      - path: Kiteloop/Resources/Assets.xcassets
+    dependencies:
+      - package: Highlightr
+      - package: KiteloopCore
+    # Signing lives in Signing.xcconfig, which includes the gitignored
+    # Signing.local.xcconfig where a developer's own identity goes.
+    configFiles:
+      Debug: Signing.xcconfig
+      Release: Signing.xcconfig
+    settings:
+      base:
+        # A QA build sets KITELOOP_QA_SUFFIX=.qa, so the copy a UI test launches is
+        # a different app from the Kiteloop running the autopilot (docs/qa-flow.md).
+        PRODUCT_BUNDLE_IDENTIFIER: "ai.kasatkin.kiteloop$(KITELOOP_QA_SUFFIX)"
+        INFOPLIST_GENERATION_MODE: GeneratedFile
+        MARKETING_VERSION: "0.4.9"
+        CURRENT_PROJECT_VERSION: 1
+        CODE_SIGN_ENTITLEMENTS: Kiteloop/Kiteloop.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_APP_SANDBOX: NO
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSDocumentsFolderUsageDescription: "Kiteloop needs access to your project files to provide AI coding assistance."
+        INFOPLIST_KEY_NSDesktopFolderUsageDescription: "Kiteloop needs access to your project files to provide AI coding assistance."
+        INFOPLIST_KEY_NSDownloadsFolderUsageDescription: "Kiteloop needs access to your project files to provide AI coding assistance."
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Kiteloop connects to GitHub, AWS, and other services to clone repos and validate credentials."
+        INFOPLIST_KEY_NSBonjourServices: _ssh._tcp
+
+  KiteloopTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: KiteloopTests
+    dependencies:
+      - target: Kiteloop
+      # the test helpers shared with the package's tests, from the local package
+      - package: KiteloopCore
+        product: KiteloopTestSupport
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.kasatkin.kiteloop.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+  KiteloopUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources:
+      - path: KiteloopUITests
+    dependencies:
+      - target: Kiteloop
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ai.kasatkin.kiteloop.uitests
+        GENERATE_INFOPLIST_FILE: YES
+
+# Mirrors Kiteloop.xcodeproj/xcshareddata/xcschemes/Kiteloop.xcscheme, which is
+# checked in and is what xcodebuild reads. `parallelizable` is why the unit
+# suite runs across cores; BuildAction lists only the app, as before.
+schemes:
+  Kiteloop:
+    build:
+      targets:
+        Kiteloop: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      parallelizable: true
+      targets:
+        - name: KiteloopTests
+          parallelizable: true
+        - name: KiteloopUITests
+          parallelizable: false
+          # Skipped: they hang when run headless (2026-07-12). Xcode refuses
+          # -only-testing for a skipped target, so they run through the
+          # KiteloopQA scheme below.
+          skipped: true
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+  # The UI tests alone, for Kiteloop's QA flow (scripts/qa/run-ui-flow.sh,
+  # docs/qa-flow.md): the same build, with KiteloopUITests the one testable.
+  KiteloopQA:
+    build:
+      targets:
+        Kiteloop: all
+    test:
+      config: Debug
+      targets:
+        - name: KiteloopUITests
+          parallelizable: false
