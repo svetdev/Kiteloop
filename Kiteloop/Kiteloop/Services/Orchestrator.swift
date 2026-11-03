@@ -85,6 +85,23 @@ class Orchestrator {
     /// parked on (autopilot cancels the execution from inside its gate).
     var nodeActivationGate: ((_ executionID: String, _ nodeID: String) async -> Bool)?
 
+    /// The account's usage limit, while the last rate-limit reading any of
+    /// this project's agents saw says it refuses calls. The autopilot reads it
+    /// when a run ends badly, to tell a run the limit stopped from one that
+    /// failed.
+    private(set) var usageLimit: UsageLimitStop?
+
+    /// One agent's rate-limit reading: a refusal sets the standing limit, and
+    /// a reading that lets calls through again clears it.
+    func noteRateLimit(_ reading: AgentActivityEvent.RateLimitInfo, now: Date = Date()) {
+        usageLimit = UsageLimitStop.stop(from: reading, now: now)
+    }
+
+    /// The usage limit if it still stands at `now`.
+    func usageLimit(standingAt now: Date) -> UsageLimitStop? {
+        usageLimit.flatMap { $0.stands(at: now) ? $0 : nil }
+    }
+
     struct ManagedSession {
         let session: AgentSession
         let runtime: any AgentRuntime

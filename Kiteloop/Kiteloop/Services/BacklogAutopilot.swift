@@ -249,6 +249,10 @@ class BacklogAutopilot {
             /// the worktree is kept, and `RetryCeiling` counts the run neither
             /// for nor against the item.
             case investigation(String)
+            /// The account's usage limit stopped the run, not anything about
+            /// the item: it goes back to `ready`, the run pauses until `until`,
+            /// and `RetryCeiling` counts it neither for nor against the item.
+            case usageLimitParked(until: Date)
         }
         /// The vocabulary the run record and the control API report an approval
         /// in. One case today: a human approval is not recorded here at all,
@@ -545,6 +549,9 @@ class BacklogAutopilot {
         /// didn't run (`PullRequestComments`).
         case pullRequestComments = "pull-request.comments"
         case runPause = "run.pause"
+        /// A run the usage limit stopped, parked back to `ready` — its own
+        /// phase, so the ledger never reads it as a failure.
+        case itemParked = "item.parked"
         case runEnd = "run.end"
     }
 
@@ -1343,6 +1350,10 @@ class BacklogAutopilot {
     }
 
     var onExecutionStarted: ((String) -> Void)?
+    /// Fired when a run parks on the account's usage limit, with when it
+    /// lifts. The scheduler listens: the limit is the account's, so every
+    /// project is held until then.
+    var onUsageLimitParked: ((UsageLimitStop) -> Void)?
     private var configURL: URL?
     private var isLoadingConfig = false
     /// Set when `autopilot-config.json` exists but its bytes could not be read
@@ -3157,6 +3168,12 @@ class BacklogAutopilot {
                         ?? Self.breakerReason(state: finalExecution?.state)
                         ?? "max retries"
                     lastStallReason = nil
+                    // Asked first: a run the account's usage limit stopped is not
+                    // a verdict on anything below — not a worker cut short, not a
+                    // tree to salvage — and a retry spent on it is a retry wasted.
+                    if let parked = parkIfUsageLimited(item, duration: duration, backlog: backlogViewModel) {
+                        itemResult = parked
+                    } else
                     // A run cut short (cost cap, stall, retry ceiling) can still have
                     // produced correct work — the loop just never got to a passing
                     // review. Re-check the item's own verify: green means it clears
@@ -3242,7 +3259,7 @@ class BacklogAutopilot {
                 // `.alreadyImplemented` is not reachable here: it is an ending
                 // this loop *derives* from the verdict below, so nothing wears
                 // it yet at the point the verdict is read.
-                case .done, .cancelled, .alreadyImplemented, .investigation:
+                case .done, .cancelled, .alreadyImplemented, .investigation, .usageLimitParked:
                     break
                 }
                 // Did this run's own session write into the project's checkout
@@ -3394,7 +3411,7 @@ class BacklogAutopilot {
                     // against. It reaches here — unlike the ordinary empty run,
                     // which `noWorkSignal` turns back — only because clearing
                     // that signal is what keeps it out of the no-work streak.
-                    case .blocked, .cancelled, .alreadyImplemented, .investigation:
+                    case .blocked, .cancelled, .alreadyImplemented, .investigation, .usageLimitParked:
                         break
                     }
                 }
@@ -3778,11 +3795,7 @@ class BacklogAutopilot {
                     await restartAgentsAfterNoWork(itemID: item.id, signal: noWorkSignal, costUSD: itemCost)
                 }
 
-                if let pause = costGovernor.takeSessionPause() {
-                    // This item is finished — resume should start at the next one.
-                    pauseForSessionCap(pause, resumeAt: index + 1)
-                    return
-                }
+                if stopsAfter(itemResult, at: index) { return }
             } catch {
                 appendLog("Error: \(item.title): \(error.localizedDescription)")
                 backlogViewModel.updateItemStatus(itemID: item.id, newStatus: .blocked)
@@ -4231,6 +4244,63 @@ class BacklogAutopilot {
 
     /// Stops the session on a spent budget: the queue keeps its remaining items
     /// and `resume()` continues from `resumeAt`, so nothing is silently dropped.
+    /// Whether the run stops once `result`, item `index`, is finished — and
+    /// if so, it has been stopped. Two reasons, both about the account rather
+    /// than the item: its usage limit refused the run, or the session's spend
+    /// reached its cap.
+    private func stopsAfter(_ result: ItemResult, at index: Int) -> Bool {
+        // The account can make no model call until the limit lifts, so the
+        // next item would only learn the same thing. The run ends rather than
+        // pausing: a paused project is one the scheduler leaves for a person,
+        // and the parked item, back in `ready` at its place in the queue, is
+        // what its first start after the reset picks up.
+        if case .usageLimitParked(let until) = result.outcome {
+            endRunForUsageLimit(until: until)
+            return true
+        }
+        guard let pause = costGovernor.takeSessionPause() else { return false }
+        // This item is finished — resume should start at the next one.
+        pauseForSessionCap(pause, resumeAt: index + 1)
+        return true
+    }
+
+    /// Ends the run on a usage-limit park; nothing queued behind the parked
+    /// item is started into the same wall.
+    private func endRunForUsageLimit(until: Date) {
+        let resumes = UsageLimitStop(resetsAt: until, window: nil, resetReported: true).resumeText(now: Date())
+        appendLog("Usage limit — ending the run; scheduled runs resume \(resumes)")
+        logPhase(.runEnd, [
+            ("status", "usage-limit"),
+            ("run", currentRunRecord?.id),
+            ("resetAt", ISO8601DateFormatter().string(from: until)),
+        ], isError: true)
+        releaseQueue()
+    }
+
+    /// A run that ended badly while the account's usage limit stands: the
+    /// item back to `ready` with a note saying when it resumes, and the
+    /// scheduler told. Nil when no limit stands — an ordinary failure.
+    private func parkIfUsageLimited(_ item: BacklogItem, duration: TimeInterval,
+                                    backlog: BacklogViewModel) -> ItemResult? {
+        let now = Date()
+        guard let limit = orchestrator?.usageLimit(standingAt: now) else { return nil }
+        let resumes = limit.resumeText(now: now)
+        let source = limit.resetReported ? "the CLI's reset time" : "no reset time given; the 5-hour session window"
+        appendLog("Usage limit — \(item.title) parked; resumes \(resumes)")
+        backlog.appendNote(itemID: item.id,
+                           "Usage limit hit — parked back to Ready, no retry charged; resumes \(resumes) (\(source)).")
+        backlog.updateItemStatus(itemID: item.id, newStatus: .ready)
+        logPhase(.itemParked, [
+            ("item", item.id),
+            ("window", limit.window),
+            ("resetAt", ISO8601DateFormatter().string(from: limit.resetsAt)),
+            ("resetReported", String(limit.resetReported)),
+        ])
+        onUsageLimitParked?(limit)
+        return ItemResult(id: item.id, title: item.title, outcome: .usageLimitParked(until: limit.resetsAt),
+                          duration: duration)
+    }
+
     private func pauseForSessionCap(_ pause: CostGovernor.SessionPause, resumeAt index: Int) {
         currentIndex = index
         appendLog(pause.logLine)
@@ -4993,6 +5063,7 @@ class BacklogAutopilot {
         case .cancelled: return "cancelled"
         case .alreadyImplemented: return TaskMetricRecord.alreadyImplementedOutcome
         case .investigation: return TaskMetricRecord.investigationOutcome
+        case .usageLimitParked: return TaskMetricRecord.usageLimitParkedOutcome
         }
     }
 
@@ -5734,7 +5805,7 @@ class BacklogAutopilot {
     ) async -> ItemResult {
         guard let backlogViewModel else { return itemResult }
         switch itemResult.outcome {
-        case .blocked, .cancelled, .alreadyImplemented, .investigation:
+        case .blocked, .cancelled, .alreadyImplemented, .investigation, .usageLimitParked:
             return itemResult
         case .awaitingApproval, .done:
             break
@@ -8755,6 +8826,11 @@ extension BacklogAutopilot {
     /// timestamp mixed in with staged ones defeats every test that slices by
     /// time.
     func clearLogForTesting() { log = [] }
+    /// The park a run that ended badly takes when the usage limit stands —
+    /// reached in production only at the end of a live workflow.
+    func parkIfUsageLimitedForTesting(_ item: BacklogItem, backlog: BacklogViewModel) -> ItemResult? {
+        parkIfUsageLimited(item, duration: 1, backlog: backlog)
+    }
     /// One cost sample of the execution as the poll loop takes it on poll
     /// `pollCount`. The loop polls every 2s and samples on every eighth poll,
     /// so a test reaching the sample through a live run waits 16s for it —

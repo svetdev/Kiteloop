@@ -226,6 +226,24 @@ final class CoordinatorRunSchedulerTests: XCTestCase {
         XCTAssertEqual(decision.target?.itemID, "alpha-ready", "3 waiting is at the floor, not over it")
     }
 
+    /// A run parked on the usage limit holds every project — the limit is the
+    /// account's — and the first look after the reset starts work again.
+    func testAStandingUsageLimitHoldsTheFleetUntilItLifts() async throws {
+        try registerProject(named: "alpha", backlog: "- [ ] alpha-1 | Ship the thing | ready")
+        armForStarting()
+        let now = Date()
+        scheduler.recordUsageLimit(UsageLimitStop(resetsAt: now.addingTimeInterval(3_600), window: "five_hour",
+                                                  resetReported: true), now: now)
+
+        let held = await scheduler.tick(now: now)
+        XCTAssertEqual(held.decision.hold?.kind, "usageLimit")
+        XCTAssertTrue(held.decision.hold?.reason.contains("resume") ?? false, held.decision.summary)
+        XCTAssertTrue(scheduler.startHistory.isEmpty, "nothing was started")
+
+        let lifted = await scheduler.tick(now: now.addingTimeInterval(3_601))
+        XCTAssertEqual(lifted.decision.target?.itemID, "alpha-1")
+    }
+
     /// A project on rung 5 — its own autopilot approves review-passed runs —
     /// clears its own gate and is never held this way.
     func testAProjectThatApprovesItsOwnReviewPassedRunsIsNeverGateHeld() async throws {

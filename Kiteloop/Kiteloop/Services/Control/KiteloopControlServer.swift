@@ -6048,6 +6048,7 @@ final class KiteloopControlServer {
         // was built from one found not to need building — the whole reason
         // the ending exists (2026-09-03).
         case .investigation: return .investigation
+        case .usageLimitParked: return .usageLimitParked
         case .blocked: return .blocked
         case .cancelled: return .cancelled
         }

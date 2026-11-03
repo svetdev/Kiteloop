@@ -429,6 +429,17 @@ struct TaskMetricRecord: Codable, Identifiable, Sendable {
     /// asserts the two stay equal.
     static let retiredRefusalOutcome = didNotRunPrefix + "retired"
 
+    /// The outcome of a run the account's usage limit stopped — read from the
+    /// CLI's `rate_limit_event`, not an exit code. The item went back to
+    /// `ready` for when the limit lifts; the run was not an attempt at it.
+    static let usageLimitParkedOutcome = "usage-limit-parked"
+
+    /// Whether this row is a run the usage limit stopped rather than an
+    /// attempt at the item. Matched exactly, like `isRetiredRefusal`.
+    var isUsageLimitParked: Bool {
+        outcome == Self.usageLimitParkedOutcome
+    }
+
     /// Whether this row is the retry ceiling's own refusal to start an item it
     /// has already retired, rather than an attempt at the item.
     ///

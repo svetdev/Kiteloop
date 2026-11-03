@@ -183,6 +183,14 @@ final class RetryCeilingTests: XCTestCase {
         XCTAssertTrue(stillRetired.isRetired)
     }
 
+    /// A run the account's usage limit stopped is the same: the wall was the
+    /// subscription's, not the item's, and it neither counts nor clears.
+    func testAUsageLimitParkNeitherCountsNorClears() {
+        let parked = record(outcome: BacklogAutopilot.outcomeString(.usageLimitParked(until: day)), at: 60)
+        XCTAssertEqual(verdict([empty(0), parked]).noWorkAttempts, 1)
+        XCTAssertTrue(verdict([empty(0), empty(60), parked, empty(180)]).isRetired)
+    }
+
     // MARK: - The run that changed nothing because there was nothing to change
 
     /// The whole point of the third ending. A worker that changes no files and

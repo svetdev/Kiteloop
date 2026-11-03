@@ -94,7 +94,7 @@ struct PortfolioSnapshot: Sendable, Equatable {
                     return .review
                 case .merge, .mergeWaiting, .pullRequest, .pullRequestChecks, .pullRequestFix,
                      .pullRequestComments, .runStart, .itemStart, .itemRelease, .itemAbort,
-                     .itemOverBudget, .itemNearCap, .itemEnd, .agentRestart, .runPause, .runEnd:
+                     .itemOverBudget, .itemNearCap, .itemEnd, .itemParked, .agentRestart, .runPause, .runEnd:
                     return stepAtOrPastTheGate(for: phase)
                 }
             }
@@ -119,7 +119,7 @@ struct PortfolioSnapshot: Sendable, Equatable {
                 case .worker, .workerEmptyDiff, .workerSteer, .verify,
                      .reviewer, .reviewerClarify, .reviewerClarifyTimeout,
                      .runStart, .itemStart, .itemRelease, .itemAbort, .itemOverBudget,
-                     .itemNearCap, .itemEnd, .agentRestart, .runPause, .runEnd:
+                     .itemNearCap, .itemEnd, .itemParked, .agentRestart, .runPause, .runEnd:
                     return nil
                 }
             }
@@ -718,6 +718,7 @@ struct PortfolioSnapshot: Sendable, Equatable {
         case .cancelled: return "cancelled"
         case .alreadyImplemented: return TaskMetricRecord.alreadyImplementedOutcome
         case .investigation: return TaskMetricRecord.investigationOutcome
+        case .usageLimitParked: return TaskMetricRecord.usageLimitParkedOutcome
         }
     }
 

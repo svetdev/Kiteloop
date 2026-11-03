@@ -312,6 +312,9 @@ final class WorktreeSession {
         // and kept, the branch is a ref a person can read or delete; an empty
         // one is still dropped, as `.commit` always has.
         case .cancelled: return .commit
+        // Cut off by the account's limit, not judged: kept the way a cancel is,
+        // so the work done before the limit is a branch rather than lost.
+        case .usageLimitParked: return .commit
         // A run that claims the item was already built changed no files, so
         // there is nothing to commit and nothing to discard — but it is now
         // sitting in front of a human, and the blocked reading is the one that

@@ -438,3 +438,35 @@ final class ChatViewModelSummonAttachmentTests: XCTestCase {
         XCTAssertTrue(vm.pendingAttachments.isEmpty)
     }
 }
+
+/// The chat hands every rate-limit reading to the orchestrator, which is where
+/// the autopilot asks whether the account's usage limit stopped a run.
+@MainActor
+final class ChatViewModelUsageLimitTests: XCTestCase {
+    func testARefusedReadingSetsTheStandingLimit() async throws {
+        let tempDir = try makeTemporaryDirectory(prefix: "chat-usage-limit")
+        let runtime = MockAgentRuntime()
+        let reset = Date().addingTimeInterval(3_600)
+        runtime.events = [
+            .system(subtype: AgentActivityEvent.rateLimitType, payload: [
+                "type": AgentActivityEvent.rateLimitType,
+                "rate_limit_info": ["status": "rejected", "rateLimitType": "five_hour",
+                                    "resetsAt": reset.timeIntervalSince1970],
+            ]),
+            .result(.init(text: "", costUSD: 0, durationMs: 1, inputTokens: 0, outputTokens: 0,
+                          cacheCreationInputTokens: 0, cacheReadInputTokens: 0, sessionID: "s",
+                          permissionDenials: [])),
+        ]
+        let orchestrator = Orchestrator(runtime: runtime)
+        orchestrator.addAgent(Agent(id: "worker", name: "Worker", model: "sonnet", systemPrompt: "", tools: [],
+                                    denied: [], permissionMode: "default", state: .idle))
+        try await orchestrator.startAgent("worker", cwd: tempDir)
+        let vm = ChatViewModel(agentID: "worker", projectURL: tempDir, orchestrator: orchestrator)
+        vm.inputText = "go"
+        await vm.send()
+
+        let limit = try XCTUnwrap(orchestrator.usageLimit(standingAt: Date()))
+        XCTAssertEqual(limit.resetsAt.timeIntervalSince1970, reset.timeIntervalSince1970, accuracy: 1)
+        XCTAssertTrue(limit.resetReported)
+    }
+}

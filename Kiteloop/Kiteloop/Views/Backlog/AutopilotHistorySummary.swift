@@ -63,7 +63,7 @@ enum AutopilotHistorySummary {
     static func isPass(_ outcome: BacklogAutopilot.ItemResult.Outcome) -> Bool {
         switch outcome {
         case .done, .awaitingApproval, .alreadyImplemented, .investigation: return true
-        case .blocked, .cancelled: return false
+        case .blocked, .cancelled, .usageLimitParked: return false
         }
     }
 

@@ -103,6 +103,10 @@ enum RunScheduling {
         /// included, joined the way `projectHeld` joins several — see
         /// `gateFullDetail`.
         case gateFull(String)
+        /// The account's usage limit stands. Every project is held, not one:
+        /// the limit is the subscription's. Carries the sentence with the
+        /// reset time, so the standing line says when it lifts.
+        case usageLimit(String)
 
         var reason: String {
             switch self {
@@ -129,6 +133,8 @@ enum RunScheduling {
                 return "the fleet is quiesced for a restart"
             case .gateFull(let detail):
                 return detail
+            case .usageLimit(let detail):
+                return detail
             }
         }
 
@@ -146,6 +152,7 @@ enum RunScheduling {
             case .itemsRefused: return "itemsRefused"
             case .quiesced: return "quiesced"
             case .gateFull: return "gateFull"
+            case .usageLimit: return "usageLimit"
             }
         }
     }
@@ -169,6 +176,14 @@ enum RunScheduling {
         guard awaitingApproval > floor else { return nil }
         return "\(project): gate holds \(awaitingApproval), more than \(floor) kept ready"
             + " — approve or send back to resume"
+    }
+
+    /// `decision`, unless it would start a run while the account's usage limit
+    /// stands — then the hold that names when it lifts. Applied after
+    /// `decide`, so a switch that is off still reads as off.
+    static func applyingUsageLimit(_ limit: UsageLimitStop?, to decision: Decision, now: Date) -> Decision {
+        guard case .start = decision, let limit, limit.stands(at: now) else { return decision }
+        return .hold(.usageLimit("the usage limit was hit — scheduled runs resume \(limit.resumeText(now: now))"))
     }
 
     /// Start it, or hold. There is no third verb: the trust boundary lives in

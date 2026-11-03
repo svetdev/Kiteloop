@@ -143,6 +143,10 @@ final class CoordinatorRunScheduler {
     /// one of the ways a same-cause hold is supposed to end, and persisting
     /// these would take that away.
     private(set) var holds = RunScheduling.Holds()
+    /// The account's usage limit, from the last run it parked. Held across the
+    /// whole portfolio until it lifts; nil once it has.
+    private(set) var usageLimit: UsageLimitStop?
+    private var usageLimitWake: Task<Void, Never>?
     /// Which currently-ready items the pickup gates have already refused, as
     /// they were written when refused — re-read at the top of every tick the
     /// same way `holds` is, and, like `holds`, kept in memory only: an app
@@ -383,6 +387,21 @@ final class CoordinatorRunScheduler {
     /// Returns the tick's task, so a caller that needs to know the look happened
     /// can await it. The app's own call discards it: the whole point is not
     /// making the finishing run wait for it.
+    /// A run parked on the usage limit. Every project is held until it lifts,
+    /// and one wake is set for that moment — the reset is the event, so the
+    /// fleet does not wait for the next timed look.
+    func recordUsageLimit(_ limit: UsageLimitStop, now: Date = Date()) {
+        usageLimit = limit
+        usageLimitWake?.cancel()
+        let delay = limit.resetsAt.timeIntervalSince(now)
+        guard delay > 0 else { return }
+        usageLimitWake = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            _ = await self?.tick()
+        }
+    }
+
     @discardableResult
     func runFinished() -> Task<Void, Never> {
         Task { [weak self] in await self?.runTick() }
@@ -491,7 +510,7 @@ final class CoordinatorRunScheduler {
         refreshHolds(portfolio: portfolio)
         gateRefusals.retain(paths: Set(portfolio.projects.map(\.path)))
 
-        let decision = RunScheduling.decide(portfolio: portfolio, enabled: enabled,
+        let decided = RunScheduling.decide(portfolio: portfolio, enabled: enabled,
                                             budget: dailyBudget, holds: holds,
                                             refusedItems: standingRefusals(portfolio: portfolio),
                                             idleSince: idleSince,
@@ -499,6 +518,7 @@ final class CoordinatorRunScheduler {
                                             queueRefillPolicy: registry.queueRefill?.policy ?? .default,
                                             startingPaths: startsInFlight,
                                             now: now)
+        let decision = RunScheduling.applyingUsageLimit(usageLimit, to: decided, now: now)
         switch decision {
         case .hold:
             return note(decision, at: now)
@@ -842,6 +862,10 @@ final class CoordinatorRunScheduler {
         // An investigation likewise did what was asked: it checked the premise
         // and answered. A refuted premise is a finding, not a failed run.
         case .done, .awaitingApproval, .alreadyImplemented, .investigation: succeeded = true
+        // Not a success, but not a failure the breaker should count either:
+        // the account's limit stopped it, and the portfolio-wide usage-limit
+        // hold, not this project's own, is what keeps the next start away.
+        case .usageLimitParked: succeeded = true
         case .blocked, .cancelled: succeeded = false
         }
         return Outcome(name: PortfolioSnapshot.outcomeName(result.outcome),

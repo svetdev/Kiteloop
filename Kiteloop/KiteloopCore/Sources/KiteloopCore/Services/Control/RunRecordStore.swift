@@ -31,6 +31,10 @@ package struct PersistedRunRecord: Codable, Sendable, Equatable, Identifiable {
         case investigation
         case blocked
         case cancelled
+        /// The account's usage limit stopped the run; the item went back to
+        /// `ready` for when it lifts. Not `cancelled` — nobody stopped it — and
+        /// not `blocked` — nothing about the item failed.
+        case usageLimitParked = "usage_limit_parked"
         /// A pickup gate refused the item before any work began — it spent
         /// nothing and reached no ending of its own. Distinct from `blocked`,
         /// which is a run that reached the item and could not finish it: a

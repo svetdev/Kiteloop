@@ -4685,6 +4685,7 @@ extension ChatViewModel {
         case .thinkingTokens(let estimated):
             setActivity(AgentActivityDisplay.thinkingLabel(text: "", estimatedTokens: estimated))
         case .rateLimit(let info):
+            orchestrator.noteRateLimit(info)
             appendRateLimitNotice(previous: previousLimit, current: info)
         default:
             break

@@ -1351,6 +1351,13 @@ struct AutopilotView: View {
                 Image(systemName: "minus.circle.fill")
                     .font(.system(size: 9))
                     .foregroundStyle(.orange)
+            // Parked, not failed: the account's usage limit stopped it, and it
+            // goes again when the limit lifts — hence the clock.
+            case .usageLimitParked(let until):
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.orange)
+                    .help("Usage limit — resumes \(UsageLimitStop(resetsAt: until, window: nil, resetReported: true).resumeText(now: Date()))")
             }
             Text(result.title)
                 .font(.system(size: 10))

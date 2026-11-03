@@ -202,12 +202,14 @@ enum RetryCeiling {
     /// grounding or readiness refusal sends the item back to `draft` with the
     /// refusal as its reason, so it is a citation waiting on an edit rather
     /// than an attempt that failed — before this, the same refused sentence
-    /// retired three items with no run ever starting.
+    /// retired three items with no run ever starting; and a run the account's
+    /// usage limit stopped says nothing about the item at all.
     private static func isNotEvidence(_ record: TaskMetricRecord) -> Bool {
         record.outcome.hasPrefix("cancelled")
             || record.claimsAlreadyImplemented
             || record.isRetiredRefusal
             || record.isDraftedRefusal
+            || record.isUsageLimitParked
     }
 
     /// Judges one item against its recorded history.

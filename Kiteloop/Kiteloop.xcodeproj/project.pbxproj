@@ -648,6 +648,7 @@
 		7814670E498E8C1413C52B5E /* WorkflowEngineConditionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EA38F16EE721E40FE0F2EF /* WorkflowEngineConditionTests.swift */; };
 		AA8D51B1EAC7DA7A397D93A5 /* StreamEventContextWindowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE4706EC11C66EC0E0E3E569 /* StreamEventContextWindowTests.swift */; };
 		3754162439C16183756AEAD0 /* BacklogAutopilotCostSampleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B4F2BA5DE81195D7E1F6BA /* BacklogAutopilotCostSampleTests.swift */; };
+		5CC12B131E5ACD98E24F99A3 /* BacklogAutopilotUsageLimitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D73CBA1A79975772A509F06 /* BacklogAutopilotUsageLimitTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1311,6 +1312,7 @@
 		22EA38F16EE721E40FE0F2EF /* WorkflowEngineConditionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEngineConditionTests.swift; sourceTree = "<group>"; };
 		BE4706EC11C66EC0E0E3E569 /* StreamEventContextWindowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamEventContextWindowTests.swift; sourceTree = "<group>"; };
 		81B4F2BA5DE81195D7E1F6BA /* BacklogAutopilotCostSampleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotCostSampleTests.swift; sourceTree = "<group>"; };
+		6D73CBA1A79975772A509F06 /* BacklogAutopilotUsageLimitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotUsageLimitTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -2122,6 +2124,7 @@
 		2AE031C2E75A45365BB146CA /* Autopilot */ = {
 			isa = PBXGroup;
 			children = (
+				6D73CBA1A79975772A509F06 /* BacklogAutopilotUsageLimitTests.swift */,
 				81B4F2BA5DE81195D7E1F6BA /* BacklogAutopilotCostSampleTests.swift */,
 				41158B70868E2197B5884C4F /* QuarantiningJSONFileAdoptionTests.swift */,
 				2038734125E127B3F8913129 /* StoreProblemReporterAdoptionTests.swift */,
@@ -2699,6 +2702,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5CC12B131E5ACD98E24F99A3 /* BacklogAutopilotUsageLimitTests.swift in Sources */,
 				3754162439C16183756AEAD0 /* BacklogAutopilotCostSampleTests.swift in Sources */,
 				AA8D51B1EAC7DA7A397D93A5 /* StreamEventContextWindowTests.swift in Sources */,
 				7814670E498E8C1413C52B5E /* WorkflowEngineConditionTests.swift in Sources */,

@@ -91,6 +91,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - A session in the Traces tab shows the title of the chat it belongs to, on its row and above the session id, so an agent's chats can be told apart.
 
 #### Autopilot and control API
+- A run stopped by your Claude subscription's usage limit is parked instead of failed: the item goes back to Ready with a note saying when the limit resets, no retry is charged, its work is kept on its branch, the run ends without starting the next item into the same wall, and scheduled runs across every project hold until the reset and then pick the item up again.
 - Kiteloop itself is onboarded for the QA flow: a `flow:qa` item's QA agent runs the item's UI test against a separate QA copy of the app, launched with its own home folder so it never reads or writes your real `~/.kiteloop`, and judges the screenshots each step left.
 - An item marked `flow:qa` runs through a QA flow for UI features: a specifier writes acceptance scenarios and a QA procedure first, the project's clean and mutation commands run after the worker, and a QA agent runs the app, opens every screenshot and judges each step before the item can be done — its report and storyboard are written on the item. A project opts in with a `kiteloop-qa.json` at its root; without one a `flow:qa` item is refused and told why.
 - `POST /v1/backlog/land` merges a done item's branch that never landed — approved with auto-merge off, under a half-set dial or by hand — through the same gate as an approval, with the operator's own token.

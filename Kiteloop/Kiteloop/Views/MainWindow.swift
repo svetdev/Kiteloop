@@ -2150,6 +2150,18 @@ struct MainWindow: View {
         autopilot.isProjectPaused = {
             session.project.loadConfig().paused == true
         }
+        wireRunEnds(of: autopilot)
+        autopilotCache.instances[projectID] = autopilot
+        return autopilot
+    }
+
+    /// What the fleet does when one of this project's runs ends: on a usage
+    /// limit, which is the account's, so one project's park holds them all;
+    /// and on any finish.
+    private func wireRunEnds(of autopilot: BacklogAutopilot) {
+        autopilot.onUsageLimitParked = { [runScheduler] limit in
+            runScheduler.recordUsageLimit(limit)
+        }
         // A finished run is the moment this project's queue is most likely to be
         // empty — the timer would find it eventually, this finds it now.
         autopilot.onRunFinished = { [queueRefill, runScheduler, controlRegistry] in
@@ -2167,8 +2179,6 @@ struct MainWindow: View {
             // and a UI-driven install may see no request for days.
             Task { @MainActor in await controlRegistry.finalizeRuns?() }
         }
-        autopilotCache.instances[projectID] = autopilot
-        return autopilot
     }
 
     private func backlogEditors(for session: ProjectSession) -> (ai: BacklogAIEditor, scope: TaskScopingEngine) {
