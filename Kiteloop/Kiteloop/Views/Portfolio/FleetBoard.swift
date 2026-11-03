@@ -16,7 +16,17 @@ struct FleetBoard: View {
     var metricStore: TaskMetricStore?
     var groomingLedger: GroomingLedger?
     /// Each project's last day, by project name, once read.
-    @State private var lastDay: [String: PortfolioReport.Row] = [:]
+    @State private var lastDay: [String: PortfolioReport.Row]
+
+    /// `lastDay` is what the column shows before the ledgers have been read —
+    /// empty in the app; a test hands it rows to draw.
+    init(registry: ControlSessionRegistry, metricStore: TaskMetricStore? = nil,
+         groomingLedger: GroomingLedger? = nil, lastDay: [String: PortfolioReport.Row] = [:]) {
+        self.registry = registry
+        self.metricStore = metricStore
+        self.groomingLedger = groomingLedger
+        _lastDay = State(initialValue: lastDay)
+    }
 
     /// Bumped after a paused write so the board re-reads the config it just
     /// changed — project config is a file, not an observable.
