@@ -258,6 +258,7 @@ final class PortfolioSnapshotTests: XCTestCase {
             .itemOverBudget: nil,
             .itemNearCap: nil,
             .itemEnd: nil,
+            .itemParked: nil,
             .agentRestart: nil,
             .merge: .merge,
             .mergeWaiting: .waitingForGate,
