@@ -13,6 +13,9 @@ struct SubagentChild: Identifiable {
 
     let id: String
     let kind: Kind
+    /// What the subagent this call started did, when the call is itself an
+    /// `Agent` call — drawn under it, one step further in, inside its fold.
+    var nested: [SubagentChild] = []
 
     /// The call, for a child that is one.
     var call: Message.ToolCall? {
@@ -28,9 +31,27 @@ struct SubagentChild: Identifiable {
 
     /// Everything each subagent in `messages` did, calls paired with their
     /// results, keyed by the `Agent` call it belongs under.
+    ///
+    /// Every depth is resolved: a subagent's own `Agent` call carries its
+    /// subagent's children in `nested`, rather than leaving them to be drawn
+    /// as if the outer subagent had made them.
     static func byParent(in messages: [Message], results: [String: Message.ToolResult]) -> [String: [SubagentChild]] {
-        ToolCallNesting.childMessages(in: messages).mapValues { children in
+        let flat = ToolCallNesting.childMessages(in: messages).mapValues { children in
             children.compactMap { child(for: $0, results: results) }
+        }
+        return flat.mapValues { nesting($0, in: flat, above: []) }
+    }
+
+    /// `children`, each call that started a subagent given that subagent's
+    /// own children. `above` holds the calls already on the path, so a parent
+    /// id that loops back is drawn once rather than for ever.
+    private static func nesting(_ children: [SubagentChild], in flat: [String: [SubagentChild]],
+                                above: Set<String>) -> [SubagentChild] {
+        children.map { child in
+            guard let call = child.call, !above.contains(call.id), let inner = flat[call.id] else { return child }
+            var nested = child
+            nested.nested = nesting(inner, in: flat, above: above.union([call.id]))
+            return nested
         }
     }
 
@@ -172,7 +193,12 @@ private struct TerminalChildRow: View {
     private var content: some View {
         switch child.kind {
         case .call(let call, let result):
-            callRow(call, result: result)
+            VStack(alignment: .leading, spacing: 1) {
+                callRow(call, result: result)
+                if !child.nested.isEmpty {
+                    TerminalChildCalls(children: child.nested)
+                }
+            }
         case .text(let text):
             Self.line(mark: TerminalStyle.replyMark, text: text, color: .primary, lineLimit: isOpen ? nil : 6)
         case .thinking(let text, let estimate):
@@ -250,7 +276,7 @@ extension BubbleChildCalls {
     fileprivate func childRow(_ child: SubagentChild) -> some View {
         switch child.kind {
         case .call(let call, let result):
-            ToolCallView(toolCall: call, result: result)
+            ToolCallView(toolCall: call, result: result, children: child.nested)
         case .text(let text):
             Text(text)
                 .font(.caption)

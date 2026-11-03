@@ -65,6 +65,27 @@ final class SubagentCallRowsTests: XCTestCase {
         XCTAssertEqual(nested["a"]?.first?.result?.output, "total 48")
     }
 
+    /// Agent → Agent → Bash: the Bash hangs under the inner Agent row, not the
+    /// outer one, and folding the outer row folds everything inside it.
+    func testASubagentsOwnSubagentHangsItsCallsUnderItsOwnRow() {
+        let inner = Message.ToolCall(id: "i", name: "Agent", input: #"{"description":"Dig"}"#, parentToolUseID: "a")
+        let deep = Message.ToolCall(id: "d", name: "Bash", input: #"{"command":"ls"}"#, parentToolUseID: "i")
+        let messages: [Message] = [.toolCall(agentCall, agent: "me"), .toolCall(inner, agent: "me"),
+                                   .toolCall(deep, agent: "me"), .toolCall(childCall, agent: "me")]
+        let outer = SubagentChild.byParent(in: messages, results: [:])["a"] ?? []
+        XCTAssertEqual(outer.map(\.id), ["i", "b"], "the Bash is not a child of the outer row")
+        XCTAssertEqual(outer.first?.nested.map(\.id), ["d"])
+        XCTAssertEqual(outer.last?.nested.map(\.id), [])
+    }
+
+    /// A parent id that loops back is drawn once, not for ever.
+    func testAParentLoopIsCut() {
+        let selfParented = Message.ToolCall(id: "s", name: "Agent", input: "{}", parentToolUseID: "s")
+        let rows = SubagentChild.byParent(in: [.toolCall(selfParented, agent: "me")], results: [:])
+        XCTAssertEqual(rows["s"]?.map(\.id), ["s"])
+        XCTAssertEqual(rows["s"]?.first?.nested.first?.nested.count, 0)
+    }
+
     /// What the subagent said and thought hangs under its call with its calls,
     /// in the order it came, and the list draws none of it at the top.
     func testASubagentsTextAndThinkingAreChildrenOfItsCallNotRowsOfTheirOwn() {

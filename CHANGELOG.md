@@ -193,6 +193,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - ⌘F opens find from every view of the chat, Return / Shift-Return / Esc work, the count covers only what the chat shows, and it says when older messages were not searched.
 
 #### Chat transcript
+- A subagent's own subagent is drawn under the Agent call that started it, one step further in and inside its fold, instead of flat under the outer Agent row.
 - The app's own notes in the chat — a saved branch, the branch list, a goal set, the hint to use `/clear` — show their bold and code as formatted text in both chat looks, instead of printing `**` and backticks.
 - When a crashed agent cannot be reconnected, the chat's error and the crash bar now say why the last restart failed (a missing CLI, an expired login, a bad model) instead of only that the process terminated unexpectedly.
 - A chat's title is one line taken from the start of your first message: a message that opens with a blank line or pasted code no longer leaves a blank or backticks-only title, and a generated title keeps only its first line.
