@@ -148,7 +148,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 #### Chat
 - Export Chat… writes a chat's branches too — the main line first, then each branch under its name from the message it was branched at — and exporting the chat you have open includes everything it shows, not only what was last saved.
 - A message that names a specialist with @ now takes the files in the attachment tray with it: the summoned specialist's first message carries them, every specialist named gets the same files, and the tray empties once, instead of the files silently disappearing.
-- The context gauge and `/context` measure against the window the model actually has, as Claude reports it after each turn, instead of assuming 200k for every model; a 1M-window session no longer reads five times fuller than it is. Until the first turn reports, the gauge says the window is not known.
+- The context gauge and `/context` measure against the window the model actually has, as Claude reports it after each turn, instead of assuming 200k for every model; a 1M-window session no longer reads five times fuller than it is. A resumed session shows the window its model was last measured at; a model never measured says the window is not known until its first turn reports.
 - A code block in a reply is drawn in the code font throughout: an untagged block that looked like Markdown came back with _careful_ in italics.
 - A reply written with underscore emphasis — _careful_, __never__ — is drawn italic and bold without its underscores, while names like snake_case_name, __init__ and some_file.swift keep theirs.
 - The chat's find bar now says “No matches” beside the field when nothing in the conversation matches, instead of going blank as if nothing had been typed.

@@ -33,6 +33,9 @@ final class ChatViewModelSlashCommandTests: XCTestCase {
         orchestrator.addAgent(agent)
         try await orchestrator.startAgent("test-agent", cwd: tempDir)
         let vm = ChatViewModel(agentID: "test-agent", projectURL: tempDir, orchestrator: orchestrator)
+        // A suite of the test's own, never the app's defaults: a measured
+        // window is written there and read back by the next session.
+        vm.contextWindowDefaults = UserDefaults(suiteName: "ChatViewModelSlashCommandTests.\(UUID().uuidString)") ?? .standard
         return (vm, mock, orchestrator)
     }
 
@@ -208,6 +211,43 @@ final class ChatViewModelSlashCommandTests: XCTestCase {
         await vm.send()
         let text = try XCTUnwrap(lastSystemText(vm))
         XCTAssertTrue(text.contains("**Context window:** 10% used"), text)
+    }
+
+    /// A model measured once opens its next session — a relaunch's resume —
+    /// with that window, before any turn reports one.
+    func testAWindowMeasuredBeforeIsShownWhenTheNextSessionOpens() async throws {
+        let suite = "ChatViewModelWindow.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set(1_000_000, forKey: ChatViewModel.contextWindowKey(for: "claude-opus-5-5"))
+        let (vm, _) = try await makeVM(events: [
+            .system(subtype: "init", payload: ["model": "claude-opus-5-5"]),
+            .assistantText("ok"),
+            .result(.init(text: "ok", costUSD: 0, durationMs: 1, inputTokens: 1, outputTokens: 1,
+                          cacheCreationInputTokens: 0, cacheReadInputTokens: 0, sessionID: "s-known",
+                          permissionDenials: []))
+        ])
+        vm.contextWindowDefaults = defaults
+        vm.inputText = "Hello"
+        await vm.send()
+        XCTAssertEqual(vm.contextWindowSize, 1_000_000)
+    }
+
+    func testAMeasuredWindowIsKeptForTheModel() async throws {
+        let suite = "ChatViewModelWindow.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var result = StreamEvent.ResultPayload(
+            text: "ok", costUSD: 0, durationMs: 1, inputTokens: 1, outputTokens: 1,
+            cacheCreationInputTokens: 0, cacheReadInputTokens: 0, sessionID: "s-keep", permissionDenials: [])
+        result.contextWindows = ["claude-opus-5-5": 1_000_000]
+        let (vm, _) = try await makeVM(events: [
+            .system(subtype: "init", payload: ["model": "claude-opus-5-5"]), .assistantText("ok"), .result(result)
+        ])
+        vm.contextWindowDefaults = defaults
+        vm.inputText = "Hello"
+        await vm.send()
+        XCTAssertEqual(defaults.integer(forKey: ChatViewModel.contextWindowKey(for: "claude-opus-5-5")), 1_000_000)
     }
 
     func testAWindowNothingMeasuredIsUnknownNotGuessed() async throws {

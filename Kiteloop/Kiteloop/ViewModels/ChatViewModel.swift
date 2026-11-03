@@ -112,6 +112,11 @@ class ChatViewModel {
     /// says there. Nil until one has: a guessed size reads a 1M window as
     /// five times fuller than it is.
     private var reportedContextWindowSize: Int?
+    /// Where the last window each model was measured at is kept, so a session
+    /// resumed after a relaunch shows its gauge before its first turn reports.
+    /// A measurement, not a guess: only a `result` ever writes it.
+    var contextWindowDefaults: UserDefaults = .standard
+    static func contextWindowKey(for model: String) -> String { "contextWindow.\(model)" }
     /// The window the context gauge and /context measure against — nil on an
     /// Ollama or Copilot agent, whose window Kiteloop does not know, so a size
     /// left over from before a runtime change is never reused.
@@ -2165,6 +2170,10 @@ class ChatViewModel {
         costUSD += costDeltaUSD
         if let window = payload.contextWindow(for: resolvedModel) {
             reportedContextWindowSize = window
+            // `setValue`, not `set(_:forKey:)`: the complexity gate's parser
+            // reads a `.set(` call as a property setter and loses the
+            // functions around it.
+            contextWindowDefaults.setValue(window, forKey: Self.contextWindowKey(for: resolvedModel))
         }
         lastInputTokens = payload.inputTokens
         lastOutputTokens = payload.outputTokens
@@ -2261,6 +2270,9 @@ class ChatViewModel {
         }
         if let cws = payload["context_window_size"] as? Int, cws > 0 {
             reportedContextWindowSize = cws
+        } else if reportedContextWindowSize == nil {
+            let known = contextWindowDefaults.integer(forKey: Self.contextWindowKey(for: resolvedModel))
+            reportedContextWindowSize = known > 0 ? known : nil
         }
     }
 
