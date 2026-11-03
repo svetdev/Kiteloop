@@ -50,4 +50,29 @@ final class InputBarPathCompletionTests: XCTestCase {
     func testSeveralMatchesSharingNothingBeyondThePrefixCompleteNothing() throws {
         XCTAssertNil(InputBar.completion(in: try XCTUnwrap(listing("/\(root)/report-202"))))
     }
+
+    // MARK: - Relative to the project folder
+
+    private func complete(_ word: String) -> String? { InputBar.completingFilePath(word, relativeTo: dir) }
+
+    func testARelativeWordCompletesFromTheProjectAndStaysRelative() throws {
+        try FileManager.default.createDirectory(at: dir.appending(path: "docs"), withIntermediateDirectories: true)
+        try Data().write(to: dir.appending(path: "docs/guide.md"))
+        XCTAssertEqual(complete("docs/gu"), "docs/guide.md")
+        XCTAssertEqual(complete("./docs/gu"), "./docs/guide.md")
+    }
+
+    func testARelativeDirectoryGetsItsSlashAndSeveralMatchesTheirCommonPrefix() {
+        XCTAssertEqual(complete("./sou"), "./sources/")
+        XCTAssertEqual(complete("./rep"), "./report-202")
+    }
+
+    func testAnAbsoluteWordIgnoresTheProjectFolder() {
+        XCTAssertEqual(complete("/\(root)/not"), "/\(root)/notes.txt")
+    }
+
+    func testARelativeWordWithNoMatchUnderTheProjectFallsThrough() {
+        XCTAssertNil(complete("./zzz"))
+        XCTAssertNil(complete("plainword"), "not path-like")
+    }
 }

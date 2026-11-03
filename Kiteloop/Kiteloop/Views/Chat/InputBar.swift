@@ -28,6 +28,10 @@ struct InputBar: View {
     /// The runtime of the agent this bar talks to — the slash popover leaves out
     /// the commands that only refuse on it.
     let runtime: RuntimeKind
+    /// The folder the chat's agent runs in: Tab completes a relative path from
+    /// here, not from the app's own working directory (`/` for an app opened
+    /// from Finder).
+    let projectURL: URL?
 
     @State private var localText: String = ""
     @State private var textHeight: CGFloat = 20
@@ -64,8 +68,10 @@ struct InputBar: View {
         projectAgents: [Agent] = [],
         conversationID: String? = nil,
         isSearchOpen: Bool = false,
-        runtime: RuntimeKind = .claude
+        runtime: RuntimeKind = .claude,
+        projectURL: URL? = nil
     ) {
+        self.projectURL = projectURL
         self._text = text
         self._attachments = attachments
         self.isStreaming = isStreaming
@@ -546,19 +552,38 @@ struct InputBar: View {
     // MARK: - File Path Completion
 
     private func completeFilePath() -> Bool {
-        let words = localText.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
-        guard let lastWord = words.last, Self.isPathLike(lastWord),
-              let listing = Self.pathListing(for: lastWord) else { return false }
-
-        // Multiple matches: extend to the longest common prefix (bash-style).
-        // A disambiguation popover is intentionally omitted — repeated Tab
-        // narrows the prefix, which is sufficient for path entry here.
-        if let completed = Self.completion(in: listing) {
-            var newWords = words
-            newWords[newWords.count - 1] = Self.collapsingTilde(in: completed, like: lastWord)
-            localText = newWords.joined(separator: " ")
-        }
+        var words = localText.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+        guard let lastWord = words.last,
+              let completed = Self.completingFilePath(lastWord, relativeTo: projectURL) else { return false }
+        words[words.count - 1] = completed
+        localText = words.joined(separator: " ")
         return true
+    }
+
+    /// The path-like `word` completed, in the form it was typed — relative
+    /// stays relative, `~/` keeps its tilde — or nil when it names nothing to
+    /// list, so Tab falls through. A word with nothing more to add comes back
+    /// unchanged. A relative word is looked up under `base`; `/` and `~/`
+    /// words, or any word with no base, as they are.
+    ///
+    /// Several matches extend to their longest common prefix (bash-style). A
+    /// disambiguation popover is intentionally omitted — repeated Tab narrows
+    /// the prefix, which is sufficient for path entry here.
+    static func completingFilePath(_ word: String, relativeTo base: URL?) -> String? {
+        guard isPathLike(word) else { return nil }
+        let root = relativeRoot(for: word, base: base)
+        guard let listing = pathListing(for: (root ?? "") + word) else { return nil }
+        guard let completed = completion(in: listing) else { return word }
+        guard let root else { return collapsingTilde(in: completed, like: word) }
+        return completed.hasPrefix(root) ? String(completed.dropFirst(root.count)) : completed
+    }
+
+    /// `base` as a directory prefix ending in `/`, for a word that is relative
+    /// to it; nil for an absolute or `~/` word, or with no base.
+    private static func relativeRoot(for word: String, base: URL?) -> String? {
+        guard let base, !word.hasPrefix("/"), !word.hasPrefix("~") else { return nil }
+        let path = base.path(percentEncoded: false)
+        return path.hasSuffix("/") ? path : path + "/"
     }
 
     /// A directory and the entries in it that start with the token's last component.

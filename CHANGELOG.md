@@ -174,6 +174,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - `/goal` and `/loop` report what their own turns cost, and `/history` names the model and mode the agent really runs with and says what it shows.
 
 #### Chat input
+- Tab after a relative path in the chat input (docs/gu, ./Sources/Ap) completes it from the project's folder, where the agent runs, and keeps it relative — instead of looking it up from the root of the disk.
 - The @-mention suggestions no longer show an orange warning triangle beside every agent.
 - Tab after a path ending in `/` lists and completes what is inside that folder, instead of offering the folder itself again.
 - A file dropped on the chat input, or pasted after copying it in Finder, that is too large or cannot be read is no longer typed into the message as its path: the chat says why it could not be attached, as it does for the paperclip, and the other files in the same drop are still attached.

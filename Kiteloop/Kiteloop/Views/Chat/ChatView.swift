@@ -105,7 +105,8 @@ struct ChatView: View {
                     projectAgents: otherAgents,
                     conversationID: conversationID,
                     isSearchOpen: viewModel.isSearching,
-                    runtime: viewModel.runtimeKind
+                    runtime: viewModel.runtimeKind,
+                    projectURL: viewModel.projectURL
                 )
             }
             if !statusLine.statusText.isEmpty {
