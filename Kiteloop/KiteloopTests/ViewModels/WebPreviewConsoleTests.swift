@@ -341,6 +341,48 @@ final class WebPreviewConsoleTests: XCTestCase {
         XCTAssertEqual(preview.consoleErrorCount, 1)
     }
 
+    /// Loads `script`, then a `sentinel` log, and answers every line before it.
+    private func entries(of script: String) async throws -> [WebConsoleEntry] {
+        let preview = WebPreviewViewModel()
+        try await load(page(script + " console.log('sentinel');"), into: preview)
+        try await eventually("the sentinel arrives") { preview.consoleEntries.last?.text == "sentinel" }
+        XCTAssertEqual(preview.consoleErrorCount, 0, "none of these is an error")
+        return Array(preview.consoleEntries.dropLast())
+    }
+
+    func testCountWritesEachLabelsRunningCount() async throws {
+        let lines = try await entries(of: "console.count('x'); console.count('x'); console.count();")
+        XCTAssertEqual(lines.map(\.text), ["x: 1", "x: 2", "default: 1"])
+        XCTAssertEqual(Set(lines.map(\.level)), [.log])
+    }
+
+    func testCountResetStartsALabelOver() async throws {
+        let lines = try await entries(of: "console.count('x'); console.countReset('x'); console.count('x');")
+        XCTAssertEqual(lines.map(\.text), ["x: 1", "x: 1"])
+    }
+
+    func testTimeEndWritesTheElapsedTimeOnceThenWarns() async throws {
+        let lines = try await entries(of: "console.time('t'); console.timeEnd('t'); console.timeEnd('t');")
+        XCTAssertEqual(lines.map(\.level), [.log, .warn])
+        let first = try XCTUnwrap(lines.first?.text)
+        XCTAssertTrue(first.hasPrefix("t: ") && first.hasSuffix(" ms"), first)
+    }
+
+    func testTimeLogAddsItsExtraArguments() async throws {
+        let lines = try await entries(of: "console.time('t'); console.timeLog('t', 'step');")
+        let text = try XCTUnwrap(lines.first?.text)
+        XCTAssertEqual(lines.count, 1)
+        XCTAssertTrue(text.hasPrefix("t: ") && text.contains(" ms") && text.contains("step"), text)
+    }
+
+    func testTraceWritesItsArgumentsOverTheStack() async throws {
+        let lines = try await entries(of: "function where() { console.trace('here'); } where();")
+        let text = try XCTUnwrap(lines.first?.text)
+        XCTAssertEqual(lines.map(\.level), [.log])
+        XCTAssertTrue(text.hasPrefix("here"), text)
+        XCTAssertGreaterThan(text.split(separator: "\n").count, 1, text)
+    }
+
     func testAPassingAssertAddsNothing() async throws {
         let preview = WebPreviewViewModel()
         try await load(page("console.assert(true, 'fine'); console.log('sentinel');"), into: preview)

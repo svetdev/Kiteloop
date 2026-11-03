@@ -396,7 +396,11 @@ final class WebPreviewViewModel {
     /// element as its tag and attributes (`<div id="app"></div>`), any other node
     /// as its text, a Map as `Map(1) {"a" => 1}` and a Set as `Set(2) {1, 2}`,
     /// posts a failed `console.assert` as an error reading
-    /// "Assertion failed:" and its message, and listens for uncaught errors
+    /// "Assertion failed:" and its message, writes `console.count` as
+    /// "label: N" (per label, "default" without one, `countReset` starting it
+    /// over), `console.timeLog`/`timeEnd` as "label: 12.345 ms" — a warning
+    /// for a label never started — and `console.trace` as its arguments over
+    /// the call stack, all at the log level, and listens for uncaught errors
     /// and unhandled rejections, posting each as `{level, text}` to the
     /// console handler.
     static let consoleCaptureSource = """
@@ -453,6 +457,36 @@ final class WebPreviewViewModel {
         if (!condition) { post('error', ['Assertion failed:'].concat(Array.prototype.slice.call(arguments, 1))); }
         return originalAssert.apply(this, arguments);
       };
+      var counts = {};
+      var timers = {};
+      function labelOf(label) { return label === undefined ? 'default' : String(label); }
+      function wrap(name, record) {
+        var original = console[name];
+        console[name] = function () {
+          record.apply(this, arguments);
+          return original ? original.apply(this, arguments) : undefined;
+        };
+      }
+      function elapsed(label, extra, stop) {
+        var key = labelOf(label);
+        if (!(key in timers)) { post('warn', ["Timer '" + key + "' does not exist"]); return; }
+        var ms = performance.now() - timers[key];
+        if (stop) { delete timers[key]; }
+        post('log', [key + ': ' + ms.toFixed(3) + ' ms'].concat(extra));
+      }
+      wrap('count', function (label) {
+        var key = labelOf(label);
+        counts[key] = (counts[key] || 0) + 1;
+        post('log', [key + ': ' + counts[key]]);
+      });
+      wrap('countReset', function (label) { delete counts[labelOf(label)]; });
+      wrap('time', function (label) { timers[labelOf(label)] = performance.now(); });
+      wrap('timeLog', function (label) { elapsed(label, Array.prototype.slice.call(arguments, 1), false); });
+      wrap('timeEnd', function (label) { elapsed(label, [], true); });
+      wrap('trace', function () {
+        var stack = (new Error().stack || '').split('\\n').slice(1).join('\\n');
+        post('log', Array.prototype.slice.call(arguments).concat(['\\n' + (stack || '(no stack)')]));
+      });
       window.addEventListener('error', function (event) {
         var at = event.filename ? ' (' + event.filename + ':' + event.lineno + ':' + event.colno + ')' : '';
         post('error', [(event.message || describe(event.error)) + at]);

@@ -316,6 +316,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - A fact that a later fact replaced no longer lingers where recall still finds it: every topic in the Memory tab's Topics list has an archive button, and a topic with no line in the index is marked "not in index".
 
 #### Console, diagnostics and web preview
+- The Web Preview console now shows console.count, countReset, time/timeLog/timeEnd and console.trace the way a browser does — "label: 3", "label: 12.345 ms", a warning for a timer that was never started, and a trace's call stack — in the pane and in what the agent reads.
 - Traces updates while open, totals each turn's own cost, reads durations in minutes, dates earlier turns, shows the whole session id, explains an empty list and clears a session its filter hides.
 - Activity rows wrap up to four lines, Clear holds, earlier days show their date; Diagnostics explains an empty list, disables Copy with nothing shown and keeps your scroll position.
 - The web preview says why a page failed, loads `localhost` over http and `~/` as your home folder, opens new-window links in the pane, and Inspect head says when it could not read the page.
