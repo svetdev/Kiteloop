@@ -65,9 +65,20 @@ struct SoftwareUpdateView: View {
                 }
             }
             .accessibilityIdentifier("update-available-notice")
-        case .unreachable:
-            Text("Couldn't reach GitHub to check for updates.")
+        case .unreachable(let failure):
+            Text(Self.sentence(for: failure))
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("update-failure-notice")
+        }
+    }
+
+    /// What the notice says for each way a check can come back empty.
+    static func sentence(for failure: UpdateCheckFailure) -> String {
+        switch failure {
+        case .endpointUnreachable: return "Couldn't reach GitHub to check for updates."
+        case .noReleasePublished: return "No release of Kiteloop has been published yet."
+        case .rateLimited: return "GitHub is limiting requests right now. Try again later."
+        case .malformedRelease: return "GitHub answered, but its release information couldn't be read."
         }
     }
 }

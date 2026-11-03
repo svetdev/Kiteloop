@@ -17,15 +17,31 @@ enum UpdateCheckState: Equatable {
     case checking
     case upToDate
     case available(LatestRelease)
-    case unreachable
+    /// The check got no release to judge, and why — the notice says which.
+    case unreachable(UpdateCheckFailure)
 }
 
-/// Why a check came back with nothing. Never surfaced as text — the notice says
-/// only that the check could not reach GitHub — but distinct so a log or a
-/// future caller can tell a refused request from an unreadable answer.
-enum UpdateCheckFailure: Error {
+/// Why a check came back with no release. Each is a different sentence in the
+/// notice: only the first means the Mac could not reach GitHub at all.
+enum UpdateCheckFailure: Error, Equatable {
+    /// No network, a timeout, or a status nothing below names.
     case endpointUnreachable
+    /// GitHub answered 404: the repository has published no release yet.
+    case noReleasePublished
+    /// GitHub answered 403 or 429: it is limiting requests from this address.
+    case rateLimited
+    /// GitHub answered, and the answer was not a release this check can read.
     case malformedRelease
+
+    /// The failure an HTTP status means; nil for 200, which is an answer.
+    nonisolated static func forStatus(_ status: Int) -> UpdateCheckFailure? {
+        switch status {
+        case 200: return nil
+        case 404: return .noReleasePublished
+        case 403, 429: return .rateLimited
+        default: return .endpointUnreachable
+        }
+    }
 }
 
 /// Tells the user, and nothing more: no download, no install, no framework.
@@ -76,7 +92,7 @@ final class UpdateCheckService {
     /// including that it could not be reached.
     func checkNow() async {
         state = .checking
-        state = await answer() ?? .unreachable
+        state = await answer()
     }
 
     /// The window opening with nothing behind it. `.idle` and `.checking` are
@@ -97,15 +113,20 @@ final class UpdateCheckService {
     @discardableResult
     func checkPassively() async -> Bool {
         guard isDue else { return false }
-        guard case .available(let release) = await answer() ?? .unreachable else { return false }
+        guard case .available(let release) = await answer() else { return false }
         state = .available(release)
         return true
     }
 
-    /// One consultation: `nil` when GitHub did not answer, otherwise the
-    /// verdict on what it said.
-    private func answer() async -> UpdateCheckState? {
-        guard let release = try? await fetch() else { return nil }
+    /// One consultation: the verdict on what GitHub said, or why there was
+    /// nothing to judge. Only a release read records the day's check.
+    private func answer() async -> UpdateCheckState {
+        let release: LatestRelease
+        do {
+            release = try await fetch()
+        } catch {
+            return .unreachable(error as? UpdateCheckFailure ?? .endpointUnreachable)
+        }
         defaults.set(now(), forKey: Self.lastCheckDefaultsKey)
         guard ReleaseVersion.isNewer(release.version, than: installedVersion) else { return .upToDate }
         return .available(release)
@@ -137,10 +158,14 @@ final class UpdateCheckService {
         request.timeoutInterval = 10
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            throw UpdateCheckFailure.endpointUnreachable
+        if let failure = UpdateCheckFailure.forStatus((response as? HTTPURLResponse)?.statusCode ?? 0) {
+            throw failure
         }
-        return try UpdateCheckService.decodeRelease(data)
+        do {
+            return try UpdateCheckService.decodeRelease(data)
+        } catch {
+            throw UpdateCheckFailure.malformedRelease
+        }
     }
 
     /// The fields of a release payload this check reads. `body` is optional:

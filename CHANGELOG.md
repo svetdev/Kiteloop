@@ -265,6 +265,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - A read that finds an inconsistent run claim clears it; `GET /v1/backlog` caches the stranded-work sweep; promoting to `ready` asserts the Definition-of-Ready (`force: true` overrides); demoting to `draft` is noted; a refused `POST /v1/autopilot/reset` names `POST /v1/runs/{runId}/cancel`; unparseable headers get `400`.
 
 #### Menu bar, notifications and windows
+- Check for Updates… says what actually happened when it finds no release: GitHub couldn't be reached, no release has been published yet, GitHub is limiting requests, or its answer couldn't be read — instead of calling every one of them "Couldn't reach GitHub".
 - The menu bar has Open Kiteloop, its rows work with the main window closed, and agent states read in plain words.
 - Clicking a banner opens what it names; the finished banner names the project and the reply's first line; switching away banners every unannounced gate and question.
 - The bell's badge and list update live, a long notice expands, a question opens the asking agent's chat, and a resolved notice is kept for a week after it was resolved.

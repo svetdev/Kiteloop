@@ -46,13 +46,14 @@ final class UpdateCheckServiceTests: XCTestCase {
     /// A service whose GitHub either answers with `release` or refuses.
     private func makeService(installed: String = "0.4.8",
                              release: LatestRelease? = UpdateCheckServiceTests.release,
+                             failure: UpdateCheckFailure = .endpointUnreachable,
                              now: @escaping () -> Date = Date.init,
                              log: FetchLog? = nil) -> UpdateCheckService {
         UpdateCheckService(
             currentVersion: installed,
             fetch: {
                 await log?.record()
-                guard let release else { throw UpdateCheckFailure.endpointUnreachable }
+                guard let release else { throw failure }
                 return release
             },
             now: now,
@@ -87,7 +88,42 @@ final class UpdateCheckServiceTests: XCTestCase {
     func testAnUnreachableGitHubIsReportedAndOffersNothing() async {
         let service = makeService(release: nil)
         await service.checkNow()
-        XCTAssertEqual(service.state, .unreachable)
+        XCTAssertEqual(service.state, .unreachable(.endpointUnreachable))
+    }
+
+    /// GitHub answering is not GitHub being unreachable: each refusal is kept,
+    /// and the notice says it in its own words.
+    func testEachRefusalIsReportedAsItselfAndInItsOwnWords() async {
+        let failures: [UpdateCheckFailure] = [.endpointUnreachable, .noReleasePublished, .rateLimited, .malformedRelease]
+        for failure in failures {
+            let service = makeService(release: nil, failure: failure)
+            await service.checkNow()
+            XCTAssertEqual(service.state, .unreachable(failure))
+        }
+        let sentences = failures.map(SoftwareUpdateView.sentence(for:))
+        XCTAssertEqual(Set(sentences).count, failures.count)
+        XCTAssertEqual(sentences.filter { $0.contains("Couldn't reach GitHub") }.count, 1)
+    }
+
+    func testTheStatusSaysWhichRefusalItIs() {
+        XCTAssertNil(UpdateCheckFailure.forStatus(200))
+        XCTAssertEqual(UpdateCheckFailure.forStatus(404), .noReleasePublished)
+        XCTAssertEqual(UpdateCheckFailure.forStatus(403), .rateLimited)
+        XCTAssertEqual(UpdateCheckFailure.forStatus(429), .rateLimited)
+        XCTAssertEqual(UpdateCheckFailure.forStatus(500), .endpointUnreachable)
+        XCTAssertEqual(UpdateCheckFailure.forStatus(0), .endpointUnreachable)
+    }
+
+    /// The passive check stays silent on every refusal, and none of them spends
+    /// the day's allowance.
+    func testThePassiveCheckIsSilentOnEveryRefusalAndRecordsNoAnswer() async {
+        for failure in [UpdateCheckFailure.endpointUnreachable, .noReleasePublished, .rateLimited, .malformedRelease] {
+            let service = makeService(release: nil, failure: failure)
+            let shown = await service.checkPassively()
+            XCTAssertFalse(shown)
+            XCTAssertEqual(service.state, .idle)
+            XCTAssertNil(defaults.object(forKey: UpdateCheckService.lastCheckDefaultsKey))
+        }
     }
 
     // MARK: - The passive check at launch
