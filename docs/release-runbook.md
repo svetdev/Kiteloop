@@ -139,6 +139,23 @@ xcrun stapler validate /Applications/Kiteloop.app
 the two answers you want. Anything else means the download is broken for everyone
 but you.
 
+### The copy on your own Mac
+
+For the app you use every day, install a Release build rather than running
+Xcode's Debug build, which every test run and rebuild replaces under you:
+
+```bash
+KITELOOP_SIGN_IDENTITY="Developer ID Application: <you> (<team>)" ./scripts/make-release.sh --install-local
+```
+
+It builds the same Release app, signs it with your Developer ID identity — so
+macOS keeps its permissions, Full Disk Access included, from one install to the
+next — skips notarizing and stapling, and copies it to `/Applications`
+(`KITELOOP_INSTALL_DIR` overrides where). It refuses before building while
+Kiteloop is running, and with no identity set. `--install-local --dry-run`
+prints what it would run. The copy is not notarized, so it is for this Mac,
+not for sending to anyone.
+
 ### The phone app on TestFlight
 
 `scripts/make-mobile-release.sh` archives the iOS companion, signs it for

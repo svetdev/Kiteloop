@@ -143,6 +143,9 @@ entry — see the changelog convention in `CLAUDE.md`.
 - Quick replies: the phone's chat shows a row of one-tap replies above the composer — Continue, Yes, go ahead and Run the tests to start with, edited under Settings → Control API → Quick replies. A tap sends the reply while the agent is idle, and adds it to the draft while the agent is working or something is already typed (`GET /v1/quick-replies`).
 - The phone's chat draws an agent's Markdown — headings, bullet and numbered lists, quotes, code blocks, bold, italic, inline code and links — instead of showing the asterisks and fences as typed.
 
+#### Releases
+- ./scripts/make-release.sh --install-local builds a Release copy signed with your Developer ID identity and installs it in /Applications without notarizing — the everyday copy for your own Mac, which keeps its macOS permissions between installs.
+
 ### Fixes
 
 #### Chat

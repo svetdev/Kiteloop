@@ -58,6 +58,7 @@
 #   ./scripts/make-release.sh                      # sign, notarize, staple, zip
 #   ./scripts/make-release.sh --expect 0.3.0       # refuse unless the version matches
 #   ./scripts/make-release.sh --notes-only         # write the release notes, build nothing
+#   ./scripts/make-release.sh --install-local      # Release build signed here, into /Applications; no notarizing
 #   ./scripts/make-release.sh --output dist        # where the zip and the notes land
 
 set -u
@@ -74,6 +75,9 @@ PROJECT_YML_RELPATH="Kiteloop/project.yml"
 CHANGELOG_RELPATH="CHANGELOG.md"
 ENTITLEMENTS_RELPATH="Kiteloop/Kiteloop/Kiteloop.entitlements"
 DEFAULT_OUTPUT_RELPATH="dist"
+# Where --install-local puts the app; overridable so the guard suite installs
+# into a temporary directory rather than the machine's /Applications.
+INSTALL_DIR="${KITELOOP_INSTALL_DIR:-/Applications}"
 
 # ${BASH_SOURCE[0]} rather than "$0" for the same reason run-unit-suite.sh uses
 # it: under `source` those differ, and a sourced copy would print the header of
@@ -511,6 +515,58 @@ run_signing() {
   spctl --assess --type execute --verbose=2 "$app" || return 1
 }
 
+# --- Installing on this Mac --------------------------------------------------
+#
+# The everyday copy, for the machine that built it: the same Release build,
+# signed with the Developer ID identity so macOS keeps the copy's permissions
+# (Full Disk Access, the prompts already answered) from one install to the next,
+# and not notarized — notarization is for other people's Macs and needs Apple's
+# minutes. Xcode's Debug build is no substitute: every test run and rebuild
+# replaces it under the running app.
+
+# Why --install-local cannot run here, or nothing when it can.
+install_local_refusal() {
+  local dest=$1
+  if pgrep -x Kiteloop >/dev/null 2>&1; then
+    printf 'Kiteloop is running. Quit it first: the copy in %s is replaced in place.\n' "$dest"
+    return
+  fi
+  if [ -z "${!SIGN_IDENTITY_VAR:-}" ]; then
+    printf '%s is not set — the identity the installed copy is signed with, so its\n' "$SIGN_IDENTITY_VAR"
+    printf 'macOS permissions survive the next install (docs/release-runbook.md).\n'
+  fi
+}
+
+# The local install, as commands — what --install-local --dry-run prints and
+# what run_local_install executes.
+local_install_commands() {
+  local app=$1 entitlements=$2 identity=$3 dest=$4
+  local nested
+  while IFS= read -r nested; do
+    [ -n "$nested" ] || continue
+    print_command codesign --force --options runtime --sign "$identity" "$nested"
+  done < <(nested_code "$app")
+  print_command codesign --force --options runtime --entitlements "$entitlements" --sign "$identity" "$app"
+  print_command codesign --verify --deep --strict --verbose=2 "$app"
+  print_command rm -rf "$dest/Kiteloop.app"
+  print_command ditto "$app" "$dest/Kiteloop.app"
+}
+
+run_local_install() {
+  local app=$1 entitlements=$2 identity=$3 dest=$4
+  local nested
+  while IFS= read -r nested; do
+    [ -n "$nested" ] || continue
+    codesign --force --options runtime --sign "$identity" "$nested" || return 1
+  done < <(nested_code "$app")
+  say "Signing $(basename "$app")"
+  codesign --force --options runtime --entitlements "$entitlements" --sign "$identity" "$app" || return 1
+  codesign --verify --deep --strict --verbose=2 "$app" || return 1
+  say "Installing into $dest"
+  rm -rf "$dest/Kiteloop.app" || return 1
+  ditto "$app" "$dest/Kiteloop.app" || return 1
+}
+
 # Sourcing this file defines its functions and does nothing else, which is how
 # scripts/test-make-release.sh drives the readers above without a build, a
 # keychain or a network. Executing it falls through to the options.
@@ -520,6 +576,7 @@ fi
 
 dry_run=0
 notes_only=0
+install_local=0
 expect_version=""
 output_dir=""
 
@@ -527,6 +584,7 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) dry_run=1 ;;
     --notes-only) notes_only=1 ;;
+    --install-local) install_local=1 ;;
     --expect)
       shift
       if [ "$#" -eq 0 ]; then
@@ -578,7 +636,18 @@ fi
 
 # The credential gate comes before the build, not after it: a run that is going
 # to refuse should refuse in a second rather than twenty minutes.
-if [ "$dry_run" -eq 0 ] && [ "$notes_only" -eq 0 ]; then
+# The local install's own gate, before the build for the same reason: the app
+# running, or no identity to sign with, refuses in a second.
+if [ "$install_local" -eq 1 ] && [ "$dry_run" -eq 0 ]; then
+  refusal=$(install_local_refusal "$INSTALL_DIR")
+  if [ -n "$refusal" ]; then
+    fail 'cannot install locally:'
+    printf '%s\n' "$refusal" >&2
+    exit 1
+  fi
+fi
+
+if [ "$dry_run" -eq 0 ] && [ "$notes_only" -eq 0 ] && [ "$install_local" -eq 0 ]; then
   missing=()
   while IFS= read -r name; do
     [ -n "$name" ] && missing+=("$name")
@@ -632,6 +701,17 @@ while IFS= read -r arg; do
   build_argv+=("$arg")
 done < <(xcodebuild_argv "$root/Kiteloop/Kiteloop.xcodeproj" "$derived")
 
+entitlements="$root/$ENTITLEMENTS_RELPATH"
+app="$derived/Build/Products/Release/Kiteloop.app"
+
+if [ "$install_local" -eq 1 ] && [ "$dry_run" -eq 1 ]; then
+  say 'A local install would run these — no notarizing, no stapling:'
+  printf '\n'
+  { print_command "${build_argv[@]}"
+    local_install_commands "$app" "$entitlements" "\$$SIGN_IDENTITY_VAR" "$INSTALL_DIR"; } | sed 's/^/  /'
+  exit 0
+fi
+
 say "Building Release $version"
 print_command "${build_argv[@]}"
 if ! "${build_argv[@]}"; then
@@ -639,13 +719,19 @@ if ! "${build_argv[@]}"; then
   exit 1
 fi
 
-app="$derived/Build/Products/Release/Kiteloop.app"
 if [ ! -d "$app" ]; then
   fail "the build reported success but $app is not there."
   exit 1
 fi
 
-entitlements="$root/$ENTITLEMENTS_RELPATH"
+if [ "$install_local" -eq 1 ]; then
+  if ! run_local_install "$app" "$entitlements" "${!SIGN_IDENTITY_VAR}" "$INSTALL_DIR"; then
+    fail 'the local install did not complete.'
+    exit 1
+  fi
+  say "Installed      $INSTALL_DIR/Kiteloop.app"
+  exit 0
+fi
 
 if [ "$dry_run" -eq 1 ]; then
   rm -f "$zip_path"

@@ -452,6 +452,43 @@ check 'a tree whose version sites disagree exits non-zero' \
 check_contains 'and says so in those words' 'disagrees across the three sites' "$drift_run"
 check 'and starts no build' '' "$(cat "$calls")"
 
+# --- --install-local ---------------------------------------------------------
+
+printf '\nlocal install\n'
+
+write_pbxproj "$repo/Kiteloop/Kiteloop.xcodeproj/project.pbxproj" 0.3.0 0.3.0
+write_yml "$repo/Kiteloop/project.yml" 0.3.0
+# A pgrep that answers for Kiteloop the way the environment says, so "the app
+# is running" can be staged without one.
+cat >"$repo/bin/pgrep" <<'STUB'
+#!/bin/bash
+[ "${FAKE_KITELOOP_RUNNING:-0}" = 1 ]
+STUB
+chmod +x "$repo/bin/pgrep"
+export KITELOOP_INSTALL_DIR="$tmp/Applications"
+
+local_dry=$(run_release --install-local --dry-run --output "$tmp/out")
+check_contains 'a local-install dry run names the build' '-configuration Release' "$local_dry"
+check_contains 'and the copy into the install directory' "$tmp/Applications/Kiteloop.app" "$local_dry"
+check_lacks 'and no notarizing' 'notarytool' "$local_dry"
+check 'and builds nothing' '' "$(cat "$calls")"
+
+running_out=$(FAKE_KITELOOP_RUNNING=1 KITELOOP_SIGN_IDENTITY='Developer ID Application: Someone' \
+  run_release --install-local --output "$tmp/out")
+check_contains 'a local install refuses while Kiteloop runs' 'Kiteloop is running' "$running_out"
+check 'and starts no build' '' "$(cat "$calls")"
+
+unset KITELOOP_SIGN_IDENTITY
+no_identity_out=$(run_release --install-local --output "$tmp/out")
+check_contains 'a local install with no identity refuses, naming the variable' \
+  'KITELOOP_SIGN_IDENTITY is not set' "$no_identity_out"
+check 'and starts no build' '' "$(cat "$calls")"
+
+reaches_out=$(KITELOOP_SIGN_IDENTITY='Developer ID Application: Someone' run_release --install-local --output "$tmp/out")
+check 'with an identity and the app quit, a local install reaches the build' 'xcodebuild' "$(cat "$calls")"
+check_lacks 'and asks for no notary profile' 'KITELOOP_NOTARY_PROFILE' "$reaches_out"
+unset KITELOOP_INSTALL_DIR
+
 # --- --help ------------------------------------------------------------------
 
 printf '\nhelp\n'
