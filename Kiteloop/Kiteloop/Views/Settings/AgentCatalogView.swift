@@ -1,3 +1,4 @@
+import KiteloopCore
 import SwiftUI
 
 struct AgentCatalogView: View {
@@ -199,7 +200,7 @@ struct CatalogTemplateEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var name: String = ""
-    @State private var model: String = "sonnet"
+    @State private var model: String = CatalogModelSelection.initial(for: nil)
     @State private var description: String = ""
     @State private var group: String = ""
     @State private var systemPrompt: String = ""
@@ -224,11 +225,10 @@ struct CatalogTemplateEditor: View {
 
                 Section("Configuration") {
                     Picker("Model", selection: $model) {
-                        Text("Sonnet").tag("sonnet")
-                        Text("Opus").tag("opus")
-                        Text("Haiku").tag("haiku")
+                        ForEach(ModelCatalog.pickerOptions(including: model)) { option in
+                            Text(option.pickerLabel).tag(option.id)
+                        }
                     }
-                    .pickerStyle(.segmented)
 
                     Picker("Permission Mode", selection: $permissionMode) {
                         Text("Auto (Claude Code decides)").tag("auto")
@@ -273,7 +273,7 @@ struct CatalogTemplateEditor: View {
         .onAppear {
             if let t = template {
                 name = t.name
-                model = t.model
+                model = CatalogModelSelection.initial(for: t)
                 description = t.description
                 group = t.group ?? ""
                 systemPrompt = t.systemPrompt
@@ -313,5 +313,15 @@ struct CatalogTemplateEditor: View {
             group: group.isEmpty ? nil : group,
             runtimeKind: template?.runtimeKind
         )
+    }
+}
+
+/// The model a catalog template's editor opens on: the template's own,
+/// normalised the way every other model picker normalises it — so a Bedrock
+/// inference-profile id selects its family — or, for a new template, the
+/// app's default model.
+enum CatalogModelSelection {
+    static func initial(for template: AgentTemplate?) -> String {
+        template.map { ModelCatalog.normalize($0.model) } ?? ModelCatalog.defaultModelID
     }
 }

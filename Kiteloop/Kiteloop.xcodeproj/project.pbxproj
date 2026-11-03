@@ -650,6 +650,7 @@
 		3754162439C16183756AEAD0 /* BacklogAutopilotCostSampleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B4F2BA5DE81195D7E1F6BA /* BacklogAutopilotCostSampleTests.swift */; };
 		5CC12B131E5ACD98E24F99A3 /* BacklogAutopilotUsageLimitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D73CBA1A79975772A509F06 /* BacklogAutopilotUsageLimitTests.swift */; };
 		CD7AB89D6500AF882EFCC37D /* MCPServerSettingsFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB2BEC4467279157249C6A7 /* MCPServerSettingsFileTests.swift */; };
+		89DC1AEBF67B44372CD92CDD /* AgentCatalogModelPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1315,6 +1316,7 @@
 		81B4F2BA5DE81195D7E1F6BA /* BacklogAutopilotCostSampleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotCostSampleTests.swift; sourceTree = "<group>"; };
 		6D73CBA1A79975772A509F06 /* BacklogAutopilotUsageLimitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotUsageLimitTests.swift; sourceTree = "<group>"; };
 		5CB2BEC4467279157249C6A7 /* MCPServerSettingsFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerSettingsFileTests.swift; sourceTree = "<group>"; };
+		1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCatalogModelPickerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1385,6 +1387,7 @@
 		1988EEB7FE8DC46FE0A5172A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */,
 				5CB2BEC4467279157249C6A7 /* MCPServerSettingsFileTests.swift */,
 				14E61BC07E5EA6C14CFA9418 /* SubagentCallRowsTests.swift */,
 				055914A0790BFD0AC6889478 /* TerminalRowsTests.swift */,
@@ -2705,6 +2708,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				89DC1AEBF67B44372CD92CDD /* AgentCatalogModelPickerTests.swift in Sources */,
 				CD7AB89D6500AF882EFCC37D /* MCPServerSettingsFileTests.swift in Sources */,
 				5CC12B131E5ACD98E24F99A3 /* BacklogAutopilotUsageLimitTests.swift in Sources */,
 				3754162439C16183756AEAD0 /* BacklogAutopilotCostSampleTests.swift in Sources */,
