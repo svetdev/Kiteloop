@@ -37,6 +37,52 @@ package struct AgentActivity: Equatable, Sendable {
         }
     }
 
+    /// A finished task as a chat saves it: what its row reads, in the CLI's
+    /// own spellings, so it decodes into the same `TaskState` the live row
+    /// draws from.
+    package struct SavedTask: Codable, Equatable, Sendable {
+        package var taskType: String
+        package var status: String
+        package var description: String
+        package var subagentType: String?
+        package var toolUses: Int?
+        package var totalTokens: Int?
+        package var durationMs: Int?
+        package var summary: String?
+
+        package init(_ task: TaskState) {
+            taskType = task.kind.taskType
+            status = task.status.raw
+            description = task.description
+            subagentType = task.subagentType
+            toolUses = task.progress?.toolUses
+            totalTokens = task.progress?.totalTokens
+            durationMs = task.progress?.durationMs
+            summary = task.summary
+        }
+
+        /// The state the row draws, for the call `toolUseID`.
+        package func taskState(toolUseID: String) -> TaskState {
+            var task = TaskState(taskID: "saved-\(toolUseID)", toolUseID: toolUseID,
+                                 kind: AgentTaskKind(taskType: taskType), description: description,
+                                 subagentType: subagentType)
+            task.status = AgentTaskStatus(status)
+            task.progress = AgentTaskProgress(totalTokens: totalTokens, toolUses: toolUses, durationMs: durationMs)
+            task.summary = summary
+            return task
+        }
+    }
+
+    /// Every finished task that names the call it belongs to, keyed by that
+    /// call's id — what a chat saves onto its tool calls.
+    package var finishedTasksByToolUseID: [String: TaskState] {
+        var finished: [String: TaskState] = [:]
+        for task in tasks.values where task.status.isFinished {
+            if let toolUseID = task.toolUseID { finished[toolUseID] = task }
+        }
+        return finished
+    }
+
     package private(set) var tasks: [String: TaskState] = [:]
     private var taskIDsByToolUseID: [String: String] = [:]
     /// The background tasks the CLI last said are running, in its order.

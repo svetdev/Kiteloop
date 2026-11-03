@@ -193,6 +193,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - ⌘F opens find from every view of the chat, Return / Shift-Return / Esc work, the count covers only what the chat shows, and it says when older messages were not searched.
 
 #### Chat transcript
+- A reopened chat — after a relaunch, or an older chat opened again — still shows how each Agent call and background shell ended ("general-purpose · completed · 2 tools · 16k tokens", "finished · exit code 0") instead of falling back to the bare tool result.
 - Transcript mode (⇧⌘T) prints a subagent's tool calls indented under the Agent call that made them, so a copied transcript no longer reads as if the main agent made them.
 - A subagent's own subagent is drawn under the Agent call that started it, one step further in and inside its fold, instead of flat under the outer Agent row.
 - The app's own notes in the chat — a saved branch, the branch list, a goal set, the hint to use `/clear` — show their bold and code as formatted text in both chat looks, instead of printing `**` and backticks.

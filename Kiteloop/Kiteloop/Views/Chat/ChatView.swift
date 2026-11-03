@@ -823,10 +823,10 @@ struct MessageListContainer: View {
         switch (message.content, terminal) {
         case (.toolCall(let call), true):
             TerminalToolCallRow(toolCall: call, result: results[call.id],
-                                task: viewModel.agentActivity.task(forToolUseID: call.id), children: children[call.id] ?? [])
+                                task: viewModel.task(forCall: call), children: children[call.id] ?? [])
         case (.toolCall(let call), false):
             ToolCallView(toolCall: call, result: results[call.id],
-                         task: viewModel.agentActivity.task(forToolUseID: call.id), children: children[call.id] ?? [])
+                         task: viewModel.task(forCall: call), children: children[call.id] ?? [])
         case (_, true):
             TerminalMessageRow(message: message, showStreamingCursor: showsCursor,
                                onBranchFromHere: { viewModel.branchFromMessage(id: message.id) })

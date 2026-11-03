@@ -4698,6 +4698,7 @@ extension ChatViewModel {
         guard let event = AgentActivityEvent.parse(subtype: subtype, payload: payload) else { return }
         let previousLimit = agentActivity.rateLimit
         agentActivity.apply(event)
+        saveFinishedTasks()
         switch event {
         case .thinkingTokens(let estimated):
             setActivity(AgentActivityDisplay.thinkingLabel(text: "", estimatedTokens: estimated))
@@ -4707,6 +4708,30 @@ extension ChatViewModel {
         default:
             break
         }
+    }
+
+    /// Writes each task that has finished onto the call that started it, and
+    /// saves when that changed anything, so a reopened chat still says how
+    /// its subagents and background shells ended.
+    private func saveFinishedTasks() {
+        let finished = agentActivity.finishedTasksByToolUseID
+        guard !finished.isEmpty else { return }
+        var changed = false
+        for index in messages.indices {
+            guard case .toolCall(var call) = messages[index].content, let task = finished[call.id] else { continue }
+            let saved = AgentActivity.SavedTask(task)
+            guard call.finishedTask != saved else { continue }
+            call.finishedTask = saved
+            messages[index].content = .toolCall(call)
+            changed = true
+        }
+        if changed { saveMessages() }
+    }
+
+    /// The task a call's row reads: the live one, or the one saved with the
+    /// chat once the session that ran it is gone.
+    func task(forCall call: Message.ToolCall) -> AgentActivity.TaskState? {
+        agentActivity.task(forToolUseID: call.id) ?? call.finishedTask?.taskState(toolUseID: call.id)
     }
 
     /// A system line for a rate-limit notice that says something — a warning

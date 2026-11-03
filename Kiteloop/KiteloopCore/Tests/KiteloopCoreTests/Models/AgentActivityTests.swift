@@ -182,4 +182,38 @@ final class AgentActivityTests: XCTestCase {
         case .rateLimit: return "rateLimit"
         }
     }
+
+    // MARK: - A finished task, saved with the chat
+
+    func testASavedTaskReadsBackAsTheSameStatusLine() {
+        var agent = AgentActivity.TaskState(taskID: "t1", toolUseID: "call-1", kind: .subagent,
+                                            description: "Look around", subagentType: "general-purpose")
+        agent.status = .completed
+        agent.progress = AgentTaskProgress(totalTokens: 16_000, toolUses: 2)
+        var shell = AgentActivity.TaskState(taskID: "t2", toolUseID: "call-2", kind: .backgroundShell)
+        shell.status = .completed
+        shell.summary = "Background command completed (exit code 0)"
+
+        for task in [agent, shell] {
+            let saved = AgentActivity.SavedTask(task)
+            XCTAssertEqual(AgentActivityDisplay.statusLine(for: saved.taskState(toolUseID: task.toolUseID ?? "")),
+                           AgentActivityDisplay.statusLine(for: task))
+        }
+    }
+
+    func testOnlyFinishedTasksThatNameTheirCallAreSaved() {
+        var activity = AgentActivity()
+        activity.apply(.taskStarted(.init(taskID: "t1", toolUseID: "call-1", kind: .subagent, description: "",
+                                          subagentType: nil, isBackgrounded: false)))
+        XCTAssertTrue(activity.finishedTasksByToolUseID.isEmpty, "still running")
+        activity.apply(.taskUpdated(taskID: "t1", status: .completed))
+        XCTAssertEqual(activity.finishedTasksByToolUseID.keys.sorted(), ["call-1"])
+    }
+
+    /// A chat saved before a call carried its task decodes with none.
+    func testAToolCallSavedBeforeTasksWereKeptDecodesWithNone() throws {
+        let old = #"{"id":"c","name":"Agent","input":"{}","isCollapsed":true}"#
+        let call = try JSONDecoder().decode(Message.ToolCall.self, from: Data(old.utf8))
+        XCTAssertNil(call.finishedTask)
+    }
 }

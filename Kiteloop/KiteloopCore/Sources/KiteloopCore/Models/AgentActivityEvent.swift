@@ -202,6 +202,15 @@ package enum AgentTaskKind: Equatable, Sendable {
         default: self = .other(taskType ?? "")
         }
     }
+
+    /// The CLI's spelling, which `init(taskType:)` reads back.
+    package var taskType: String {
+        switch self {
+        case .subagent: return "local_agent"
+        case .backgroundShell: return "local_bash"
+        case .other(let raw): return raw
+        }
+    }
 }
 
 /// Where a task stands, as the CLI spells it. Running until something says
@@ -224,6 +233,17 @@ package enum AgentTaskStatus: Equatable, Sendable {
     }
 
     package var isFinished: Bool { self != .running }
+
+    /// The CLI's spelling, which `init(_:)` reads back.
+    package var raw: String {
+        switch self {
+        case .running: return "running"
+        case .completed: return "completed"
+        case .failed: return "failed"
+        case .killed: return "killed"
+        case .other(let raw): return raw
+        }
+    }
 }
 
 /// A running subagent's counters, from a `task_progress` or the closing

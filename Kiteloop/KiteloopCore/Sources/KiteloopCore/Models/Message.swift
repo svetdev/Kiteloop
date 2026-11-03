@@ -91,6 +91,11 @@ package struct Message: Identifiable, Codable {
         /// The `Agent`/`Task` call whose subagent made this call, or nil for
         /// the agent's own. A chat saved before this was kept decodes as nil.
         package var parentToolUseID: String?
+        /// How the task this call started ended — a subagent's outcome and
+        /// counters, a background shell's exit — saved with the chat so a
+        /// reopened chat's row still says it. Nil while it runs, for a call
+        /// that started no task, and in a chat saved before this was kept.
+        package var finishedTask: AgentActivity.SavedTask?
     
         /// The memberwise init, spelled out: a `package` type's synthesised one is
         /// internal to the package, and the app constructs this.

@@ -90,6 +90,31 @@ final class ChatViewModelAgentActivityTests: XCTestCase {
         XCTAssertTrue(vm.agentActivity.backgroundTasks.isEmpty)
     }
 
+    /// A finished task is saved onto its call, so the chat reopened later —
+    /// a fresh session with no live tasks — draws the same status lines.
+    func testFinishedTasksAreSavedWithTheChatAndReadBackWhenReopened() async throws {
+        let (vm, mock) = try await makeVM()
+        let turns = try Self.fixtureTurns()
+        mock.events = turns.first
+        vm.inputText = "go"
+        await vm.send()
+        mock.events = turns.after
+        vm.inputText = "and then"
+        await vm.send()
+
+        let saved = try JSONDecoder().decode([Message].self, from: JSONEncoder().encode(vm.messages))
+        let calls = Self.toolCalls(in: saved)
+        let agentCall = try XCTUnwrap(calls.first { $0.id == StreamEventSubagentFixtureTests.agentCallID })
+        let shellCall = try XCTUnwrap(calls.first { $0.id == "toolu_019XTqpLMCQiLwhBGP7wGzhZ" })
+
+        let reopened = try await makeVM().0
+        let agentLine = try XCTUnwrap(SubagentRowText.statusLine(for: reopened.task(forCall: agentCall)))
+        let liveAgent = try XCTUnwrap(vm.agentActivity.task(forToolUseID: agentCall.id))
+        XCTAssertEqual(agentLine, AgentActivityDisplay.statusLine(for: liveAgent))
+        XCTAssertTrue(agentLine.contains("completed") && agentLine.contains("2 tools"), agentLine)
+        XCTAssertEqual(SubagentRowText.statusLine(for: reopened.task(forCall: shellCall)), "finished · exit code 0")
+    }
+
     func testTheEmptyThinkingBlockKeepsTheEstimateAndTheRoutineRateLimitSaysNothing() async throws {
         let vm = try await runFirstTurn()
         let thought = try XCTUnwrap(vm.messages.first { if case .thinking = $0.content { return true } else { return false } })
