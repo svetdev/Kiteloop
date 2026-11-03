@@ -1,16 +1,17 @@
 import XCTest
 
 /// QA flow for `opening-a-second-drawer-squeezes-the-autopilot-into-a-strip`:
-/// the Planner (Coordinator), Fleet and Waiting on you drawers open one at a
-/// time — opening one closes whichever other one is open, closing the open one
-/// leaves none, each keeps its width, and flags saved as open for two drawers
-/// reopen only one.
+/// the Fleet drawer — which carries the Planner since 2026-11-02 — and the
+/// Waiting on you drawer open one at a time: opening one closes the other,
+/// the Planner and Fleet rows move within the one drawer, closing it leaves
+/// none, it keeps its width, and flags saved as open for two drawers reopen
+/// only one.
 ///
 /// The sidebar's own identifier covers everything inside it, so its three
 /// buttons are found by label; each drawer's identifier likewise covers its
 /// contents, so a drawer is found by its Close button carrying that identifier.
 final class OpeningASecondDrawerSqueezesTheAutopilotIntoAStrip: QAStoryboardTestCase {
-    private let planner = "coordinator-drawer"
+    private let planner = "fleet-drawer"
     private let fleet = "fleet-drawer"
     private let waiting = "waiting-drawer"
 
@@ -28,7 +29,7 @@ final class OpeningASecondDrawerSqueezesTheAutopilotIntoAStrip: QAStoryboardTest
             toggle(fleet)
             assertOpen(fleet)
         }
-        step("Clicking Planner shows one drawer, Planner, beside the Autopilot — Fleet is gone") {
+        step("Clicking Planner keeps one drawer, the Fleet drawer at its Planner section, beside the Autopilot") {
             toggle(planner)
             assertOpen(planner)
         }
@@ -44,17 +45,17 @@ final class OpeningASecondDrawerSqueezesTheAutopilotIntoAStrip: QAStoryboardTest
             toggle(fleet)
             assertOpen(nil)
         }
-        step("Fleet then Planner leaves one drawer, Planner, beside the Autopilot, not two") {
+        step("Fleet then Planner leaves one drawer beside the Autopilot, not two") {
             toggle(fleet)
             assertOpen(fleet)
             toggle(planner)
             assertOpen(planner)
         }
-        step("The Planner drawer's close button leaves no drawer open, and Fleet does not come back") {
+        step("The drawer's close button leaves no drawer open") {
             closeButton(planner).click()
             assertOpen(nil)
         }
-        step("The Fleet drawer, widened by dragging its edge, comes back just as wide after Planner") {
+        step("The Fleet drawer, widened by dragging its edge, stays just as wide moving to the Planner and back") {
             toggle(fleet)
             assertOpen(fleet)
             let before = closeButton(fleet).frame.maxX
@@ -75,11 +76,11 @@ final class OpeningASecondDrawerSqueezesTheAutopilotIntoAStrip: QAStoryboardTest
             relaunch()
             assertOpen(fleet)
         }
-        step("Relaunched with Planner and Fleet both saved as open, only the Planner drawer is shown") {
+        step("Relaunched with the retired Planner flag and Fleet both saved as open, only the Fleet drawer is shown") {
             relaunch(arguments: ["-coordinatorDrawerOpen", "YES", "-fleetDrawerOpen", "YES"])
             assertOpen(planner)
         }
-        step("With the Inspector open, clicking Fleet replaces Planner and the Inspector stays open") {
+        step("With the Inspector open, Planner and Fleet move within one drawer and the Inspector stays open") {
             relaunch()
             toggle(planner)
             assertOpen(planner)

@@ -85,28 +85,25 @@ struct MainWindow: View {
     @State private var showSidebar = true
     @State private var showInspector = false
     @State private var inspectorTab: InspectorTab = .preview
-    /// The Coordinator drawer — its own flag and width rather than a third
-    /// Inspector tab, so it and the Inspector can be open at once without
-    /// fighting over one column. Persisted next to the panel's own reading preferences: it is
-    /// something you leave open across days, not a per-launch choice.
-    @AppStorage("coordinatorDrawerOpen") private var showCoordinatorDrawer = false
-    @AppStorage("coordinatorDrawerWidth") private var coordinatorDrawerWidth = 420.0
-    /// The fleet drawer — its own flag and width beside the Coordinator's, and
-    /// persisted the same way. Pausing a fleet is something you watch drain over
+    /// The fleet drawer, which carries the Planner too — its own flag and
+    /// width rather than an Inspector tab, so it and the Inspector can be open
+    /// at once. Persisted: pausing a fleet is something you watch drain over
     /// minutes, so it is a pane you leave open, not a per-launch choice.
     @AppStorage("fleetDrawerOpen") private var showFleetDrawer = false
     @AppStorage("fleetDrawerWidth") private var fleetDrawerWidth = 420.0
+    /// Which section the fleet drawer was opened to — the sidebar's Planner
+    /// row opens it at the Planner.
+    @State private var fleetDrawerFocus: FleetDrawer.Focus = .top
     /// The waiting-on-you drawer, persisted like the two beside it. What is
     /// blocked on a person is something you keep in view for as long as you are
     /// clearing it, so the open/closed choice survives a launch.
     @AppStorage("waitingDrawerOpen") private var showWaitingDrawer = false
     @AppStorage("waitingDrawerWidth") private var waitingDrawerWidth = 420.0
-    /// The one drawer open of the three, read off their saved flags and written
-    /// back to all three, so opening one closes the others.
+    /// The one drawer open of the two, read off their saved flags and written
+    /// back to both, so opening one closes the other.
     private var openDrawer: SidebarDrawer? {
-        get { SidebarDrawer.open(coordinator: showCoordinatorDrawer, fleet: showFleetDrawer, waiting: showWaitingDrawer) }
+        get { SidebarDrawer.open(fleet: showFleetDrawer, waiting: showWaitingDrawer) }
         nonmutating set {
-            showCoordinatorDrawer = newValue == .coordinator
             showFleetDrawer = newValue == .fleet
             showWaitingDrawer = newValue == .waiting
         }
@@ -152,11 +149,6 @@ struct MainWindow: View {
     }
 
     /// `PaneResizer` drags a `CGFloat`; `@AppStorage` stores a `Double`.
-    private var coordinatorDrawerWidthBinding: Binding<CGFloat> {
-        Binding(get: { CGFloat(coordinatorDrawerWidth) },
-                set: { coordinatorDrawerWidth = Double($0) })
-    }
-
     /// The same conversion for the fleet drawer beside it.
     private var fleetDrawerWidthBinding: Binding<CGFloat> {
         Binding(get: { CGFloat(fleetDrawerWidth) },
@@ -357,27 +349,6 @@ struct MainWindow: View {
                         PaneResizer(width: $sidebarWidth, range: 180...440, growsWithRightwardDrag: true)
                             .transition(.move(edge: .leading))
                     }
-                    if openDrawer == .coordinator {
-                        CoordinatorDrawer(
-                            refill: queueRefill,
-                            registry: controlRegistry,
-                            recentProjects: recentProjects,
-                            vaultURL: globalConfigStore.vaultURL,
-                            metricStore: taskMetricStore,
-                            groomingLedger: .shared,
-                            scheduler: runScheduler,
-                            globalConfigStore: globalConfigStore,
-                            onClose: {
-                                toggleDrawer(.coordinator)
-                            }
-                        )
-                        .frame(width: CGFloat(coordinatorDrawerWidth))
-                        .transition(.move(edge: .leading))
-                        PaneResizer(width: coordinatorDrawerWidthBinding,
-                                    range: 320...720,
-                                    growsWithRightwardDrag: true)
-                            .transition(.move(edge: .leading))
-                    }
                     if openDrawer == .fleet {
                         FleetDrawer(
                             status: fleetQuiesce.status,
@@ -385,6 +356,11 @@ struct MainWindow: View {
                             globalConfigStore: globalConfigStore,
                             registry: controlRegistry,
                             refill: queueRefill,
+                            recentProjects: recentProjects,
+                            vaultURL: globalConfigStore.vaultURL,
+                            metricStore: taskMetricStore,
+                            groomingLedger: .shared,
+                            focus: fleetDrawerFocus,
                             onQuiesce: { fleetQuiesce.quiesce() },
                             onResume: { fleetQuiesce.resume() },
                             onClose: {
@@ -1156,6 +1132,14 @@ struct MainWindow: View {
         }
     }
 
+    /// The fleet drawer at `section`: opened there, moved there when it is
+    /// open at another section, or closed when it is already showing it.
+    private func openFleetDrawer(at section: FleetDrawer.Focus) {
+        let next = FleetDrawer.afterAsking(for: section, open: openDrawer, focus: fleetDrawerFocus)
+        fleetDrawerFocus = next.focus
+        withAnimation(.easeInOut(duration: 0.2)) { openDrawer = next.open }
+    }
+
     /// The left navigator column (team, backlog, sessions).
     private var sidebarView: some View {
         KiteloopSidebar(
@@ -1168,9 +1152,9 @@ struct MainWindow: View {
             onQuickAdd: { quickAddAgent($0) },
             onTeamSettings: { projectSettingsPage = .general; showingProjectSettings = true },
             onOpenCoordinator: {
-                toggleDrawer(.coordinator)
+                openFleetDrawer(at: .planner)
             },
-            isCoordinatorOpen: openDrawer == .coordinator,
+            isCoordinatorOpen: openDrawer == .fleet && fleetDrawerFocus == .planner,
             coordinatorBudget: coordinatorBudget,
             dailyBudget: dailyBudget,
             setDailyBudgetUSD: { globalConfigStore.setDailyBudgetUSD($0) },
@@ -1185,9 +1169,9 @@ struct MainWindow: View {
             onQuiesceFleet: { fleetQuiesce.quiesce() },
             onResumeFleet: { fleetQuiesce.resume() },
             onOpenFleet: {
-                toggleDrawer(.fleet)
+                openFleetDrawer(at: .top)
             },
-            isFleetOpen: openDrawer == .fleet,
+            isFleetOpen: openDrawer == .fleet && fleetDrawerFocus == .top,
             waitingOnYou: waitingOnYou,
             onOpenWaiting: {
                 toggleDrawer(.waiting)
@@ -2664,7 +2648,7 @@ struct PortfolioSection: View {
 
     /// The same rollup the cards render, reduced to what the Coordinator section
     /// ranks on. Reused rather than re-read: the loader has already been to disk
-    /// for every one of these. Not private because `CoordinatorDrawer` mounts the
+    /// for every one of these. Not private because `FleetDrawer` mounts the
     /// same panel and has to feed it the same shape.
     static func coordinatorInput(_ summary: PortfolioProjectSummary)
         -> CoordinatorPanelModel.ProjectInput {

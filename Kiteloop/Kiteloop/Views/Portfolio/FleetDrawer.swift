@@ -1,3 +1,4 @@
+import KiteloopCore
 import SwiftUI
 
 /// The fleet-wide hold as a side pane, so the state that matters while pausing
@@ -8,7 +9,7 @@ import SwiftUI
 /// the wrong size for every question that follows it — which projects are still
 /// finishing, what each is on, whose queue this pause is holding, and how much
 /// each of them is holding back. The Coordinator next door had already solved
-/// the same shape (`CoordinatorDrawer`), so this is that shape applied: the
+/// the same shape in a drawer of its own, so this is that shape applied: the
 /// footer box stays the compact summary and opens this.
 ///
 /// It derives nothing. Every line here is a field of the one
@@ -16,7 +17,25 @@ import SwiftUI
 /// the box cannot come to disagree about what the fleet is doing. The two
 /// controls call the same `FleetQuiesceControl` the footer's do, which is the
 /// same seam `POST /v1/fleet/quiesce` drives.
+///
+/// The Planner lives here too (2026-11-02). Running work unattended is one
+/// question — is the fleet taking work, what is the Planner grooming, what did
+/// it produce — and two drawers split it, each with its own projects table.
+/// So the fleet's state and controls come first, the Planner's state and
+/// recent passes under them, and one Projects table carries both drawers'
+/// columns. The budget is the sidebar's to show, once.
 struct FleetDrawer: View {
+    /// Where the drawer was opened to: the top, from the sidebar's Fleet row,
+    /// or the Planner, from its own row.
+    enum Focus: Hashable { case top, planner }
+
+    /// Which drawer is open, and at which section, after a sidebar row asks
+    /// for `section`: the fleet drawer there — unless it is already showing
+    /// exactly that, which closes it, the way a drawer's own row always has.
+    static func afterAsking(for section: Focus, open: SidebarDrawer?,
+                            focus: Focus) -> (open: SidebarDrawer?, focus: Focus) {
+        (open == .fleet && focus == section ? nil : .fleet, section)
+    }
     /// What the fleet last read, or nil before the first reading has landed —
     /// the state the footer box draws nothing in. This drawer is persisted open
     /// across launches, so unlike the box it is on screen for those two seconds
@@ -29,6 +48,15 @@ struct FleetDrawer: View {
     var globalConfigStore: GlobalConfigStore?
     var registry: ControlSessionRegistry?
     var refill: CoordinatorQueueRefill?
+    /// The Planner's inputs: the portfolio as the landing screen lists it,
+    /// and the two ledgers its passes and the Projects table's last day are
+    /// read from.
+    var recentProjects: [RecentProject] = []
+    var vaultURL: URL?
+    var metricStore: TaskMetricStore?
+    var groomingLedger: GroomingLedger?
+    var focus: Focus = .top
+    @State private var summaries: [PortfolioProjectSummary] = []
 
     /// Same key as before the move, so the reader's open/closed choice
     /// survives the section changing homes.
@@ -43,6 +71,50 @@ struct FleetDrawer: View {
         VStack(spacing: 0) {
             header
             Divider()
+            ScrollViewReader { proxy in
+                ScrollView { sections.id(Focus.top) }
+                    .onAppear { proxy.scrollTo(focus, anchor: .top) }
+                    .onChange(of: focus) { _, section in
+                        withAnimation { proxy.scrollTo(section, anchor: .top) }
+                    }
+            }
+        }
+        .background(.background)
+        .accessibilityIdentifier("fleet-drawer")
+        .task(id: recentProjects.map(\.id).joined(separator: ",")) {
+            summaries = await PortfolioSummaryLoader.load(recentProjects, vaultURL: vaultURL,
+                                                          grooming: groomingLedger?.records ?? [])
+        }
+    }
+
+    /// The Planner's state, controls and recent passes — its own panel, drawn
+    /// into this one.
+    @ViewBuilder
+    private var plannerSection: some View {
+        if let refill {
+            VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.sm) {
+                AutonomyLoopSectionHeader(title: "Planner", icon: "point.3.connected.trianglepath.dotted")
+                CoordinatorPanel(
+                    refill: refill,
+                    projects: summaries.map(PortfolioSection.coordinatorInput),
+                    metricStore: metricStore,
+                    groomingLedger: groomingLedger,
+                    scheduler: scheduler,
+                    globalConfigStore: globalConfigStore,
+                    standalone: false,
+                    plannerOnly: true,
+                    registry: registry
+                )
+            }
+            .padding(KiteloopTokens.Spacing.lg)
+            .id(Focus.planner)
+            .accessibilityIdentifier("fleet-drawer-planner")
+            Divider()
+        }
+    }
+
+    private var sections: some View {
+        VStack(spacing: 0) {
             FleetRunControls(scheduler: scheduler,
                              globalConfigStore: globalConfigStore,
                              registry: registry,
@@ -54,13 +126,14 @@ struct FleetDrawer: View {
                 stateSection(status)
             }
             Divider()
+            plannerSection
             startsSection
             if let status {
                 Divider()
                 if let registry {
                     // One table, every facet: replaces the status-derived rows
                     // (and the consent roster that lived in the controls above).
-                    FleetBoard(registry: registry)
+                    FleetBoard(registry: registry, metricStore: metricStore, groomingLedger: groomingLedger)
                         .padding(.horizontal, KiteloopTokens.Spacing.md)
                         .padding(.bottom, KiteloopTokens.Spacing.sm)
                 } else {
@@ -75,8 +148,6 @@ struct FleetDrawer: View {
             }
             Spacer(minLength: 0)
         }
-        .background(.background)
-        .accessibilityIdentifier("fleet-drawer")
     }
 
     // MARK: - State and the action

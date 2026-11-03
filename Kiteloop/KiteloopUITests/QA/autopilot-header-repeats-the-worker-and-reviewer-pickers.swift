@@ -77,8 +77,8 @@ final class AutopilotHeaderRepeatsTheWorkerAndReviewerPickers: QAStoryboardTestC
                 .matching(NSPredicate(format: "identifier == 'agent-sidebar' AND label BEGINSWITH 'Planner'"))
                 .firstMatch
             XCTAssertTrue(planner.waitForExistence(timeout: 10), "the sidebar's Planner button should appear")
-            if !closeButton("coordinator-drawer").exists { planner.click() }
-            XCTAssertTrue(closeButton("coordinator-drawer").waitForExistence(timeout: 5), "the Planner drawer should open")
+            if !closeButton("fleet-drawer").exists { planner.click() }
+            XCTAssertTrue(closeButton("fleet-drawer").waitForExistence(timeout: 5), "the drawer should open at the Planner")
             XCTAssertLessThan(rolesButton.frame.height, 30, "the roles button should stay one line high")
             let status = app.staticTexts["Idle"].firstMatch
             XCTAssertTrue(status.exists, "the status should still be in the header")

@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		01927C6C1EA37BB6D0EBFFD6 /* CoordinatorDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9AA3F7FC5F2BFADDB055011 /* CoordinatorDrawer.swift */; };
 		020C9111B05437163E2FE4D2 /* ChatViewModelHandoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 103EBE2342876B7804335176 /* ChatViewModelHandoffTests.swift */; };
 		CE6C6CD54F3444FCA38E22B2 /* ChatViewModelTaskUpdateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3075E474597A433AB3BBEA75 /* ChatViewModelTaskUpdateTests.swift */; };
 		265228DEC3714655AB031BAC /* ChatViewModelCLITaskMirrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC1A4723B70B42C997C72EE0 /* ChatViewModelCLITaskMirrorTests.swift */; };
@@ -407,6 +406,7 @@
 		CE9895F4C0F2224F06CFDC40 /* DailyBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426D18275F288E133D68FAB4 /* DailyBudgetTests.swift */; };
 		CF29A6CCFE77C64A152D11BB /* BacklogFileGroomedItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E74AC54A900D3114BB665140 /* BacklogFileGroomedItemTests.swift */; };
 		CF54800EC3A7921814367DF0 /* KiteloopUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08913DB800DADE7E3FEDAC1 /* KiteloopUITests.swift */; };
+		ACDDF7766DC435755CFA6F23 /* planner-and-fleet-drawers-each-carry-a-projects-table.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55D01DA2FA268D1E7A36820 /* planner-and-fleet-drawers-each-carry-a-projects-table.swift */; };
 		DDC5D92A783C81B14D34212C /* approving-a-qa-item-shows-no-storyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F2D7792E999D5CBA974A7C3 /* approving-a-qa-item-shows-no-storyboard.swift */; };
 		38B10B529BAC50641C5014CA /* autopilot-gives-half-its-width-to-the-agent-that-is-not-working.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EE88FDBE4E42B88BFE231DD /* autopilot-gives-half-its-width-to-the-agent-that-is-not-working.swift */; };
 		D0A6807800609D9AA94BE518 /* autopilot-header-repeats-the-worker-and-reviewer-pickers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B32E3B44287DD343B06D1E22 /* autopilot-header-repeats-the-worker-and-reviewer-pickers.swift */; };
@@ -653,6 +653,7 @@
 		89DC1AEBF67B44372CD92CDD /* AgentCatalogModelPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */; };
 		E61EE841BDBA3C97D627963C /* SetupWizardKnowledgeInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D9D5449F345812135D624C /* SetupWizardKnowledgeInstallTests.swift */; };
 		FD6E47825FEE7FE7929EFAF7 /* TranscriptViewSubagentOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89993ECBDAAD10C44D419B7 /* TranscriptViewSubagentOrderTests.swift */; };
+		E45CC787B7762E0E989CBC9C /* FleetDrawerPlannerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C582C20EC20516077614006 /* FleetDrawerPlannerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1060,6 +1061,7 @@
 		9DA6E6AE4CE0BBA67CF63C84 /* AgentCardServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCardServiceTests.swift; sourceTree = "<group>"; };
 		9F90585662827BE3BA05521A /* KiteloopControlServerPauseResumeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerPauseResumeTests.swift; sourceTree = "<group>"; };
 		A08913DB800DADE7E3FEDAC1 /* KiteloopUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopUITests.swift; sourceTree = "<group>"; };
+		A55D01DA2FA268D1E7A36820 /* planner-and-fleet-drawers-each-carry-a-projects-table.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/planner-and-fleet-drawers-each-carry-a-projects-table.swift"; sourceTree = "<group>"; };
 		8F2D7792E999D5CBA974A7C3 /* approving-a-qa-item-shows-no-storyboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/approving-a-qa-item-shows-no-storyboard.swift"; sourceTree = "<group>"; };
 		1EE88FDBE4E42B88BFE231DD /* autopilot-gives-half-its-width-to-the-agent-that-is-not-working.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/autopilot-gives-half-its-width-to-the-agent-that-is-not-working.swift"; sourceTree = "<group>"; };
 		B32E3B44287DD343B06D1E22 /* autopilot-header-repeats-the-worker-and-reviewer-pickers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/autopilot-header-repeats-the-worker-and-reviewer-pickers.swift"; sourceTree = "<group>"; };
@@ -1234,7 +1236,6 @@
 		F83D576D70C5C5EE27836A39 /* ChatViewModelAttachmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelAttachmentTests.swift; sourceTree = "<group>"; };
 		F84819F5A0EBC0057A4DCBAB /* AutonomyLadderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutonomyLadderView.swift; sourceTree = "<group>"; };
 		F92FDAF3A9244E4A6FF641FC /* WorkflowEventBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEventBridgeTests.swift; sourceTree = "<group>"; };
-		F9AA3F7FC5F2BFADDB055011 /* CoordinatorDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorDrawer.swift; sourceTree = "<group>"; };
 		FA153D9FEF3101EBD1E6274B /* WebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebView.swift; sourceTree = "<group>"; };
 		FA9988677513B54742811762 /* TraceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceStore.swift; sourceTree = "<group>"; };
 		FAC7CD8EEB296B06CB7A061D /* ActivityFeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFeedViewModelTests.swift; sourceTree = "<group>"; };
@@ -1321,6 +1322,7 @@
 		1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCatalogModelPickerTests.swift; sourceTree = "<group>"; };
 		D0D9D5449F345812135D624C /* SetupWizardKnowledgeInstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWizardKnowledgeInstallTests.swift; sourceTree = "<group>"; };
 		D89993ECBDAAD10C44D419B7 /* TranscriptViewSubagentOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptViewSubagentOrderTests.swift; sourceTree = "<group>"; };
+		7C582C20EC20516077614006 /* FleetDrawerPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetDrawerPlannerTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1391,6 +1393,7 @@
 		1988EEB7FE8DC46FE0A5172A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				7C582C20EC20516077614006 /* FleetDrawerPlannerTests.swift */,
 				D89993ECBDAAD10C44D419B7 /* TranscriptViewSubagentOrderTests.swift */,
 				1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */,
 				5CB2BEC4467279157249C6A7 /* MCPServerSettingsFileTests.swift */,
@@ -1783,7 +1786,6 @@
 				F84819F5A0EBC0057A4DCBAB /* AutonomyLadderView.swift */,
 				186FE56D4B4CF97B5CF1E4E5 /* AutonomyLoopSection.swift */,
 				4EACD1EA764932AD53CC5382 /* BacklogAIInputBar.swift */,
-				F9AA3F7FC5F2BFADDB055011 /* CoordinatorDrawer.swift */,
 				BF7F797492CC90EF2EDBBF72 /* CoordinatorPanel.swift */,
 				23FBF97A4781F8F896DC3DB3 /* EpicBacklogView.swift */,
 				C4FFA3FC8BFE5C080184DE78 /* FleetBoard.swift */,
@@ -2046,6 +2048,7 @@
 				FE0F0258E0DB9409F0FAC365 /* DebateUITests.swift */,
 				C6C74CA9B5BF9AD402C23C35 /* IntegrationTests.swift */,
 				A08913DB800DADE7E3FEDAC1 /* KiteloopUITests.swift */,
+				A55D01DA2FA268D1E7A36820 /* planner-and-fleet-drawers-each-carry-a-projects-table.swift */,
 				8F2D7792E999D5CBA974A7C3 /* approving-a-qa-item-shows-no-storyboard.swift */,
 				1EE88FDBE4E42B88BFE231DD /* autopilot-gives-half-its-width-to-the-agent-that-is-not-working.swift */,
 				B32E3B44287DD343B06D1E22 /* autopilot-header-repeats-the-worker-and-reviewer-pickers.swift */,
@@ -2535,7 +2538,6 @@
 				554C815E78D96E7E2B3DB116 /* ControlSessionRegistry.swift in Sources */,
 				3C229D38B8291F3A628B5319 /* CoordinatorAdvisor.swift in Sources */,
 				D8B247A0BE33BCFA8A74B91A /* CoordinatorBlockedTriage.swift in Sources */,
-				01927C6C1EA37BB6D0EBFFD6 /* CoordinatorDrawer.swift in Sources */,
 				8FB6EF62CEFA7D7418272858 /* CoordinatorKnowledge.swift in Sources */,
 				A1952B98AE7816E97F492780 /* CoordinatorPanel.swift in Sources */,
 				E0562E0FBF5ACF289F32C026 /* CoordinatorPanelModel.swift in Sources */,
@@ -2693,6 +2695,7 @@
 				2553D595A5B1A7CE40C89AC2 /* DebateUITests.swift in Sources */,
 				F67531613A690DFEDC3AFE75 /* IntegrationTests.swift in Sources */,
 				CF54800EC3A7921814367DF0 /* KiteloopUITests.swift in Sources */,
+				ACDDF7766DC435755CFA6F23 /* planner-and-fleet-drawers-each-carry-a-projects-table.swift in Sources */,
 				DDC5D92A783C81B14D34212C /* approving-a-qa-item-shows-no-storyboard.swift in Sources */,
 				38B10B529BAC50641C5014CA /* autopilot-gives-half-its-width-to-the-agent-that-is-not-working.swift in Sources */,
 				D0A6807800609D9AA94BE518 /* autopilot-header-repeats-the-worker-and-reviewer-pickers.swift in Sources */,
@@ -2714,6 +2717,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E45CC787B7762E0E989CBC9C /* FleetDrawerPlannerTests.swift in Sources */,
 				FD6E47825FEE7FE7929EFAF7 /* TranscriptViewSubagentOrderTests.swift in Sources */,
 				E61EE841BDBA3C97D627963C /* SetupWizardKnowledgeInstallTests.swift in Sources */,
 				89DC1AEBF67B44372CD92CDD /* AgentCatalogModelPickerTests.swift in Sources */,

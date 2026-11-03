@@ -34,16 +34,16 @@ final class SidebarSpendsFourCardsOnFourStatusLines: QAStoryboardTestCase {
             XCTAssertTrue(row("Fleet").label.contains("taking work"), "the fleet should be taking work")
             assertFourOneLineRows()
         }
-        step("Clicking the Planner row opens the Planner drawer, and Planner turns blue") {
+        step("Clicking the Planner row opens the Fleet drawer at its Planner section, and Planner turns blue") {
             // Wide enough for a drawer beside the chat — after the message is
             // sent, since the grown window leaves the chat input unclickable.
             enlargeWindow()
             row("Planner").click()
-            XCTAssertTrue(closeButton("coordinator-drawer").waitForExistence(timeout: 5), "the Planner drawer should open")
+            XCTAssertTrue(closeButton("fleet-drawer").waitForExistence(timeout: 5), "the drawer should open at the Planner")
         }
-        step("Clicking the Planner row again closes its drawer, and Planner is grey again") {
+        step("Clicking the Planner row again closes the drawer, and Planner is grey again") {
             row("Planner").click()
-            XCTAssertTrue(waitUntilGone(closeButton("coordinator-drawer")), "the Planner drawer should close")
+            XCTAssertTrue(waitUntilGone(closeButton("fleet-drawer")), "the drawer should close")
         }
         step("Clicking the Fleet row opens the Fleet drawer alone, and Fleet turns blue") {
             row("Fleet").click()
@@ -158,7 +158,7 @@ final class SidebarSpendsFourCardsOnFourStatusLines: QAStoryboardTestCase {
 
     /// Closes whatever drawer an earlier run of the QA copy left open.
     private func closeAnyOpenDrawer() {
-        for drawer in ["coordinator-drawer", "fleet-drawer", "waiting-drawer"]
+        for drawer in ["fleet-drawer", "waiting-drawer"]
         where closeButton(drawer).waitForExistence(timeout: 1) {
             closeButton(drawer).click()
         }

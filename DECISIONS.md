@@ -150,3 +150,10 @@ Entry format:
 **Why:** The maintainer does not want CI running on GitHub for this repo. A workflow file left in place while Actions is off would read as a check that runs, and pushing one needs a token with the `workflow` scope.
 **Evidence:** `gh api repos/svetdev/Kiteloop/actions/permissions` answers `"enabled": false`; `.github/` holds only the issue and pull-request templates.
 **Status:** holds
+
+## [2026-11-02] The Planner and the Fleet share one drawer
+**Kind:** decision
+**What:** The Coordinator drawer is gone. The Fleet drawer carries the fleet's state and Pause, then the Planner's state, controls and recent passes, then one Projects table with the Planner's last-24h report as a column. The sidebar's Fleet row opens it at the top and its Planner row at the Planner section; the daily budget is shown once, in the sidebar.
+**Why:** The owner asked on 2026-10-13 to uncrowd the Autopilot with the Planner and Fleet open. Running work unattended is one question split over two drawers, each with its own projects table.
+**Evidence:** `FleetDrawer` (`Kiteloop/Kiteloop/Views/Portfolio/FleetDrawer.swift`), `CoordinatorPanel.plannerOnly`, the `last 24h` column in `FleetBoard`; `FleetDrawerPlannerTests`.
+**Status:** holds

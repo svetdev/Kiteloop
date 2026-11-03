@@ -24,19 +24,15 @@ final class SidebarDrawerTests: XCTestCase {
     }
 
     func testOneSavedFlagOpensThatDrawer() {
-        XCTAssertEqual(SidebarDrawer.open(coordinator: true, fleet: false, waiting: false), .coordinator)
-        XCTAssertEqual(SidebarDrawer.open(coordinator: false, fleet: true, waiting: false), .fleet)
-        XCTAssertEqual(SidebarDrawer.open(coordinator: false, fleet: false, waiting: true), .waiting)
+        XCTAssertEqual(SidebarDrawer.open(fleet: true, waiting: false), .fleet)
+        XCTAssertEqual(SidebarDrawer.open(fleet: false, waiting: true), .waiting)
     }
 
     func testNoSavedFlagOpensNoDrawer() {
-        XCTAssertNil(SidebarDrawer.open(coordinator: false, fleet: false, waiting: false))
+        XCTAssertNil(SidebarDrawer.open(fleet: false, waiting: false))
     }
 
-    func testSeveralSavedFlagsOpenOnlyTheLeftmost() {
-        XCTAssertEqual(SidebarDrawer.open(coordinator: true, fleet: true, waiting: false), .coordinator)
-        XCTAssertEqual(SidebarDrawer.open(coordinator: true, fleet: false, waiting: true), .coordinator)
-        XCTAssertEqual(SidebarDrawer.open(coordinator: false, fleet: true, waiting: true), .fleet)
-        XCTAssertEqual(SidebarDrawer.open(coordinator: true, fleet: true, waiting: true), .coordinator)
+    func testBothSavedFlagsOpenOnlyTheLeftmost() {
+        XCTAssertEqual(SidebarDrawer.open(fleet: true, waiting: true), .fleet)
     }
 }

@@ -11,6 +11,12 @@ import SwiftUI
 /// the running item's page through the one open-item action.
 struct FleetBoard: View {
     let registry: ControlSessionRegistry
+    /// The two ledgers the "last 24h" column is read from; without both the
+    /// column says nothing rather than zero.
+    var metricStore: TaskMetricStore?
+    var groomingLedger: GroomingLedger?
+    /// Each project's last day, by project name, once read.
+    @State private var lastDay: [String: PortfolioReport.Row] = [:]
 
     /// Bumped after a paused write so the board re-reads the config it just
     /// changed — project config is a file, not an observable.
@@ -25,6 +31,7 @@ struct FleetBoard: View {
                  verticalSpacing: KiteloopTokens.Spacing.xs) {
                 GridRow {
                     Text("project"); Text("paused"); Text("autonomous"); Text("state"); Text("queue")
+                    Text("last 24h")
                 }
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
@@ -35,12 +42,41 @@ struct FleetBoard: View {
                         consentCell(project)
                         stateCell(project)
                         queueCell(project)
+                        lastDayCell(lastDay[project.name])
                     }
                 }
             }
             .id(configEdits)
         }
         .accessibilityIdentifier("fleet-board")
+        .task { await loadLastDay() }
+    }
+
+    /// What the project's last day produced, and why its rejected runs were
+    /// rejected — the Planner's report, one cell per project.
+    private func lastDayCell(_ row: PortfolioReport.Row?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(row?.text ?? "—")
+                .font(.caption2)
+                .foregroundStyle(row == nil ? .tertiary : .secondary)
+            ForEach(row?.causes ?? [], id: \.label) { cause in
+                Text("rejected — \(cause.label) \(cause.count)")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+        }
+    }
+
+    /// The day aggregated off the main actor, as the Planner's report always was.
+    private func loadLastDay() async {
+        guard let metricStore, let groomingLedger else { return }
+        let runs = metricStore.records
+        let grooming = groomingLedger.records
+        let period = PortfolioReport.Period.last(hours: 24, endingAt: Date())
+        let report = await Task.detached(priority: .utility) {
+            PortfolioReport.make(runs: runs, grooming: grooming, period: period)
+        }.value
+        lastDay = Dictionary(report.rows.map { ($0.projectName, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     private func entry(at path: String) -> ControlSessionRegistry.Entry? {

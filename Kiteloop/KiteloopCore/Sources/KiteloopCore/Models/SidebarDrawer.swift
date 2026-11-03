@@ -1,18 +1,16 @@
 import Foundation
 
-/// The three drawers that open between the sidebar and the center column, in
+/// The drawers that open between the sidebar and the center column, in
 /// their left-to-right order. At most one is open: they answer different
 /// questions, and two side by side leave the center column a strip.
 package enum SidebarDrawer: String, CaseIterable, Sendable {
-    case coordinator
     case fleet
     case waiting
 
-    /// The drawer the three saved open flags show — the first open one in
+    /// The drawer the saved open flags show — the first open one in
     /// left-to-right order, so flags saved before one-at-a-time open one drawer,
     /// never two.
-    package static func open(coordinator: Bool, fleet: Bool, waiting: Bool) -> SidebarDrawer? {
-        if coordinator { return .coordinator }
+    package static func open(fleet: Bool, waiting: Bool) -> SidebarDrawer? {
         if fleet { return .fleet }
         return waiting ? .waiting : nil
     }

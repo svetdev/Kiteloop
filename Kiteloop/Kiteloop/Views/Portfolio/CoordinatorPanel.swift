@@ -52,13 +52,18 @@ struct CoordinatorPanel: View {
     /// have drawn them.
     ///
     /// On the start screen there is nothing above it, so it needs both. In
-    /// `CoordinatorDrawer` there is a title bar already saying "Planner" — and
+    /// the Fleet drawer there is a section header already saying "Planner" — and
     /// the card under it said "Planner" a second time, with its own pill, inside
     /// a border the drawer had no equivalent of. That is most of why the two
     /// loops read as unrelated tools side by side: the fleet's drawer is a title
     /// bar and then its sections, and this one was a title bar and then a
     /// completely different object.
     var standalone = true
+    /// Only the Planner's own state, controls and recent passes, drawn into
+    /// the surface around it rather than a scroll area of its own — how the
+    /// Fleet drawer carries it. The budget is the sidebar's to show, and the
+    /// day's per-project report is a column of the drawer's Projects table.
+    var plannerOnly = false
     /// For the autonomy ladder's per-project switches. Optional: without it the
     /// ladder control simply isn't offered.
     var registry: ControlSessionRegistry?
@@ -96,7 +101,9 @@ struct CoordinatorPanel: View {
         let model = model
         VStack(alignment: .leading, spacing: 0) {
             if standalone { header(model) }
-            if isOpen {
+            if plannerOnly {
+                plannerSections(model)
+            } else if isOpen {
                 if standalone { Divider() }
                 ScrollView {
                     VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.xl) {
@@ -131,6 +138,13 @@ struct CoordinatorPanel: View {
         .task(id: isOpen) {
             guard isOpen else { return }
             await loadReport()
+        }
+    }
+
+    private func plannerSections(_ model: CoordinatorPanelModel) -> some View {
+        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.xl) {
+            stateSection(model)
+            passesSection(model)
         }
     }
 
