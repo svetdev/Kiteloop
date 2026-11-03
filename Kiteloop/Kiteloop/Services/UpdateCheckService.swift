@@ -67,6 +67,9 @@ final class UpdateCheckService {
     nonisolated static let passiveInterval: TimeInterval = 24 * 60 * 60
 
     nonisolated static let lastCheckDefaultsKey = "updateCheckLastAnswered"
+    /// The release the user chose not to install; the launch check stays quiet
+    /// about it and anything not newer.
+    nonisolated static let skippedVersionDefaultsKey = "updateCheckSkippedVersion"
 
     private(set) var state: UpdateCheckState = .idle
 
@@ -113,9 +116,23 @@ final class UpdateCheckService {
     @discardableResult
     func checkPassively() async -> Bool {
         guard isDue else { return false }
-        guard case .available(let release) = await answer() else { return false }
+        guard case .available(let release) = await answer(), !isSkipped(release) else { return false }
         state = .available(release)
         return true
+    }
+
+    /// Skip This Version: the release on offer is one the launch check no
+    /// longer brings up. An explicit check still shows it.
+    func skipOfferedVersion() {
+        if case .available(let release) = state {
+            defaults.set(release.version, forKey: Self.skippedVersionDefaultsKey)
+        }
+    }
+
+    /// Whether `release` is the skipped one or older than it.
+    func isSkipped(_ release: LatestRelease) -> Bool {
+        guard let skipped = defaults.string(forKey: Self.skippedVersionDefaultsKey) else { return false }
+        return !ReleaseVersion.isNewer(release.version, than: skipped)
     }
 
     /// One consultation: the verdict on what GitHub said, or why there was

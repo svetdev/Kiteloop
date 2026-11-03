@@ -126,6 +126,55 @@ final class UpdateCheckServiceTests: XCTestCase {
         }
     }
 
+    // MARK: - Skip This Version
+
+    private static let newer = LatestRelease(
+        version: "v0.5.0", url: URL(string: "https://github.com/svetdev/Kiteloop/releases/tag/v0.5.0")!)
+
+    /// Skips v0.4.9 through the window, on a service built over the shared
+    /// defaults — then forgets that check's date, so the launch check that
+    /// follows is due and actually asks.
+    private func skipTheOfferedRelease() async {
+        let offering = makeService()
+        await offering.checkNow()
+        offering.skipOfferedVersion()
+        defaults.removeObject(forKey: UpdateCheckService.lastCheckDefaultsKey)
+    }
+
+    func testTheLaunchCheckIsQuietAboutASkippedVersion() async {
+        await skipTheOfferedRelease()
+        let log = FetchLog()
+        let service = makeService(log: log)
+        let shown = await service.checkPassively()
+        XCTAssertFalse(shown)
+        XCTAssertEqual(service.state, .idle)
+        let calls = await log.calls
+        XCTAssertEqual(calls, 1, "the launch check asked, and found only the skipped version")
+    }
+
+    func testTheLaunchCheckOffersAReleaseNewerThanTheSkippedOne() async {
+        await skipTheOfferedRelease()
+        let service = makeService(release: Self.newer)
+        let shown = await service.checkPassively()
+        XCTAssertTrue(shown)
+        XCTAssertEqual(service.state, .available(Self.newer))
+    }
+
+    func testAnExplicitCheckStillShowsTheSkippedVersion() async {
+        await skipTheOfferedRelease()
+        let service = makeService()
+        await service.checkNow()
+        XCTAssertEqual(service.state, .available(Self.release))
+        XCTAssertTrue(service.isSkipped(Self.release), "a new service reads the skip from the same defaults")
+    }
+
+    func testNothingIsSkippedWhenNoReleaseIsOnOffer() async {
+        let service = makeService(installed: "0.4.9")
+        await service.checkNow()
+        service.skipOfferedVersion()
+        XCTAssertNil(defaults.string(forKey: UpdateCheckService.skippedVersionDefaultsKey))
+    }
+
     // MARK: - The passive check at launch
 
     /// AC 1: at launch, a newer release is what the caller is told to put on

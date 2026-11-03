@@ -12,6 +12,7 @@ struct SoftwareUpdateView: View {
     static let windowID = "software-update"
 
     let service: UpdateCheckService
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.lg) {
@@ -24,6 +25,11 @@ struct SoftwareUpdateView: View {
                     Link("Download on GitHub", destination: release.url)
                         .buttonStyle(.borderedProminent)
                         .accessibilityIdentifier("update-download-link")
+                    Button("Skip This Version") {
+                        service.skipOfferedVersion()
+                        dismissWindow(id: Self.windowID)
+                    }
+                    .accessibilityIdentifier("update-skip-button")
                 }
                 Spacer()
                 Button("Check Again") { Task { await service.checkNow() } }
@@ -55,6 +61,10 @@ struct SoftwareUpdateView: View {
                     .font(.body.weight(.semibold))
                 Text("You have \(service.installedVersion).")
                     .foregroundStyle(.secondary)
+                if service.isSkipped(release) {
+                    Text("You skipped this version, so it isn't offered at launch.")
+                        .foregroundStyle(.secondary)
+                }
                 if !release.notes.isEmpty {
                     ScrollView {
                         SelectableMarkdownView(markdown: release.notes)

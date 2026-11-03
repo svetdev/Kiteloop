@@ -50,6 +50,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - Lanes: each open item is marked `now` or `later` with Run now / Back to later in its menu, a Now section lists now items in the order autopilot runs them, the phone's queue flips a lane with a swipe, and `GET /v1/backlog` / `POST /v1/backlog/lane` read and set it. An item the refill pass drafts is always `later`.
 
 #### Menu bar, notifications and windows
+- The Software Update window has a Skip This Version button: the launch check then stays quiet about that release and only speaks up for a newer one, while Check for Updates… still shows it and says it was skipped.
 - The menu bar names what every open project is running, counts the approvals and questions waiting on you (its icon fills while any are) and lists up to five of them; clicking one opens where it is cleared.
 - Every notice in the bell popover says when it arrived.
 - ⌘1…⌘9 switch to the first nine project tabs, and ⌘⇧] / ⌘⇧[ step through them, wrapping.
