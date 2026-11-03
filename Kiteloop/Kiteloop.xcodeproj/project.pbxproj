@@ -414,6 +414,7 @@
 		2ED63C568801D88E21BE645A /* a-stopped-agent-looks-like-a-running-one-and-cannot-be-started.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7201D0D50B97746BA1B6B296 /* a-stopped-agent-looks-like-a-running-one-and-cannot-be-started.swift */; };
 		2F35CB32A3EC80CA52E96E0A /* underscore-emphasis-is-dead-text-in-a-reply.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16780F7B390A7918A65C498C /* underscore-emphasis-is-dead-text-in-a-reply.swift */; };
 		0A73878B138ACD9A27F780A0 /* find-bar-says-nothing-when-nothing-matches.swift in Sources */ = {isa = PBXBuildFile; fileRef = 552ADCD6E521101A957E08CF /* find-bar-says-nothing-when-nothing-matches.swift */; };
+		BF4D784FAF886234A0C5EA1E /* sidebar-spends-four-cards-on-four-status-lines.swift in Sources */ = {isa = PBXBuildFile; fileRef = 123FB04A41A63ACEC7086F48 /* sidebar-spends-four-cards-on-four-status-lines.swift */; };
 		BBF1579BE7D406479FCA6E06 /* KiteloopQASmoke.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C75F89EA0CE7D27DE6212F9 /* KiteloopQASmoke.swift */; };
 		409BE4A930F117928FDA79FC /* QAStoryboardTestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA006025702A717B3B8678A /* QAStoryboardTestCase.swift */; };
 		CF67A924DF9F66B41D999807 /* StreamEventParsingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94D2DB2FF2E0790E47EA6F43 /* StreamEventParsingTests.swift */; };
@@ -1061,6 +1062,7 @@
 		7201D0D50B97746BA1B6B296 /* a-stopped-agent-looks-like-a-running-one-and-cannot-be-started.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/a-stopped-agent-looks-like-a-running-one-and-cannot-be-started.swift"; sourceTree = "<group>"; };
 		16780F7B390A7918A65C498C /* underscore-emphasis-is-dead-text-in-a-reply.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/underscore-emphasis-is-dead-text-in-a-reply.swift"; sourceTree = "<group>"; };
 		552ADCD6E521101A957E08CF /* find-bar-says-nothing-when-nothing-matches.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/find-bar-says-nothing-when-nothing-matches.swift"; sourceTree = "<group>"; };
+		123FB04A41A63ACEC7086F48 /* sidebar-spends-four-cards-on-four-status-lines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/sidebar-spends-four-cards-on-four-status-lines.swift"; sourceTree = "<group>"; };
 		7C75F89EA0CE7D27DE6212F9 /* KiteloopQASmoke.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/KiteloopQASmoke.swift"; sourceTree = "<group>"; };
 		3FA006025702A717B3B8678A /* QAStoryboardTestCase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "QA/QAStoryboardTestCase.swift"; sourceTree = "<group>"; };
 		A0F11B93077E56945B520A2F /* BlockedTriageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlockedTriageTests.swift; sourceTree = "<group>"; };
@@ -2037,6 +2039,7 @@
 				7201D0D50B97746BA1B6B296 /* a-stopped-agent-looks-like-a-running-one-and-cannot-be-started.swift */,
 				16780F7B390A7918A65C498C /* underscore-emphasis-is-dead-text-in-a-reply.swift */,
 				552ADCD6E521101A957E08CF /* find-bar-says-nothing-when-nothing-matches.swift */,
+				123FB04A41A63ACEC7086F48 /* sidebar-spends-four-cards-on-four-status-lines.swift */,
 				7C75F89EA0CE7D27DE6212F9 /* KiteloopQASmoke.swift */,
 				3FA006025702A717B3B8678A /* QAStoryboardTestCase.swift */,
 				2F5F7E6D3DDD0B671EA81E6F /* MultiAgentUITests.swift */,
@@ -2682,6 +2685,7 @@
 				2ED63C568801D88E21BE645A /* a-stopped-agent-looks-like-a-running-one-and-cannot-be-started.swift in Sources */,
 				2F35CB32A3EC80CA52E96E0A /* underscore-emphasis-is-dead-text-in-a-reply.swift in Sources */,
 				0A73878B138ACD9A27F780A0 /* find-bar-says-nothing-when-nothing-matches.swift in Sources */,
+				BF4D784FAF886234A0C5EA1E /* sidebar-spends-four-cards-on-four-status-lines.swift in Sources */,
 				BBF1579BE7D406479FCA6E06 /* KiteloopQASmoke.swift in Sources */,
 				409BE4A930F117928FDA79FC /* QAStoryboardTestCase.swift in Sources */,
 				C9E048E8B6F75AF1B135F276 /* MultiAgentUITests.swift in Sources */,

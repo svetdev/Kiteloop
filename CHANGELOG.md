@@ -268,6 +268,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 
 #### Menu bar, notifications and windows
 - Check for Updates… says what actually happened when it finds no release: GitHub couldn't be reached, no release has been published yet, GitHub is limiting requests, or its answer couldn't be read — instead of calling every one of them "Couldn't reach GitHub".
+- The sidebar's Planner, Fleet, Waiting on you and Daily budget are one compact block of four one-line rows instead of four boxed cards, leaving room for more sessions; each row opens what its card did, keeps its warning colour, and shows its full status on hover.
 - The menu bar has Open Kiteloop, its rows work with the main window closed, and agent states read in plain words.
 - Clicking a banner opens what it names; the finished banner names the project and the reply's first line; switching away banners every unannounced gate and question.
 - The bell's badge and list update live, a long notice expands, a question opens the asking agent's chat, and a resolved notice is kept for a week after it was resolved.

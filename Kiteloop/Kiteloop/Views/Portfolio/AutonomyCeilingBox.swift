@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The day's autonomy ceiling, as its own box — a sibling of the Planner's and
-/// the fleet's, not a line inside either.
+/// The day's autonomy ceiling, as its own row of the sidebar's status block — a
+/// sibling of the Planner's and the fleet's, not a line inside either.
 ///
 /// The placement is the argument. One number bounds **both** loops: grooming
 /// draws from the same daily ledger unattended runs do, which is what "one
@@ -35,35 +35,11 @@ struct AutonomyCeilingBox: View {
 
     var body: some View {
         Button { beginEditing() } label: {
-            VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.xs) {
-                HStack(spacing: KiteloopTokens.Spacing.xs) {
-                    Text("Daily autonomy budget")
-                        .font(.caption)
-                    Spacer(minLength: 0)
-                    Image(systemName: "pencil")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                }
-                Text(stateLine)
-                    .font(.system(size: 9, design: .monospaced))
-                    .foregroundStyle(stateTint)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
+            SidebarStatusRowLabel(icon: "dollarsign.circle", name: "Daily budget", status: stateLine,
+                                  tint: stateTint, statusID: "autonomy-ceiling-state")
         }
         .buttonStyle(.plain)
-        .padding(KiteloopTokens.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
-                .fill(Color.primary.opacity(KiteloopTokens.Opacity.subtle))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
-                .strokeBorder(Color.primary.opacity(KiteloopTokens.Opacity.medium), lineWidth: 1)
-        )
-        .help("The one ceiling both loops answer to: grooming and unattended running spend against the same daily number. Neither arms without it. Click to change it.")
+        .help("\(stateLine)\nThe one ceiling both loops answer to: grooming and unattended running spend against the same daily number. Neither arms without it. Click to change it.")
         .accessibilityIdentifier("autonomy-ceiling-box")
         .popover(isPresented: $editing, arrowEdge: .trailing) { editor }
     }

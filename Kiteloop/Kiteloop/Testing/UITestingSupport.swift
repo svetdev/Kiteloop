@@ -94,6 +94,7 @@ enum UITestingSupport {
         case "permissionDenial": mock.events = permissionDenialEvents
         case "multiTurn": mock.events = multiTurnEvents
         case "underscoreEmphasis": mock.events = underscoreEmphasisEvents
+        case "askHuman": mock.events = askHumanEvents
         case "slow":
             mock.events = defaultEvents
             mock.startDelay = 3_000_000_000
@@ -109,6 +110,22 @@ enum UITestingSupport {
                 text: "Hello! I'm ready to help with your code.",
                 costUSD: 0.001, durationMs: 500,
                 inputTokens: 100, outputTokens: 25,
+                cacheCreationInputTokens: 0, cacheReadInputTokens: 0,
+                sessionID: "mock-session-id", permissionDenials: []
+            ))
+        ]
+    }
+
+    /// A turn that asks the person a question and ends with it unanswered, so
+    /// the agent is waiting on you — in the sidebar's Waiting on you row and
+    /// its drawer — until the question is answered.
+    static var askHumanEvents: [StreamEvent] {
+        [
+            .toolUse(id: "ask-1", name: "ask_human", input: #"{"question": "Which branch should I deploy?"}"#),
+            .result(.init(
+                text: "Waiting for your answer.",
+                costUSD: 0.001, durationMs: 300,
+                inputTokens: 80, outputTokens: 10,
                 cacheCreationInputTokens: 0, cacheReadInputTokens: 0,
                 sessionID: "mock-session-id", permissionDenials: []
             ))

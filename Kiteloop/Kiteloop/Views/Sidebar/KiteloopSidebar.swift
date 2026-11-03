@@ -372,55 +372,7 @@ struct KiteloopSidebar: View {
             Divider()
 
             VStack(spacing: 6) {
-                // Boxed, because the badge, budget and stall lines are the
-                // Coordinator's state — unframed they read as more footer,
-                // indistinguishable from project settings and the version line.
-                if let onOpenCoordinator {
-                    VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.sm) {
-                        coordinatorButton(onOpenCoordinator)
-                        if let coordinatorNextLook {
-                            footerStatusLine(coordinatorNextLook, color: .secondary)
-                                .accessibilityIdentifier("coordinator-next-look")
-                        }
-                        if let coordinatorBudget {
-                            budgetReadout(coordinatorBudget, stall: coordinatorStall)
-                        }
-                        if let coordinatorRollup {
-                            footerStatusLine(coordinatorRollup, color: .secondary)
-                                .accessibilityIdentifier("coordinator-day-rollup")
-                        }
-                        if let coordinatorHold {
-                            holdNotice(coordinatorHold, clear: onClearCoordinatorHold)
-                        }
-                    }
-                    .padding(KiteloopTokens.Spacing.md)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
-                            .fill(Color.primary.opacity(KiteloopTokens.Opacity.subtle))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
-                            .strokeBorder(Color.primary.opacity(KiteloopTokens.Opacity.medium), lineWidth: 1)
-                    )
-                    .accessibilityIdentifier("coordinator-footer-box")
-                }
-
-                if let fleetStatus {
-                    fleetBox(fleetStatus)
-                }
-
-                if let waitingOnYou {
-                    waitingBox(waitingOnYou)
-                }
-
-                // The day's ceiling, third and on its own. Both boxes above
-                // answer to it — grooming and unattended running spend against
-                // one number — so it sits beside them rather than inside either,
-                // where it read as that loop's own setting and was drawn twice.
-                if let dailyBudget, let setDailyBudgetUSD {
-                    AutonomyCeilingBox(budget: dailyBudget, setBudgetUSD: setDailyBudgetUSD)
-                }
+                statusBlock
 
                 HStack(spacing: 6) {
                     Text("Kiteloop \(appVersion)")
@@ -632,14 +584,78 @@ struct KiteloopSidebar: View {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
     }
 
-    /// The footer's Coordinator toggle.
+    /// The portfolio's four standing readouts — Planner, Fleet, Waiting on you
+    /// and the day's budget — as one bordered block of one-line rows.
+    ///
+    /// Each was a card of its own, and four cards stacked to a third of a
+    /// laptop's sidebar for what is four status lines, pushing the sessions off
+    /// screen. A row keeps what a card was for at a glance — its name, its state
+    /// and the click that opens its drawer — and the rest of what the card said
+    /// is in the row's tooltip and in the drawer. A row whose source is not
+    /// wired is left out, as its card was.
+    ///
+    /// Two lines stay outside the block, under it, while they last: the
+    /// autonomous hold, which wraps because it names its way out and offers it,
+    /// and a quit waiting on the fleet to drain.
+    @ViewBuilder
+    private var statusBlock: some View {
+        if hasStatusRows {
+            VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.sm) {
+                if let onOpenCoordinator {
+                    coordinatorButton(onOpenCoordinator)
+                }
+                if let fleetStatus {
+                    fleetRow(fleetStatus)
+                }
+                if let waitingOnYou {
+                    waitingSummary(waitingOnYou)
+                }
+                if let dailyBudget, let setDailyBudgetUSD {
+                    AutonomyCeilingBox(budget: dailyBudget, setBudgetUSD: setDailyBudgetUSD)
+                }
+            }
+            .padding(.horizontal, KiteloopTokens.Spacing.md)
+            .padding(.vertical, KiteloopTokens.Spacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
+                    .fill(Color.primary.opacity(KiteloopTokens.Opacity.subtle))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
+                    .strokeBorder(Color.primary.opacity(KiteloopTokens.Opacity.medium), lineWidth: 1)
+            )
+            .accessibilityIdentifier("sidebar-status-block")
+        }
+        if onOpenCoordinator != nil, let coordinatorHold {
+            holdNotice(coordinatorHold, clear: onClearCoordinatorHold)
+        }
+        if let quitNotice = fleetStatus?.quitNotice {
+            footerStatusLine(quitNotice, color: .orange)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityIdentifier("fleet-quiesce-quit-notice")
+        }
+    }
+
+    /// Whether any of the block's four sources is wired — with none, there is
+    /// no block rather than an empty frame.
+    private var hasStatusRows: Bool {
+        onOpenCoordinator != nil || fleetStatus != nil || waitingOnYou != nil
+            || (dailyBudget != nil && setDailyBudgetUSD != nil)
+    }
+
+    /// The block's Planner row, and its toggle.
+    ///
+    /// The state it states is grooming's own: a stall when grooming has
+    /// stopped, which is already true, otherwise the passes against their cap.
+    /// The next look, the day's rollup and the abandoned passes the card drew
+    /// under it are in the tooltip, word for word.
     private func coordinatorButton(_ open: @escaping () -> Void) -> some View {
-        Button(action: open) {
-            HStack(spacing: 4) {
-                Image(systemName: "point.3.connected.trianglepath.dotted")
-                    .font(.system(size: 11))
-                Text("Planner")
-                    .font(.caption)
+        let status = coordinatorStall ?? coordinatorBudget?.passText ?? coordinatorNextLook
+        return Button(action: open) {
+            SidebarStatusRowLabel(icon: "point.3.connected.trianglepath.dotted", name: "Planner",
+                                  isOpen: isCoordinatorOpen, status: status, tint: coordinatorTint,
+                                  statusID: "coordinator-budget-readout") {
                 if let coordinatorModeLabel {
                     Text(coordinatorModeLabel)
                         .font(.system(size: 9, weight: .semibold))
@@ -647,69 +663,34 @@ struct KiteloopSidebar: View {
                         .padding(.vertical, 1)
                         .background(Capsule().fill(Color.primary.opacity(KiteloopTokens.Opacity.light)))
                         .foregroundStyle(.secondary)
+                        .fixedSize()
                         .accessibilityIdentifier("coordinator-mode-chip")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isCoordinatorOpen ? Color.accentColor : .secondary)
-        .help(coordinatorHelp)
+        .help(coordinatorRowHelp)
         .accessibilityIdentifier("coordinator-drawer-button")
     }
 
-    /// The nearest of the coordinator's two ceilings, under its button — or, if
-    /// grooming has stopped outright, that instead.
-    ///
-    /// One ceiling, and the nearest one rather than both: a single aggregate bar
-    /// would imply one cliff where the spend cap and the pass cap are separate,
-    /// and the closer of the two is not always the same one. Text rather than a
-    /// second control — the button beside it already owns the click.
-    ///
-    /// A stall takes the line when there is one. Both answer the same standing
-    /// question, and of the two only the stall is already true: a nearest
-    /// ceiling still has room by definition while it is merely the nearest, and
-    /// on 2026-08-12 that line reported a comfortable $52.59 of $350 for the two
-    /// and a half hours nothing was being groomed at all. The ceilings are still
-    /// a hover away in the tooltip.
-    ///
-    /// The day's abandoned passes get a line under it, and only when there have
-    /// been any. A stall is news while it lasts and then stops being true; this
-    /// is what stays behind it — a pass ended at its deadline is grooming that
-    /// was scheduled and filed nothing, and a night that hung repeatedly and
-    /// recovered every time otherwise reads exactly like a quiet one. Stated
-    /// rather than coloured or badged: it self-heals by design, so the point is
-    /// that the cost is legible in the morning, not that anyone is woken.
-    private func budgetReadout(_ budget: QueueRefill.Budget, stall: String?) -> some View {
-        // Grooming's *own* limit only. The spend ceiling this used to report
-        // through `nearestCeiling` is shared with unattended running, so it now
-        // has its own box beside this one — and reporting it here as well put a
-        // fleet-wide number inside the Planner's box, where whichever ceiling
-        // happened to be nearer decided which of two unrelated facts the line
-        // stated. Passes are grooming's alone, so they stay.
-        let exhausted = budget.maxPasses.map { budget.passes >= $0 } ?? false
-        return VStack(alignment: .trailing, spacing: 1) {
-            Text(stall ?? budget.passText)
-                .foregroundStyle(stall != nil ? Color.red
-                                 : exhausted ? Color.orange : Color.secondary)
-            if budget.abandonedPasses > 0 {
-                Text(budget.abandonedText)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("coordinator-abandoned-passes")
-            }
-        }
-        .font(.system(size: 9, design: .monospaced))
-        .lineLimit(2)
-        .multilineTextAlignment(.trailing)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .help(stall.map { "\($0). \(budget.helpText)" } ?? budget.helpText)
-        .accessibilityIdentifier("coordinator-budget-readout")
+    /// Red for a stall, orange for passes used up, otherwise the small print's
+    /// grey — the colours the card's budget line had.
+    private var coordinatorTint: Color {
+        if coordinatorStall != nil { return .red }
+        guard let budget = coordinatorBudget, let maxPasses = budget.maxPasses else { return .secondary }
+        return budget.passes >= maxPasses ? .orange : .secondary
     }
 
-    /// The box's small print — next-look, rollup and hold lines share one
-    /// shape so the box reads as one instrument rather than three fonts.
+    /// The Planner row's tooltip: what the row is, then every line the card
+    /// showed under its name.
+    private var coordinatorRowHelp: String {
+        [coordinatorHelp, coordinatorStall, coordinatorBudget?.helpText, coordinatorNextLook, coordinatorRollup]
+            .compactMap { $0 }
+            .joined(separator: "\n")
+    }
+
+    /// The quit notice's small print — the shape a row's state is drawn in, so
+    /// the line reads as part of the block above it.
     private func footerStatusLine(_ text: String, color: Color) -> some View {
         Text(text)
             .font(.system(size: 9, design: .monospaced))
@@ -743,97 +724,62 @@ struct KiteloopSidebar: View {
         .accessibilityIdentifier("coordinator-hold-notice")
     }
 
-    /// The fleet-wide hold, boxed like the Coordinator above it because it is
-    /// the same altitude: both act on the whole portfolio, not on the project
-    /// the rest of the sidebar is about — and, like it, this box is the compact
-    /// summary of a drawer rather than the whole surface. Which projects are
-    /// still finishing, what each is on and whose queue this pause holds are the
-    /// questions a fleet pause raises, and a 240pt column answered them in one
-    /// elided line; they live in `FleetDrawer` now, and the box opens it.
+    /// The block's Fleet row: the fleet-wide hold, which acts on every open
+    /// project rather than the one the rest of the sidebar is about. Which
+    /// projects are still finishing, what each is on and whose queue a pause
+    /// holds live in `FleetDrawer`, and the row opens it.
     ///
     /// It shows the drain rather than only offering the verb. Held and quiet are
-    /// different facts and only the second one makes a restart safe, so the state
-    /// line sits under the name and re-reads as runs finish — "pausing" until
-    /// the last one lands, then "paused — all quiet". A control that said "paused"
-    /// the moment it was pressed would be answering a question nobody asked.
+    /// different facts and only the second one makes a restart safe, so the
+    /// state re-reads as runs finish — "pausing" until the last one lands, then
+    /// "paused — all quiet".
     ///
-    /// The action stays here beside the name, rather than moving into the drawer
-    /// with everything else: parking the fleet before a restart is a one-click
-    /// job, and making it a two-click one to tidy the box would be the wrong
-    /// trade.
-    private func fleetBox(_ status: FleetQuiesceStatus) -> some View {
-        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.sm) {
-            HStack(alignment: .top, spacing: KiteloopTokens.Spacing.sm) {
-                fleetSummary(status)
-                Spacer(minLength: KiteloopTokens.Spacing.sm)
-                fleetActionButton(status)
-            }
-
-            // When it will look again, the way the Planner's box already says it.
-            if let fleetNextLook {
-                footerStatusLine(fleetNextLook, color: .secondary)
-                    .accessibilityIdentifier("fleet-next-look")
-            }
-
-            if let quitNotice = status.quitNotice {
-                footerStatusLine(quitNotice, color: .orange)
-                    .accessibilityIdentifier("fleet-quiesce-quit-notice")
-            }
+    /// The action stays on the row, beside the name, rather than moving into the
+    /// drawer: parking the fleet before a restart is a one-click job.
+    private func fleetRow(_ status: FleetQuiesceStatus) -> some View {
+        HStack(spacing: KiteloopTokens.Spacing.sm) {
+            fleetSummary(status)
+            fleetActionButton(status)
+                .fixedSize()
         }
-        .padding(KiteloopTokens.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
-                .fill(Color.primary.opacity(KiteloopTokens.Opacity.subtle))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
-                .strokeBorder(Color.primary.opacity(KiteloopTokens.Opacity.medium), lineWidth: 1)
-        )
-        .accessibilityIdentifier("fleet-quiesce-footer-box")
     }
 
-    /// The name and the state line, as one click that opens the drawer.
-    ///
-    /// The state line is inside the button rather than beside it: it is the part
-    /// of the box somebody is reading when they decide they want more of it, so
-    /// it should be the part they can press. With no drawer wired the same two
-    /// lines are drawn plain — an affordance that leads nowhere is worse than
-    /// text.
+    /// The name and the state, as one click that opens the drawer — the state
+    /// is the part somebody is reading when they decide they want more of it.
+    /// With no drawer wired the same line is drawn plain: an affordance that
+    /// leads nowhere is worse than text.
     @ViewBuilder
     private func fleetSummary(_ status: FleetQuiesceStatus) -> some View {
         if let onOpenFleet {
             Button(action: onOpenFleet) {
                 fleetSummaryLabel(status)
-                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Fleet — every open project: what it is running, whether its queue is held, "
-                  + "and the same Pause and Resume controls")
+            .help(fleetRowHelp(status))
             .accessibilityIdentifier("fleet-drawer-button")
         } else {
             fleetSummaryLabel(status)
+                .help(fleetRowHelp(status))
         }
     }
 
     private func fleetSummaryLabel(_ status: FleetQuiesceStatus) -> some View {
-        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.xs) {
-            HStack(spacing: 4) {
-                Image(systemName: "square.grid.2x2")
-                    .font(.system(size: 11))
-                Text("Fleet")
-                    .font(.caption)
-            }
-            .foregroundStyle(isFleetOpen ? Color.accentColor : .secondary)
-
-            footerStatusLine(status.stateLine, color: fleetTint(status.state))
-                .accessibilityIdentifier("fleet-quiesce-summary")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        SidebarStatusRowLabel(icon: "square.grid.2x2", name: "Fleet", isOpen: isFleetOpen,
+                              status: status.stateLine, tint: fleetTint(status.state),
+                              statusID: "fleet-quiesce-summary")
     }
 
-    /// The verb, kept in the footer for the one-click path. Named "Pause" beside
-    /// the box's Fleet, which is the whole of what distinguishes it from the
+    /// The Fleet row's tooltip: what the drawer holds, the whole state line, and
+    /// when the scheduler will look again — the line the card drew under it.
+    private func fleetRowHelp(_ status: FleetQuiesceStatus) -> String {
+        ["Fleet — every open project: what it is running, whether its queue is held, "
+            + "and the same Pause and Resume controls", status.stateLine, fleetNextLook]
+            .compactMap { $0 }
+            .joined(separator: "\n")
+    }
+
+    /// The verb, kept on the row for the one-click path. Named "Pause" beside
+    /// the row's Fleet, which is the whole of what distinguishes it from the
     /// per-project Pause above: this one also gates a new start, and the help
     /// says so.
     private func fleetActionButton(_ status: FleetQuiesceStatus) -> some View {
@@ -858,63 +804,35 @@ struct KiteloopSidebar: View {
         .accessibilityIdentifier("fleet-quiesce-button")
     }
 
-    /// What is waiting on a person, boxed beside the two loops because it is
-    /// their other half: those two say what the machines are doing on their own,
-    /// and this says what they have stopped and handed back.
+    /// The block's Waiting on you row: what the machines have stopped and
+    /// handed back to a person, beside the two rows that say what they are
+    /// doing on their own.
     ///
-    /// The count is the box, and the count is also the answer most of the time —
-    /// "nothing is waiting on you" is worth reading without opening anything.
-    /// The list behind it is a click away, in the drawer, because naming four
-    /// gates across three projects does not fit a 240pt column.
-    private func waitingBox(_ waiting: WaitingOnYou) -> some View {
-        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.sm) {
-            waitingSummary(waiting)
-        }
-        .padding(KiteloopTokens.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
-                .fill(Color.primary.opacity(KiteloopTokens.Opacity.subtle))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: KiteloopTokens.Radius.md)
-                .strokeBorder(Color.primary.opacity(KiteloopTokens.Opacity.medium), lineWidth: 1)
-        )
-        .accessibilityIdentifier("waiting-footer-box")
-    }
-
-    /// The name and the count as one click, the way the fleet box draws its own
-    /// — with no drawer wired, the same two lines plain.
+    /// The count is the row, and most of the time also the answer — "nothing is
+    /// waiting on you" is worth reading without opening anything. The list
+    /// behind it is a click away, in the drawer. With no drawer wired, the same
+    /// line plain.
     @ViewBuilder
     private func waitingSummary(_ waiting: WaitingOnYou) -> some View {
+        let help = "Waiting on you — every open project's approval gates and unanswered "
+            + "agent questions in one list, each opening where it is cleared\n" + waiting.summary
         if let onOpenWaiting {
             Button(action: onOpenWaiting) {
                 waitingSummaryLabel(waiting)
-                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Waiting on you — every open project's approval gates and unanswered "
-                  + "agent questions in one list, each opening where it is cleared")
+            .help(help)
             .accessibilityIdentifier("waiting-drawer-button")
         } else {
             waitingSummaryLabel(waiting)
+                .help(help)
         }
     }
 
     private func waitingSummaryLabel(_ waiting: WaitingOnYou) -> some View {
-        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.xs) {
-            HStack(spacing: 4) {
-                Image(systemName: "hand.raised")
-                    .font(.system(size: 11))
-                Text("Waiting on you")
-                    .font(.caption)
-            }
-            .foregroundStyle(isWaitingOpen ? Color.accentColor : .secondary)
-
-            footerStatusLine(waiting.summary, color: waiting.isEmpty ? .secondary : .orange)
-                .accessibilityIdentifier("waiting-summary")
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        SidebarStatusRowLabel(icon: "hand.raised", name: "Waiting on you", isOpen: isWaitingOpen,
+                              status: waiting.summary, tint: waiting.isEmpty ? .secondary : .orange,
+                              statusID: "waiting-summary")
     }
 
     /// Paused-and-quiet is the state the control is pressed to reach, so it is
@@ -997,4 +915,64 @@ private struct AgentGroup: Hashable {
 
     func hash(into hasher: inout Hasher) { hasher.combine(key) }
     static func == (lhs: AgentGroup, rhs: AgentGroup) -> Bool { lhs.key == rhs.key }
+}
+
+/// One row of the sidebar's status block: an icon, the name, anything that
+/// belongs beside the name, and the state in the block's small print, cut to one
+/// line — the caller puts the whole of it in the row's tooltip.
+///
+/// The name never truncates; the state gives way first, because the name is
+/// what a person scans the block for and the state is a hover away in full.
+struct SidebarStatusRowLabel<Accessory: View>: View {
+    let icon: String
+    let name: String
+    let isOpen: Bool
+    let status: String?
+    let tint: Color
+    let statusID: String
+    let accessory: Accessory
+
+    init(icon: String, name: String, isOpen: Bool = false, status: String?, tint: Color,
+         statusID: String, @ViewBuilder accessory: () -> Accessory) {
+        self.icon = icon
+        self.name = name
+        self.isOpen = isOpen
+        self.status = status
+        self.tint = tint
+        self.statusID = statusID
+        self.accessory = accessory()
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 11))
+                .frame(width: 14)
+            Text(name)
+                .font(.caption)
+                .lineLimit(1)
+                .fixedSize()
+            accessory
+            Spacer(minLength: KiteloopTokens.Spacing.sm)
+            if let status {
+                Text(status)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityIdentifier(statusID)
+            }
+        }
+        .foregroundStyle(isOpen ? Color.accentColor : .secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}
+
+extension SidebarStatusRowLabel where Accessory == EmptyView {
+    init(icon: String, name: String, isOpen: Bool = false, status: String?, tint: Color, statusID: String) {
+        self.init(icon: icon, name: name, isOpen: isOpen, status: status, tint: tint, statusID: statusID) {
+            EmptyView()
+        }
+    }
 }
