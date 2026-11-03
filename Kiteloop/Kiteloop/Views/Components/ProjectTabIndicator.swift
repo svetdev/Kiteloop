@@ -1,3 +1,5 @@
+import KiteloopCore
+
 /// What the leading glyph on a project tab says the project is doing.
 ///
 /// The rule used to be "is a model emitting tokens", which answers a different
@@ -13,6 +15,9 @@
 /// chatting to an agent outside a run is activity too. A project whose run state
 /// isn't known is not running — unknown reads as idle, never as busy.
 enum ProjectTabIndicator: Equatable {
+    /// Something here is waiting on a person: an item at the approval gate, or
+    /// an agent holding a question or plan. Shown as a raised hand.
+    case waitingOnYou
     /// Something is happening in this project: a run in flight, a live turn, or
     /// both. Shown as a spinner.
     case busy
@@ -21,12 +26,34 @@ enum ProjectTabIndicator: Equatable {
     /// Nothing to say — the plain folder.
     case idle
 
-    /// Busy wins over unread for the same reason it always has: a project that
-    /// is still working hasn't finished anything for you to have missed yet.
-    static func forProject(isRunning: Bool, isStreaming: Bool, isUnread: Bool) -> ProjectTabIndicator {
+    /// Waiting on you wins over everything: an agent stopped on a question is
+    /// mid-turn, so it would otherwise read as busy — a project getting on with
+    /// its work. Busy wins over unread for the same reason it always has: a
+    /// project that is still working hasn't finished anything for you to have
+    /// missed yet.
+    static func forProject(isRunning: Bool, isStreaming: Bool, isUnread: Bool,
+                           isWaitingOnYou: Bool = false) -> ProjectTabIndicator {
+        if isWaitingOnYou { return .waitingOnYou }
         if isRunning || isStreaming { return .busy }
         if isUnread { return .unread }
         return .idle
+    }
+}
+
+extension ProjectTabIndicator {
+    /// The projects with a gate a person clears: an approval or a question.
+    /// A stale item is not one — nothing on the tab clears it.
+    static func waitingProjectIDs(in waiting: WaitingOnYou) -> Set<String> {
+        Set(waiting.rows.filter(\.clearedByAPerson).map(\.projectID))
+    }
+}
+
+private extension WaitingOnYou.Row {
+    var clearedByAPerson: Bool {
+        switch gate {
+        case .approval, .question: return true
+        case .stale: return false
+        }
     }
 }
 

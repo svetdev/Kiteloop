@@ -1,4 +1,5 @@
 import XCTest
+import KiteloopCore
 @testable import Kiteloop
 
 /// What a project tab shows, and — the point of the rule — when it shows the
@@ -6,6 +7,34 @@ import XCTest
 /// for the whole of every tool call: a project 23 minutes into an `xcodebuild`
 /// looked idle while the Autopilot panel beside it read `Running 1/1`.
 final class ProjectTabIndicatorTests: XCTestCase {
+
+    // MARK: - Waiting on you
+
+    func testWaitingOnYouWinsOverBusyAndUnread() {
+        XCTAssertEqual(ProjectTabIndicator.forProject(isRunning: true, isStreaming: true, isUnread: true,
+                                                      isWaitingOnYou: true), .waitingOnYou)
+        XCTAssertEqual(ProjectTabIndicator.forProject(isRunning: true, isStreaming: false, isUnread: false,
+                                                      isWaitingOnYou: false), .busy)
+        XCTAssertEqual(ProjectTabIndicator.forProject(isRunning: false, isStreaming: false, isUnread: true,
+                                                      isWaitingOnYou: false), .unread)
+        XCTAssertEqual(ProjectTabIndicator.forProject(isRunning: false, isStreaming: false, isUnread: false,
+                                                      isWaitingOnYou: false), .idle)
+    }
+
+    private func row(_ project: String, _ gate: WaitingOnYou.Row.Gate) -> WaitingOnYou.Row {
+        .init(id: "\(project)-\(gate)", projectID: project, projectName: project, projectPath: "/\(project)",
+              gate: gate, title: "t", detail: nil, since: nil)
+    }
+
+    func testAnApprovalOrAQuestionWaitsOnYouAndAStaleItemDoesNot() {
+        let waiting = WaitingOnYou(rows: [
+            row("a", .approval(itemID: "i")),
+            row("b", .question(agentID: "dev")),
+            row("c", .stale(itemID: "s")),
+        ])
+        XCTAssertEqual(ProjectTabIndicator.waitingProjectIDs(in: waiting), ["a", "b"])
+        XCTAssertEqual(ProjectTabIndicator.waitingProjectIDs(in: WaitingOnYou(rows: [])), [])
+    }
 
     // MARK: - A run in flight
 

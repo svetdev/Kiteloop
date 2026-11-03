@@ -745,9 +745,11 @@ struct MainWindow: View {
     // MARK: - Project Tabs
 
     private var projectTabs: some View {
-        HStack(spacing: 0) {
+        // Once per pass, not once per tab.
+        let waiting = ProjectTabIndicator.waitingProjectIDs(in: waitingOnYou)
+        return HStack(spacing: 0) {
             ForEach(openProjects) { project in
-                projectTab(for: project)
+                projectTab(for: project, isWaitingOnYou: waiting.contains(project.id))
             }
 
             addProjectButton
@@ -813,12 +815,13 @@ struct MainWindow: View {
         switchToProject(project)
     }
 
-    private func projectTab(for project: KiteloopProject) -> some View {
+    private func projectTab(for project: KiteloopProject, isWaitingOnYou: Bool) -> some View {
         let isActive = project.id == activeProjectID
         let indicator = ProjectTabIndicator.forProject(
             isRunning: runningProjects.contains(project.id),
             isStreaming: sessions[project.id]?.orchestrator.isStreaming ?? false,
-            isUnread: unreadProjects.contains(project.id)
+            isUnread: unreadProjects.contains(project.id),
+            isWaitingOnYou: isWaitingOnYou
         )
         let isDropTargeted = dropTargetProjectID == project.id
 
@@ -924,6 +927,11 @@ struct MainWindow: View {
     @ViewBuilder
     private func projectTabIndicatorIcon(_ indicator: ProjectTabIndicator, isActive: Bool) -> some View {
         switch indicator {
+        case .waitingOnYou:
+            Image(systemName: "hand.raised.fill")
+                .font(.system(size: 10))
+                .foregroundStyle(.orange)
+                .help("Waiting on you")
         case .busy:
             ProgressView()
                 .scaleEffect(0.5)
