@@ -652,6 +652,7 @@
 		CD7AB89D6500AF882EFCC37D /* MCPServerSettingsFileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB2BEC4467279157249C6A7 /* MCPServerSettingsFileTests.swift */; };
 		89DC1AEBF67B44372CD92CDD /* AgentCatalogModelPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */; };
 		E61EE841BDBA3C97D627963C /* SetupWizardKnowledgeInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D9D5449F345812135D624C /* SetupWizardKnowledgeInstallTests.swift */; };
+		FD6E47825FEE7FE7929EFAF7 /* TranscriptViewSubagentOrderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89993ECBDAAD10C44D419B7 /* TranscriptViewSubagentOrderTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -1319,6 +1320,7 @@
 		5CB2BEC4467279157249C6A7 /* MCPServerSettingsFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerSettingsFileTests.swift; sourceTree = "<group>"; };
 		1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCatalogModelPickerTests.swift; sourceTree = "<group>"; };
 		D0D9D5449F345812135D624C /* SetupWizardKnowledgeInstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWizardKnowledgeInstallTests.swift; sourceTree = "<group>"; };
+		D89993ECBDAAD10C44D419B7 /* TranscriptViewSubagentOrderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptViewSubagentOrderTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1389,6 +1391,7 @@
 		1988EEB7FE8DC46FE0A5172A /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				D89993ECBDAAD10C44D419B7 /* TranscriptViewSubagentOrderTests.swift */,
 				1124F0D659BE3AA113E926C8 /* AgentCatalogModelPickerTests.swift */,
 				5CB2BEC4467279157249C6A7 /* MCPServerSettingsFileTests.swift */,
 				14E61BC07E5EA6C14CFA9418 /* SubagentCallRowsTests.swift */,
@@ -2711,6 +2714,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FD6E47825FEE7FE7929EFAF7 /* TranscriptViewSubagentOrderTests.swift in Sources */,
 				E61EE841BDBA3C97D627963C /* SetupWizardKnowledgeInstallTests.swift in Sources */,
 				89DC1AEBF67B44372CD92CDD /* AgentCatalogModelPickerTests.swift in Sources */,
 				CD7AB89D6500AF882EFCC37D /* MCPServerSettingsFileTests.swift in Sources */,

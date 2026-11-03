@@ -67,7 +67,8 @@ struct TranscriptView: NSViewRepresentable {
         let errorColor = NSColor.systemRed
         let systemColor = NSColor.systemOrange
 
-        for message in messages {
+        for entry in Self.transcriptOrder(messages) {
+            let message = entry.message, start = result.length
             switch (message.sender, message.content) {
 
             // ── Human text ──────────────────────────────────────────────────
@@ -140,13 +141,7 @@ struct TranscriptView: NSViewRepresentable {
 
             // ── System event divider ────────────────────────────────────────
             case (_, .systemEvent(let event)):
-                let icon: String = switch event.kind {
-                case .compaction: "⚗️"
-                case .apiRetry: "⟳"
-                case .sessionResumed: "▶"
-                case .reconnecting: "📡"
-                }
-                result.append(NSAttributedString(string: "── \(icon) \(event.detail) ──\n", attributes: [
+                result.append(NSAttributedString(string: Self.dividerLine(for: event), attributes: [
                     .font: monoFont,
                     .foregroundColor: dimColor
                 ]))
@@ -169,9 +164,69 @@ struct TranscriptView: NSViewRepresentable {
             default:
                 appendCardText(of: message, to: result, isDark: isDark)
             }
+            Self.indent(result, from: start, depth: entry.depth)
         }
 
         return result
+    }
+
+    /// `── ⚗️ Context compacted ──`: a system event's divider line.
+    static func dividerLine(for event: Message.SystemEvent) -> String {
+        let icon: String = switch event.kind {
+        case .compaction: "⚗️"
+        case .apiRetry: "⟳"
+        case .sessionResumed: "▶"
+        case .reconnecting: "📡"
+        }
+        return "── \(icon) \(event.detail) ──\n"
+    }
+
+    /// The order the transcript prints in, and how deep: the agent's own
+    /// messages in the order they came, each subagent's calls, results, text
+    /// and thinking right after the `Agent` call that started it, one level
+    /// in — so a copied transcript never reads as if the main agent made a
+    /// subagent's calls. A message whose parent call is not in the list is
+    /// printed where it came, unindented, rather than lost.
+    static func transcriptOrder(_ messages: [Message]) -> [(message: Message, depth: Int)] {
+        var byParent: [String: [Message]] = [:]
+        for message in messages {
+            if let parent = transcriptParent(of: message) { byParent[parent, default: []].append(message) }
+        }
+        let calls = Set(messages.compactMap(callID(of:)))
+        let top = messages.filter { transcriptParent(of: $0).map { !calls.contains($0) } ?? true }
+        var ordered: [(message: Message, depth: Int)] = []
+        append(top, depth: 0, byParent: byParent, above: [], to: &ordered)
+        return ordered
+    }
+
+    private static func append(_ list: [Message], depth: Int, byParent: [String: [Message]],
+                               above: Set<String>, to ordered: inout [(message: Message, depth: Int)]) {
+        for message in list {
+            ordered.append((message, depth))
+            guard let id = callID(of: message), !above.contains(id), let children = byParent[id] else { continue }
+            append(children, depth: depth + 1, byParent: byParent, above: above.union([id]), to: &ordered)
+        }
+    }
+
+    /// The call a subagent's message hangs under — a result's included,
+    /// which the chat draws with its call and so `ToolCallNesting` leaves out.
+    private static func transcriptParent(of message: Message) -> String? {
+        if case .toolResult(let result) = message.content { return result.parentToolUseID }
+        return ToolCallNesting.subagentParent(of: message)
+    }
+
+    private static func callID(of message: Message) -> String? {
+        if case .toolCall(let call) = message.content { return call.id }
+        return nil
+    }
+
+    /// Indents what was appended from `start` by `depth` steps.
+    static func indent(_ text: NSMutableAttributedString, from start: Int, depth: Int) {
+        guard depth > 0, start < text.length else { return }
+        let style = NSMutableParagraphStyle()
+        style.firstLineHeadIndent = CGFloat(depth) * 20
+        style.headIndent = style.firstLineHeadIndent
+        text.addAttribute(.paragraphStyle, value: style, range: NSRange(location: start, length: text.length - start))
     }
 
     /// A plan card or an agent's question, printed as the agent's text is:
