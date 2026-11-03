@@ -9,6 +9,10 @@ struct MCPServerConfigView: View {
     @State private var servers: [MCPServerRow] = []
     @State private var selectedServerID: UUID?
     @State private var saveError: String?
+    /// Why `.claude/settings.json` could not be read, while it can't. The list
+    /// says so instead of reading as empty, and Save refuses rather than
+    /// replacing a file it never understood.
+    @State private var unreadable: String?
     /// What `fingerprint` was when the page last loaded or saved. An edit is
     /// the two disagreeing.
     @State private var savedFingerprint: String = ""
@@ -32,7 +36,11 @@ struct MCPServerConfigView: View {
                 }
             }
 
-            if servers.isEmpty {
+            if let unreadable {
+                ContentUnavailableView("Settings File Unreadable", systemImage: "exclamationmark.triangle",
+                                       description: Text(unreadable))
+                    .frame(maxHeight: .infinity)
+            } else if servers.isEmpty {
                 ContentUnavailableView("No MCP Servers", systemImage: "server.rack", description: Text("Add an MCP server to extend agent capabilities."))
                     .frame(maxHeight: .infinity)
             } else {
@@ -86,14 +94,58 @@ struct MCPServerConfigView: View {
         editGuard.report(isDirty: false, for: .mcpServers)
     }
 
+    private var settingsURL: URL {
+        URL(fileURLWithPath: projectPath).appending(path: ".claude/settings.json")
+    }
+
     private func loadServers() {
         guard !projectPath.isEmpty else { return }
-        let settingsURL = URL(fileURLWithPath: projectPath).appending(path: ".claude/settings.json")
-        guard let data = try? Data(contentsOf: settingsURL),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let mcpServers = json["mcpServers"] as? [String: Any] else { return }
-        servers = Self.rows(from: mcpServers)
+        unreadable = nil
+        switch Self.readSettings(at: settingsURL) {
+        case .absent:
+            break
+        case .unreadable(let why):
+            unreadable = why
+        case .settings(let json):
+            servers = Self.rows(from: json["mcpServers"] as? [String: Any] ?? [:])
+        }
         markSaved()
+    }
+
+    /// What `.claude/settings.json` holds, told apart: no file, a file this
+    /// page cannot understand, or its settings.
+    enum SettingsRead {
+        case absent
+        case unreadable(String)
+        case settings([String: Any])
+    }
+
+    static func readSettings(at url: URL) -> SettingsRead {
+        guard FileManager.default.fileExists(atPath: url.path(percentEncoded: false)) else { return .absent }
+        do {
+            return readSettings(from: try Data(contentsOf: url))
+        } catch {
+            return .unreadable(".claude/settings.json couldn't be read: \(error.localizedDescription)")
+        }
+    }
+
+    /// An object whose `mcpServers`, when present, is an object too — anything
+    /// else is unreadable, never an empty list a save would write over.
+    static func readSettings(from data: Data) -> SettingsRead {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return .unreadable(".claude/settings.json is not a valid JSON object. Fix or remove it, then reopen this page.")
+        }
+        if let servers = json["mcpServers"], !(servers is [String: Any]) {
+            return .unreadable(".claude/settings.json has an mcpServers entry that is not an object.")
+        }
+        return .settings(json)
+    }
+
+    /// The file to write: everything already in it, with `mcpServers` replaced.
+    static func merged(servers: [String: Any], into existing: [String: Any]) -> [String: Any] {
+        var settings = existing
+        settings["mcpServers"] = servers
+        return settings
     }
 
     /// The `mcpServers` dictionary as rows, sorted by name. Every key the page
@@ -192,19 +244,19 @@ struct MCPServerConfigView: View {
         case .servers(let entries):
             mcpServers = entries
         }
-        let settingsURL = URL(fileURLWithPath: projectPath).appending(path: ".claude/settings.json")
+        var existing: [String: Any] = [:]
+        switch Self.readSettings(at: settingsURL) {
+        case .absent: break
+        case .settings(let json): existing = json
+        case .unreadable(let why):
+            saveError = "Not saved — \(why)"
+            return
+        }
         let claudeDir = URL(fileURLWithPath: projectPath).appending(path: ".claude")
         try? FileManager.default.createDirectory(at: claudeDir, withIntermediateDirectories: true)
-
-        var existing: [String: Any] = [:]
-        if let data = try? Data(contentsOf: settingsURL),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            existing = json
-        }
-
-        existing["mcpServers"] = mcpServers
         do {
-            let data = try JSONSerialization.data(withJSONObject: existing, options: [.prettyPrinted, .sortedKeys])
+            let data = try JSONSerialization.data(withJSONObject: Self.merged(servers: mcpServers, into: existing),
+                                                  options: [.prettyPrinted, .sortedKeys])
             try data.write(to: settingsURL, options: .atomic)
             saveError = nil
             markSaved()

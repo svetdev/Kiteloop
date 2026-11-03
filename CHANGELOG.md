@@ -280,6 +280,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - Only one of the Coordinator, Fleet and Waiting on you drawers is open at a time: opening one closes the other, so the Autopilot beside it is no longer squeezed into a strip.
 
 #### Agents and settings
+- Project Settings → MCP Servers says when .claude/settings.json can't be read instead of showing an empty list, and Save refuses to write over that file rather than replacing it — permissions, hooks and everything else in it included.
 - A Custom Agent in the New Agent sheet, and an agent hired through the control API without a model, now start on the project's model, else Settings → Default Model, instead of always on Opus.
 - Settings' Default Reasoning Effort and Project Settings' Effort and per-turn budget now reach every agent the project starts, including one hired from New Agent or `POST /agents` while the project is open — the project's effort if set, else the app's — instead of only agents started by reopening the project, and the app's effort reaching none.
 - Renaming an agent in Edit Agent now carries the new name into every teammate's Cross-Agent Access, so a teammate allowed to message it still can instead of being refused with "access denied".
