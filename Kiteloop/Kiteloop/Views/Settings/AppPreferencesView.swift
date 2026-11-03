@@ -54,6 +54,7 @@ struct AppPreferencesView: View {
     @State private var controlServerEnabled = false
     @State private var controlServerPort = String(KiteloopControlServer.defaultPort)
     @AppStorage("playfulStatusVerbs") private var playfulStatusVerbs = true
+    @AppStorage(UpdateCheckService.automaticCheckDefaultsKey) private var checkForUpdatesAutomatically = true
 
     @State private var confirmingTokenRotation = false
     @State private var pairingPhone = false
@@ -159,6 +160,8 @@ struct AppPreferencesView: View {
             }
 
             Section("Setup & Health") {
+                Toggle("Automatically check for updates", isOn: $checkForUpdatesAutomatically)
+                    .help("Asks GitHub at most once a day, at launch. Check for Updates… in the Kiteloop menu still checks whenever you choose it.")
                 // The same resolve the app spawns through, so these rows report
                 // the binary that will actually run rather than one the
                 // configured `claudePath`/`nodePath` may have replaced.

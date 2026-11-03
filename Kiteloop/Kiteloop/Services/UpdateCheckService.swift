@@ -70,6 +70,9 @@ final class UpdateCheckService {
     /// The release the user chose not to install; the launch check stays quiet
     /// about it and anything not newer.
     nonisolated static let skippedVersionDefaultsKey = "updateCheckSkippedVersion"
+    /// App Preferences' "Automatically check for updates". Absent reads as on,
+    /// so an install from before the setting keeps checking.
+    nonisolated static let automaticCheckDefaultsKey = "updateCheckAutomatically"
 
     private(set) var state: UpdateCheckState = .idle
 
@@ -115,7 +118,7 @@ final class UpdateCheckService {
     /// release for the caller to put on screen.
     @discardableResult
     func checkPassively() async -> Bool {
-        guard isDue else { return false }
+        guard checksAutomatically, isDue else { return false }
         guard case .available(let release) = await answer(), !isSkipped(release) else { return false }
         state = .available(release)
         return true
@@ -147,6 +150,11 @@ final class UpdateCheckService {
         defaults.set(now(), forKey: Self.lastCheckDefaultsKey)
         guard ReleaseVersion.isNewer(release.version, than: installedVersion) else { return .upToDate }
         return .available(release)
+    }
+
+    /// Off only when the user turned it off; the menu command ignores it.
+    private var checksAutomatically: Bool {
+        defaults.object(forKey: Self.automaticCheckDefaultsKey) as? Bool ?? true
     }
 
     /// The day's allowance is spent by a check that got an answer, not by one

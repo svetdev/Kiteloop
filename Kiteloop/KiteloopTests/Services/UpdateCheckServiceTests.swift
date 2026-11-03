@@ -175,6 +175,31 @@ final class UpdateCheckServiceTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: UpdateCheckService.skippedVersionDefaultsKey))
     }
 
+    // MARK: - Turning the launch check off
+
+    func testWithTheLaunchCheckOffNothingIsAsked() async {
+        defaults.set(false, forKey: UpdateCheckService.automaticCheckDefaultsKey)
+        let log = FetchLog()
+        let service = makeService(log: log)
+        let shown = await service.checkPassively()
+        XCTAssertFalse(shown)
+        let calls = await log.calls
+        XCTAssertEqual(calls, 0)
+    }
+
+    func testTheMenuCommandStillChecksWithTheLaunchCheckOff() async {
+        defaults.set(false, forKey: UpdateCheckService.automaticCheckDefaultsKey)
+        let service = makeService()
+        await service.checkNow()
+        XCTAssertEqual(service.state, .available(Self.release))
+    }
+
+    func testAnUnsetSettingLeavesTheLaunchCheckOn() async {
+        XCTAssertNil(defaults.object(forKey: UpdateCheckService.automaticCheckDefaultsKey))
+        let shown = await makeService().checkPassively()
+        XCTAssertTrue(shown)
+    }
+
     // MARK: - The passive check at launch
 
     /// AC 1: at launch, a newer release is what the caller is told to put on

@@ -58,6 +58,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - When a newer Kiteloop is out, the Software Update window shows its release notes.
 
 #### Agents, settings and memory
+- App Preferences has an "Automatically check for updates" toggle, on by default: with it off, Kiteloop makes no update request at launch, and Check for Updates… still checks when you choose it.
 - Agents run in Claude Code's auto mode by default — its classifier decides each tool call — and every permission picker offers Auto; autopilot runs and background helpers always use it instead of bypassing permissions with Kiteloop's own deny list, and anything that would ask for permission is refused.
 - The New Agent and Edit Agent Model pickers list the models you have pulled in Ollama, labelled "local", and mark built-in Ollama models you have not pulled.
 - Settings → Backend can remove a saved API key (Remove…, after a confirmation).
