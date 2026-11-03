@@ -124,6 +124,9 @@ struct SetupWizardView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
+                        if let knowledgeError = viewModel.knowledgeError {
+                            FooterErrorLabel(knowledgeError)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.top, 20)

@@ -25,6 +25,8 @@ class SetupWizardViewModel {
     var availableAgents: [AgentOption] = []
     var selectedAgentIDs: Set<String> = []
     var finishError: String?
+    /// Why the last knowledge install did not happen; nil after one that did.
+    var knowledgeError: String?
 
     struct AgentOption: Identifiable {
         let id: String
@@ -81,19 +83,44 @@ class SetupWizardViewModel {
         let agentsCheck = sourceURL.appending(path: "agents")
         guard FileManager.default.fileExists(atPath: agentsCheck.path(percentEncoded: false)) else {
             log.error("[setup-wizard] selected dir has no agents/ subdirectory")
+            knowledgeError = "That folder has no agents subfolder, so it isn't a knowledge folder."
             return
         }
 
-        let dest = KiteloopHome.url.appending(path: ".kiteloop/knowledge")
-        try? FileManager.default.removeItem(at: dest)
         do {
-            try FileManager.default.copyItem(at: sourceURL, to: dest)
+            try Self.installKnowledge(from: sourceURL, to: KiteloopHome.url.appending(path: ".kiteloop/knowledge"))
+            knowledgeError = nil
             log.info("[setup-wizard] copied knowledge repo to ~/.kiteloop/knowledge")
             await packageResolver?.reload()
             loadAgents()
         } catch {
             log.error("[setup-wizard] failed to copy knowledge: \(error.localizedDescription)")
+            knowledgeError = "Couldn't install the knowledge folder: \(error.localizedDescription) "
+                + "The one already installed is unchanged."
         }
+    }
+
+    /// Replaces `dest` with a copy of `source`, never leaving it with neither:
+    /// the copy lands in a staging sibling first, and the old install is
+    /// removed only once the new one is in its place. Any failure leaves
+    /// `dest` as it was and no staging directory behind.
+    nonisolated static func installKnowledge(from source: URL, to dest: URL) throws {
+        let fm = FileManager.default
+        let parent = dest.deletingLastPathComponent()
+        let staging = parent.appending(path: ".\(dest.lastPathComponent).staging-\(UUID().uuidString)")
+        let retired = parent.appending(path: ".\(dest.lastPathComponent).old-\(UUID().uuidString)")
+        try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: staging) }
+        try fm.copyItem(at: source, to: staging)
+        let hadInstall = fm.fileExists(atPath: dest.path(percentEncoded: false))
+        if hadInstall { try fm.moveItem(at: dest, to: retired) }
+        do {
+            try fm.moveItem(at: staging, to: dest)
+        } catch {
+            if hadInstall { try? fm.moveItem(at: retired, to: dest) }
+            throw error
+        }
+        try? fm.removeItem(at: retired)
     }
 
     var isCloning: Bool {

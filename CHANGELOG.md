@@ -282,6 +282,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - Only one of the Coordinator, Fleet and Waiting on you drawers is open at a time: opening one closes the other, so the Autopilot beside it is no longer squeezed into a strip.
 
 #### Agents and settings
+- Choosing a knowledge folder in the setup wizard no longer deletes the installed one first: the new copy is put in place before the old one goes, a failed copy leaves the old one exactly as it was, and the wizard says why it failed.
 - Editing an agent template in Settings › Team offers every model the app offers and opens on the template's own model — Fable, a local model, Copilot or a Bedrock profile's family — instead of a three-way choice that a Save then wrote over; a new template starts on the app's default model.
 - Project Settings → MCP Servers says when .claude/settings.json can't be read instead of showing an empty list, and Save refuses to write over that file rather than replacing it — permissions, hooks and everything else in it included.
 - A Custom Agent in the New Agent sheet, and an agent hired through the control API without a model, now start on the project's model, else Settings → Default Model, instead of always on Opus.
