@@ -53,6 +53,37 @@ final class ChatViewModelSessionBranchTests: XCTestCase {
         Set(SessionStore(projectDir: tmpDir).loadAllMessages(for: session).map(\.id))
     }
 
+    // MARK: - Export
+
+    /// The open chat exports what it shows: a system line posted after the
+    /// last save is there, and so is a branch made this session.
+    func testExportingTheOpenChatWritesWhatItShowsAndItsBranches() async throws {
+        let (chat, _) = try makeSession("Open", texts: ["q1", "a1"])
+        await vm.switchToSession(chat)
+        await run("/branch x")
+        await run("/branch list")
+        let listReply = try XCTUnwrap(vm.messages.last { $0.sender == .system })
+        guard case .text(let shown) = listReply.content else { return XCTFail("expected a text line") }
+
+        let exported = try XCTUnwrap(vm.exportMarkdown(for: chat))
+        XCTAssertTrue(exported.contains(shown), "the unsaved branch list reply is in the export")
+        XCTAssertTrue(exported.contains("## Branch: x"), exported)
+        XCTAssertEqual(exported.components(separatedBy: "\n\nq1").count - 1, 1, "history written once")
+    }
+
+    /// A chat that is not open is read from disk, as it always was.
+    func testExportingAnotherChatReadsItFromDisk() async throws {
+        let (other, saved) = try makeSession("Other", texts: ["o1", "o2"])
+        let (open, _) = try makeSession("Open", texts: ["p1"])
+        await vm.switchToSession(open)
+        let exported = try XCTUnwrap(vm.exportMarkdown(for: other))
+        XCTAssertTrue(saved.allSatisfy { message in
+            guard case .text(let text) = message.content else { return false }
+            return exported.contains(text)
+        })
+        XCTAssertFalse(exported.contains("p1"))
+    }
+
     func testSwitchingChatsLeavesTheBranchesBehind() async throws {
         let (chatA, _) = try makeSession("A", texts: ["a1", "a2"])
         let (chatB, _) = try makeSession("B", texts: ["b1", "b2"])

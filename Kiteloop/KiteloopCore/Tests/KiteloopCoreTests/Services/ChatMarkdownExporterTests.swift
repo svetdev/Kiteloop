@@ -85,4 +85,58 @@ final class ChatMarkdownExporterTests: XCTestCase {
         XCTAssertEqual(ChatMarkdownExporter.fileName(for: ChatSession(agentID: "a")), "New Chat.md")
         XCTAssertEqual(ChatMarkdownExporter.fileName(for: ChatSession(agentID: "a", title: "")), "New Chat.md")
     }
+
+    // MARK: - Branches
+
+    private func branchedExport(active: [Message], snapshot: ConversationBranchSnapshot) -> String {
+        ChatMarkdownExporter.markdown(title: "Release plan", messages: active, branches: snapshot,
+                                      agentName: { $0 }, timeZone: utc)
+    }
+
+    /// main: q, a, m2. Branch x forks at `a`: q, a, x2.
+    private func forkedChat() -> (main: [Message], x: [Message], branch: (ConversationBranch) -> Void) {
+        let q = message(.human, .text("question"), at: 0)
+        let a = message(.agent("dev"), .text("answer"), at: 60)
+        let main = [q, a, message(.human, .text("main follow-up"), at: 120)]
+        let x = [q, a, message(.human, .text("branch follow-up"), at: 180)]
+        return (main, x, { _ in })
+    }
+
+    func testABranchedChatWritesTheMainLineThenEachBranchFromItsForkOnce() {
+        let chat = forkedChat()
+        let branch = ConversationBranch(id: UUID(), name: "x", parentMessageID: chat.x[1].id,
+                                        createdAt: Date(timeIntervalSince1970: 180), messages: [])
+        let onX = branchedExport(active: chat.x, snapshot: .init(branches: [branch], activeBranchID: branch.id,
+                                                                  mainMessages: chat.main))
+        XCTAssertTrue(onX.contains("## Main line"))
+        XCTAssertTrue(onX.contains("## Branch: x"))
+        XCTAssertTrue(onX.contains("main follow-up") && onX.contains("branch follow-up"))
+        XCTAssertEqual(onX.components(separatedBy: "\n\nquestion").count - 1, 1, "shared history written once")
+        XCTAssertTrue(onX.contains("_Branched from dev — 1970-01-01 00:01_"))
+
+        let stored = ConversationBranch(id: branch.id, name: "x", parentMessageID: chat.x[1].id,
+                                        createdAt: branch.createdAt, messages: chat.x)
+        let onMain = branchedExport(active: chat.main, snapshot: .init(branches: [stored], activeBranchID: nil,
+                                                                        mainMessages: []))
+        XCTAssertTrue(onMain.contains("main follow-up") && onMain.contains("branch follow-up"))
+    }
+
+    func testABranchWhoseForkIsMissingIsWrittenWhole() {
+        let chat = forkedChat()
+        let orphan = ConversationBranch(id: UUID(), name: "y", parentMessageID: UUID(),
+                                        createdAt: Date(), messages: chat.x)
+        let output = branchedExport(active: chat.main, snapshot: .init(branches: [orphan], activeBranchID: nil,
+                                                                        mainMessages: []))
+        XCTAssertTrue(output.contains("## Branch: y"))
+        XCTAssertTrue(output.contains("branch follow-up"))
+        XCTAssertEqual(output.components(separatedBy: "\n\nquestion").count - 1, 2, "the whole branch, history included")
+    }
+
+    func testNoBranchesExportsAsBefore() {
+        let chat = forkedChat()
+        let plain = export(chat.main)
+        XCTAssertEqual(branchedExport(active: chat.main, snapshot: .init(branches: [], activeBranchID: nil,
+                                                                          mainMessages: [])), plain)
+        XCTAssertFalse(plain.contains("## Main line"))
+    }
 }

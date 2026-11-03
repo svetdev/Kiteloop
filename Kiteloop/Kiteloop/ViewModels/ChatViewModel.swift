@@ -4291,11 +4291,28 @@ class ChatViewModel {
     /// holds for it, not only the tail loaded into the view.
     func exportMarkdown(for session: ChatSession) -> String? {
         guard let sessionStore else { return nil }
+        let isOpen = session.id == currentSession?.id
         return ChatMarkdownExporter.markdown(
             title: session.isUntitled ? "New Chat" : session.title,
-            messages: sessionStore.loadAllMessages(for: session),
+            messages: isOpen ? onScreenMessages(store: sessionStore, session: session)
+                : sessionStore.loadAllMessages(for: session),
+            branches: isOpen ? conversationTreeSnapshot : sessionStore.loadBranches(for: session),
             agentName: { self.displayName(forAgentID: $0) }
         )
+    }
+
+    /// What the open chat shows: the records never loaded into memory, then
+    /// every message in memory. Disk alone is behind the screen — a system line
+    /// is not saved when it is posted, and a save lands in the background.
+    private func onScreenMessages(store: SessionStore, session: ChatSession) -> [Message] {
+        Array(store.loadAllMessages(for: session).prefix(messagesLeftOutOfLoad)) + messages
+    }
+
+    /// The open chat's branches as they stand, not as last saved.
+    private var conversationTreeSnapshot: ConversationBranchSnapshot {
+        ConversationBranchSnapshot(branches: conversationTree.branches,
+                                   activeBranchID: conversationTree.activeBranchID,
+                                   mainMessages: conversationTree.mainMessages)
     }
 
     /// Cuts any in-flight Direct Scrying before a session translocation.
