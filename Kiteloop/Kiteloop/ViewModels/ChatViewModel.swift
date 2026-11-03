@@ -1094,25 +1094,29 @@ class ChatViewModel {
 
         messages.append(.human(text))
         inputText = ""
-        _ = takeOutgoingAttachments()
+        // Taken once, so the tray empties once; every specialist named gets
+        // the same files.
+        let attachments = takeOutgoingAttachments()
         isStreaming = true
         for handle in routableMentions {
-            await route(mention: handle, question: parseResult.cleanText)
+            await route(mention: handle, question: parseResult.cleanText, attachments: attachments)
         }
         isStreaming = false
         saveMessages()
         return true
     }
 
-    private func route(mention handle: String, question: String) async {
+    private func route(mention handle: String, question: String, attachments: [ChatAttachment]) async {
         if let template = agentCatalogStore?.find(handle: handle) {
-            return await summon(template, handle: handle, initialMessage: question)
+            return await summon(template, handle: handle, initialMessage: question, attachments: attachments)
         }
         postSystem("Unknown agent: @\(handle). Check Settings → Agents.")
     }
 
-    /// Task specialist → spawn tab + route message.
-    private func summon(_ template: AgentTemplate, handle: String, initialMessage: String) async {
+    /// Task specialist → spawn tab + route message, with the files the message
+    /// was sent with.
+    private func summon(_ template: AgentTemplate, handle: String, initialMessage: String,
+                        attachments: [ChatAttachment]) async {
         postSystem("Summoning @\(handle)...")
         let agent = template.instantiateAgent()
         orchestrator.addAgent(agent)
@@ -1128,7 +1132,8 @@ class ChatViewModel {
                 "agent": agent,
                 "projectID": project.id,
                 "projectURL": projectURL,
-                "initialMessage": initialMessage
+                "initialMessage": initialMessage,
+                Notification.summonedAttachmentsKey: attachments
             ]
         )
         persistTeamConfig()

@@ -389,3 +389,52 @@ final class ChatViewModelAttachmentTests: XCTestCase {
         try handle.truncate(atOffset: UInt64(size))
     }
 }
+
+/// A message that mentions a catalog specialist summons it, and the files in
+/// the tray go with that message rather than disappearing.
+@MainActor
+final class ChatViewModelSummonAttachmentTests: XCTestCase {
+    private var vm: ChatViewModel!
+
+    override func setUp() async throws {
+        let tempDir = try makeTemporaryDirectory(prefix: "summon-attachments")
+        let orchestrator = Orchestrator(runtime: MockAgentRuntime())
+        orchestrator.addAgent(Agent(id: "lead", name: "Lead", model: "sonnet", systemPrompt: "", tools: [],
+                                    denied: [], permissionMode: "default", state: .idle))
+        try await orchestrator.startAgent("lead", cwd: tempDir)
+        let catalog = AgentCatalogStore(storageURL: tempDir.appending(path: "catalog.json"))
+        catalog.add(AgentTemplate(id: "reviewer-t", name: "Reviewer"))
+        catalog.add(AgentTemplate(id: "designer-t", name: "Designer"))
+        vm = ChatViewModel(agentID: "lead", projectURL: tempDir, orchestrator: orchestrator)
+        vm.configure(catalogStore: catalog)
+        vm.pendingAttachments = [
+            ChatAttachment(filename: "shot.png", data: Data([0x89, 0x50]), mimeType: "image/png"),
+            ChatAttachment(filename: "notes.txt", data: Data("hi".utf8), mimeType: "text/plain"),
+        ]
+    }
+
+    /// The files each `.agentSummoned` post carried, in post order.
+    private func sendCollectingSummons(_ text: String) async -> [[String]] {
+        var summoned: [[String]] = []
+        let token = NotificationCenter.default.addObserver(forName: .agentSummoned, object: nil, queue: nil) { note in
+            let files = note.userInfo?[Notification.summonedAttachmentsKey] as? [ChatAttachment] ?? []
+            summoned.append(files.map(\.filename))
+        }
+        defer { NotificationCenter.default.removeObserver(token) }
+        vm.inputText = text
+        await vm.send()
+        return summoned
+    }
+
+    func testASummonedSpecialistIsSentTheTraysFilesAndTheTrayEmpties() async {
+        let summoned = await sendCollectingSummons("@reviewer what do you think of this?")
+        XCTAssertEqual(summoned, [["shot.png", "notes.txt"]])
+        XCTAssertTrue(vm.pendingAttachments.isEmpty)
+    }
+
+    func testTwoSpecialistsNamedInOneMessageEachGetTheSameFiles() async {
+        let summoned = await sendCollectingSummons("@reviewer and @designer, thoughts?")
+        XCTAssertEqual(summoned, [["shot.png", "notes.txt"], ["shot.png", "notes.txt"]])
+        XCTAssertTrue(vm.pendingAttachments.isEmpty)
+    }
+}

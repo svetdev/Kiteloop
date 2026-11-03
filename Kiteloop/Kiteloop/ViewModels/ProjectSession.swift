@@ -818,14 +818,17 @@ final class ProjectSession {
         }
     }
 
-    func handleAgentSummoned(_ agent: Agent, projectURL: URL, initialMessage: String) {
+    /// Opens the summoned agent's chat and sends it the message it was summoned
+    /// with, through the tray so the files go with it.
+    func handleAgentSummoned(_ agent: Agent, projectURL: URL, initialMessage: String,
+                             attachments: [ChatAttachment] = []) {
         let vm = makeChatViewModel(agentID: agent.id, projectURL: projectURL)
         chatViewModels[agent.id] = vm
         selectedAgentID = agent.id
 
-        if !initialMessage.trimmingCharacters(in: .whitespaces).isEmpty {
-            vm.inputText = initialMessage
-            Task { await vm.send() }
-        }
+        guard !initialMessage.trimmingCharacters(in: .whitespaces).isEmpty || !attachments.isEmpty else { return }
+        vm.inputText = initialMessage
+        vm.pendingAttachments = attachments
+        Task { await vm.send() }
     }
 }

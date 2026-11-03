@@ -7,6 +7,12 @@ private let msgLog = Logger(subsystem: "ai.kasatkin.kiteloop", category: "messag
 private let resumeLog = Logger(subsystem: "ai.kasatkin.kiteloop", category: "workflow-resume")
 private let workflowEventLog = Logger(subsystem: "ai.kasatkin.kiteloop", category: "workflow-event")
 
+extension Notification {
+    /// Where an `.agentSummoned` post carries the files the summoning message
+    /// was sent with; absent from an aside, which opens with none.
+    static let summonedAttachmentsKey = "attachments"
+}
+
 extension Notification.Name {
     static let agentTriggered = Notification.Name("agentTriggered")
     static let agentHired = Notification.Name("agentHired")
