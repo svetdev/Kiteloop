@@ -162,6 +162,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - The chat's line for a retried API call now says how long until the next try and the HTTP status when there is one ("Retrying in 12s (attempt 2 of 10) — rate_limit, HTTP 429"), and a run of retries shows one line with the latest attempt instead of one per attempt.
 
 #### Models
+- A Copilot agent no longer gets a silently substituted model: `copilot` asks for Copilot's default, `copilot-<name>` asks for that model, a name Copilot does not have ends the turn with an error listing the available models, and the status line shows which model answered. Needs the bridge extension rebuilt (`npm run compile`) and reloaded in VS Code.
 - An agent set to Fable now runs the current Fable (5.1) instead of staying pinned to Fable 5, and turns on Claude Opus 5.5 and Fable 5.1 — what the `opus` and `fable` aliases launch today — show their cost instead of reading as unmeasured.
 
 #### Slash commands
@@ -240,6 +241,11 @@ entry — see the changelog convention in `CLAUDE.md`.
 - An item whose line in BACKLOG.md could not be updated — the new line would read back as a different item, so the old one was kept and its status never changed — now says so with an error in the inbox naming the item, once.
 
 #### Autopilot, merges and branches
+- A merge refused by a failing verify keeps the failing lines of a long log (`FAILED`, `panicked at`, `error:`, the test-result summary) in `verifyOutput`, not only its last 16 KB, so the failing tests are named without re-running the gate.
+- When a project-wide verify command fails on the merged tree and on the base alone, the refusal says the same command also fails on the base, so a red base is no longer read as something the branch broke.
+- With a `baseBranch` the project folder is not checked out on, the grounding check now reads that branch's tree, so an item about code only the base holds is no longer refused as `not-grounded` for paths, symbols and `verify:` directories that "do not exist".
+- A refused `POST /v1/backlog/land` now leaves a line in the item's Notes saying why it was refused and which branch the work is still on, instead of leaving a Done item with nothing to say its work never merged.
+- A project set to land its own work (`approvalGate: land`) now merges a review-passed run even when the Backlog Flow's "Require human approval before Done" is off; before, the item was marked Done with its commit left on a branch and no merge attempted. A run that still ends Done with unmerged work says so in the item's Notes and names the branch.
 - A QA run's storyboard and screenshots are kept under `~/.kiteloop/storyboards/` after the run ends, and the note on the item points at that copy instead of a path that was deleted with the run.
 - A `flow:qa` run's worker and QA agent are handed the specifier's acceptance scenarios and QA procedure; they used to receive an empty placeholder when the specifier answered in prose.
 - The Autopilot header names the worker and reviewer in one button that opens Autopilot settings, instead of two pickers that crowded the run status out of a narrow window; the pickers are on the settings page.
@@ -268,6 +274,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - The fleet board says "paused by hand" only for a project parked with its paused switch; a project whose autopilot run is paused — by its spend cap, for one — reads "run paused", and its tooltip points at the Autopilot tab for the reason and Resume.
 
 #### Control API
+- A run that was accepted but is still checking before its first item — the items against the repo, the base against the merge-verify — reads `state: starting` on `GET /v1/autopilot` and `GET /v1/projects`, with `detail` naming the check, how long it has run and the deadline it ends within, instead of `idle` with a held item and no reason.
 - The control API now turns on while the phone pairing forwarder is running; before, the forwarder holding the same port on the Mac's network addresses kept it from ever listening.
 - When the control API is not listening, Settings → Control API says why and names the process holding its port, and the inbox notice names that process too.
 - When the control API stops trying to listen because another process holds its port, the inbox now says so, naming the port and the failure, and Settings → Control API has a Retry button beside "Not currently listening" — no more quitting and reopening the app to get it back.

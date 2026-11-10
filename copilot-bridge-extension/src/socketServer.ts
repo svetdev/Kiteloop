@@ -92,7 +92,7 @@ export class SocketServer {
       }
 
       try {
-        const fullText = await this.bridge.sendChat(
+        const result = await this.bridge.sendChat(
           messages,
           model,
           maxTokens,
@@ -100,7 +100,7 @@ export class SocketServer {
             this.writeLine(socket, { id, type: "delta", content: chunk });
           }
         );
-        this.writeLine(socket, { id, type: "done", content: fullText });
+        this.writeLine(socket, { id, type: "done", ...result });
       } catch (err: any) {
         this.writeLine(socket, { id, type: "error", message: err.message ?? "Unknown error" });
       }

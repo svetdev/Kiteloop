@@ -1,30 +1,60 @@
 import * as vscode from "vscode";
 
+/** A finished chat: the text, and the model that produced it. */
+export interface ChatResult {
+  content: string;
+  model: string;
+  vendor: string;
+  family: string;
+}
+
 export class CopilotBridge {
   async getAvailableModels(): Promise<string[]> {
     const models = await vscode.lm.selectChatModels();
     return models.map((m) => m.id);
   }
 
-  async sendChat(
-    messages: Array<{ role: string; content: string }>,
-    modelFamily?: string,
-    maxTokens?: number,
-    onDelta?: (chunk: string) => void
-  ): Promise<string> {
-    const selector: vscode.LanguageModelChatSelector = modelFamily
-      ? { family: modelFamily }
-      : {};
-    const models = await vscode.lm.selectChatModels(selector);
-    if (models.length === 0) {
-      const allModels = await vscode.lm.selectChatModels();
-      if (allModels.length === 0) {
+  /**
+   * The model a request names, or Copilot's first when it names none.
+   *
+   * A name is matched as a family (`gpt-4o`) and then as an id — `ping` lists
+   * ids, so whatever it printed is accepted here. A name that matches neither
+   * is an error naming what is available: it used to fall back to the first
+   * model VS Code lists, and nothing said which model had answered.
+   */
+  async resolveModel(requested?: string): Promise<vscode.LanguageModelChat> {
+    const name = requested?.trim();
+    if (!name) {
+      const all = await vscode.lm.selectChatModels();
+      if (all.length === 0) {
         throw new Error("No language models available via Copilot");
       }
-      models.push(allModels[0]);
+      return all[0];
     }
+    const byFamily = await vscode.lm.selectChatModels({ family: name });
+    if (byFamily.length > 0) {
+      return byFamily[0];
+    }
+    const byId = await vscode.lm.selectChatModels({ id: name });
+    if (byId.length > 0) {
+      return byId[0];
+    }
+    const available = (await vscode.lm.selectChatModels()).map((m) => m.id);
+    throw new Error(
+      `Unknown Copilot model "${name}" — no model has that family or id. ` +
+        (available.length > 0
+          ? `Available: ${available.join(", ")}`
+          : "No language models are available via Copilot")
+    );
+  }
 
-    const model = models[0];
+  async sendChat(
+    messages: Array<{ role: string; content: string }>,
+    modelName?: string,
+    maxTokens?: number,
+    onDelta?: (chunk: string) => void
+  ): Promise<ChatResult> {
+    const model = await this.resolveModel(modelName);
     const chatMessages = messages.map((msg) => {
       if (msg.role === "system" || msg.role === "user") {
         return vscode.LanguageModelChatMessage.User(msg.content);
@@ -48,6 +78,6 @@ export class CopilotBridge {
       fullText += chunk;
       onDelta?.(chunk);
     }
-    return fullText;
+    return { content: fullText, model: model.id, vendor: model.vendor, family: model.family };
   }
 }

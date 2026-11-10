@@ -1,4 +1,5 @@
 import Foundation
+import os
 import KiteloopCore
 
 struct SandboxConfig: Codable, Sendable {
@@ -1366,7 +1367,9 @@ actor WorktreeManager: WorktreeManaging {
         let outcome = Self.runVerifySteps(verify, workingDirectory: scratch, timeout: timeout,
                                           projectRoot: projectRoot)
         if let failure = outcome.failure {
-            let reported = Self.scratchRemovedResult(at: scratchPath, failure: failure) ?? failure
+            let reported = Self.scratchRemovedResult(at: scratchPath, failure: failure)
+                ?? attributingToBase(failure, outcome: outcome, landing: landing, timeout: timeout,
+                                     setupCommand: setupCommand)
             return LandingAttempt(result: reported, failedAtLanding: false)
         }
 
@@ -1374,6 +1377,73 @@ actor WorktreeManager: WorktreeManaging {
                                ran: outcome.ran, reason: outcome.recoveredReason ?? "merged",
                                stepOutputs: outcome.stepOutputs)
         return LandingAttempt(result: landed, failedAtLanding: !landed.merged)
+    }
+
+    /// `failure`, saying so when the base fails the same command with no diff
+    /// on it — the refusal then reads as the base's, not as something this
+    /// branch broke. On 2026-11-10 five tests a system proxy was breaking
+    /// failed on the base and on every merged tree alike, and a branch that
+    /// changed only Python was refused for "breaking" Rust tests.
+    ///
+    /// Asked only of a project-wide step. The item's own `verify:` is written
+    /// for the item's change and is expected to fail without it, so its
+    /// failing on the base says nothing. Not asked of a step the deadline
+    /// killed either: that would spend the same deadline again to learn
+    /// nothing about the diff.
+    ///
+    /// The base's answer is kept per tip and command for as long as the app
+    /// runs, so a branch refused, fixed and refused again asks the base once.
+    private func attributingToBase(
+        _ failure: MergeResult, outcome: VerifyRunOutcome, landing: Landing,
+        timeout: TimeInterval, setupCommand: String?
+    ) -> MergeResult {
+        guard let step = outcome.failedStep, step.source == .project, !outcome.failureTimedOut else {
+            return failure
+        }
+        let sha = landing.startSHA
+        let key = [projectRoot.path(percentEncoded: false), sha, step.command].joined(separator: "\u{0}")
+        let basePasses = Self.baseAnswers.withLock { $0[key] }
+            ?? askBase(step.command, sha: sha, key: key, timeout: timeout, setupCommand: setupCommand)
+        guard basePasses == false else { return failure }
+        return MergeResult(
+            merged: false,
+            reason: Self.baseAlsoFailsReason(failure.reason, base: baseLabel(landing, base: nil), sha: sha),
+            verifyOutput: failure.verifyOutput, verifyRan: failure.verifyRan, stepOutputs: failure.stepOutputs)
+    }
+
+    /// Runs `command` on the base tip `sha` alone and remembers the answer.
+    /// Nil — and nothing remembered — when the base could not be checked out
+    /// or set up, or its scratch tree vanished: that is no answer about it.
+    private func askBase(_ command: String, sha: String, key: String,
+                         timeout: TimeInterval, setupCommand: String?) -> Bool? {
+        let scratch = Self.scratchWorktreeDirectory(forBranch: "base-attribution", projectRoot: projectRoot)
+        removeScratchWorktree(at: scratch)
+        defer { removeScratchWorktree(at: scratch) }
+        let scratchPath = scratch.path(percentEncoded: false)
+        guard createScratchWorktree(at: scratchPath, from: sha,
+                                    root: projectRoot.path(percentEncoded: false)) == nil,
+              Self.runSetupCommand(setupCommand, in: scratch, timeout: timeout, projectRoot: projectRoot) == nil
+        else { return nil }
+        let plan = MergeVerifyPlan(steps: [MergeVerifyPlan.Step(source: .project, command: command)])
+        let outcome = Self.runVerifySteps(plan, workingDirectory: scratch, timeout: timeout, projectRoot: projectRoot)
+        if let failure = outcome.failure,
+           outcome.failureTimedOut || Self.scratchRemovedResult(at: scratchPath, failure: failure) != nil {
+            return nil
+        }
+        let passes = outcome.failure == nil
+        Self.baseAnswers.withLock { $0[key] = passes }
+        return passes
+    }
+
+    /// What the base answered to a project-wide verify command, by project,
+    /// tip and command. Process-wide because managers are made per call.
+    private static let baseAnswers = OSAllocatedUnfairLock<[String: Bool]>(initialState: [:])
+
+    /// A verify refusal's reason, extended to say the base fails it too.
+    nonisolated static func baseAlsoFailsReason(_ reason: String, base: String, sha: String) -> String {
+        let name = base.isEmpty ? "the base" : base
+        return "\(reason) — the same command also fails on \(name) at \(sha.prefix(7)) with no diff on it, "
+            + "so this failure is not caused by this branch alone; fix the base first"
     }
 
     /// Where a verified merge goes, settled before the scratch worktree exists
@@ -1614,6 +1684,10 @@ actor WorktreeManager: WorktreeManaging {
         var recoveredReason: String?
         var stepOutputs: [VerifyStepOutput] = []
         var failure: MergeResult?
+        /// The step `failure` is about, and whether the deadline — rather than
+        /// the command — is what ended it. What `attributingToBase` asks with.
+        var failedStep: MergeVerifyPlan.Step?
+        var failureTimedOut = false
     }
 
     /// A retried step is given exactly one second try. Named once so
@@ -1692,6 +1766,8 @@ actor WorktreeManager: WorktreeManaging {
                 outcome.failure = MergeResult(merged: false, reason: reason,
                                               verifyOutput: result.output, verifyRan: outcome.ran,
                                               stepOutputs: outcome.stepOutputs)
+                outcome.failedStep = step
+                outcome.failureTimedOut = result.timedOut
                 return outcome
             }
             if let retriedClass {
@@ -2242,9 +2318,12 @@ actor WorktreeManager: WorktreeManaging {
         }
         let result = wait(for: process, timeout: timeout)
         try? sink.close()
-        return (result.status,
-                tail(ofFileAt: logURL, maxBytes: verifyOutputTailBytes),
-                result.timedOut)
+        let kept = tail(ofFileAt: logURL, maxBytes: verifyOutputTailBytes)
+        // A failure's evidence is rarely at the end of a long log: the tail of
+        // a test run is passing tests. A pass has nothing to look for.
+        let output = result.status == 0 ? kept
+            : VerifyFailureDigest.annotating(tail: kept, ofFileAt: logURL, tailBytes: verifyOutputTailBytes)
+        return (result.status, output, result.timedOut)
     }
 
     /// The `/bin/zsh -lc` a verify runs under, in `directory`, with the

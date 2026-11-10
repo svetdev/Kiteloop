@@ -97,6 +97,34 @@ final class BacklogAutopilotBusyStateTests: XCTestCase {
         XCTAssertEqual(state.statusLabel, "running")
     }
 
+    /// A start that was accepted and is still checking is not idle. It read as
+    /// `idle` with one held item and no reason for the seven minutes a base
+    /// check took, and nothing in the API said what the run was waiting for.
+    func testRunStateNamesWhatAStartIsWaitingOnBeforeItsFirstItem() async {
+        let autopilot = BacklogAutopilot()
+        autopilot.stageRunForTesting(status: .idle, queue: [item("a1")])
+        autopilot.stageStartingStepForTesting(BacklogAutopilot.StartingStep(
+            what: "checking the base main at 0123456 against the merge-verify",
+            since: Date(), deadline: 900))
+
+        let state = await autopilot.runState()
+
+        XCTAssertEqual(state.phase, .starting)
+        XCTAssertFalse(state.isRunning, "no item is in flight yet")
+        XCTAssertEqual(state.heldItems, 1)
+        let detail = state.detail ?? ""
+        XCTAssertTrue(detail.hasPrefix("starting: checking the base main at 0123456 against the merge-verify"), detail)
+        XCTAssertTrue(detail.contains("ends within 15 min of starting"), detail)
+    }
+
+    func testTheStartingDetailCountsTheSecondsAndOmitsABoundItDoesNotHave() {
+        let since = Date(timeIntervalSince1970: 1_700_000_000)
+        let step = BacklogAutopilot.StartingStep(what: "checking the selected items", since: since)
+
+        XCTAssertEqual(step.detail(now: since.addingTimeInterval(42)),
+                       "starting: checking the selected items, for 42s so far; the run begins when it finishes")
+    }
+
     /// A genuine hold is not a run and not a fault: it has items left and a
     /// resume that picks them up, and reads as its own thing.
     func testRunStateReportsAPausedQueueWithItemsLeftAsHeld() async {

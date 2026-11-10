@@ -1513,14 +1513,76 @@ final class WorktreeManagerGateVerifyTests: WorktreeManagerTestCase {
         _ = await manager.commitAll(for: "project-gate-agent", message: "add feature")
         await manager.removeWorktree(for: "project-gate-agent", keepBranch: true)
 
+        // Red only with the branch's file in the tree, so the base passes it.
         let result = await manager.mergeAndVerify(
             branch: "kiteloop/project-gate-agent", message: "merge",
-            verify: .resolve(projectCommand: "exit 1", itemVerify: "true"))
+            verify: .resolve(projectCommand: "test ! -f feature.txt", itemVerify: "true"))
 
         XCTAssertFalse(result.merged)
-        XCTAssertEqual(result.reason, "verify failed on merged tree (merge-verify: exit 1)")
-        XCTAssertEqual(result.verifyRan, ["item verify: true", "merge-verify: exit 1"],
+        XCTAssertEqual(result.reason, "verify failed on merged tree (merge-verify: test ! -f feature.txt)")
+        XCTAssertEqual(result.verifyRan, ["item verify: true", "merge-verify: test ! -f feature.txt"],
                        "both ran — the failure was the second one")
+    }
+
+    /// A project command the base fails on its own is not this branch's
+    /// failure, and the refusal says so: on 2026-11-10 a branch that changed
+    /// only Python was refused over Rust tests a system proxy was breaking on
+    /// the base too, and nothing in the refusal told the two apart.
+    func testARefusalSaysWhenTheBaseFailsTheSameProjectCommand() async throws {
+        let manager = WorktreeManager(projectRoot: tempDir)
+        let path = try await manager.create(for: "base-red-agent")
+        try "work".write(to: path.appending(path: "feature.txt"), atomically: true, encoding: .utf8)
+        _ = await manager.commitAll(for: "base-red-agent", message: "add feature")
+        await manager.removeWorktree(for: "base-red-agent", keepBranch: true)
+
+        let result = await manager.mergeAndVerify(
+            branch: "kiteloop/base-red-agent", message: "merge",
+            verify: .resolve(projectCommand: "echo red-everywhere; exit 1", itemVerify: nil))
+
+        XCTAssertFalse(result.merged)
+        XCTAssertTrue(result.reason.hasPrefix("verify failed on merged tree (merge-verify: "), result.reason)
+        XCTAssertTrue(result.reason.contains("also fails on"), result.reason)
+        XCTAssertTrue(result.reason.contains("not caused by this branch alone"), result.reason)
+        XCTAssertEqual(GateRetry.failure(of: result.reason), .verifyRed,
+                       "still read as a red verify by the gate's retry loop")
+    }
+
+    /// The item's own `verify:` is written for the item's change, so failing
+    /// without it is expected and says nothing about the base.
+    func testAFailingItemVerifyIsNeverAttributedToTheBase() async throws {
+        let manager = WorktreeManager(projectRoot: tempDir)
+        let path = try await manager.create(for: "item-red-agent")
+        try "work".write(to: path.appending(path: "feature.txt"), atomically: true, encoding: .utf8)
+        _ = await manager.commitAll(for: "item-red-agent", message: "add feature")
+        await manager.removeWorktree(for: "item-red-agent", keepBranch: true)
+
+        let result = await manager.mergeAndVerify(
+            branch: "kiteloop/item-red-agent", message: "merge",
+            verify: .resolve(projectCommand: nil, itemVerify: "exit 1"))
+
+        XCTAssertFalse(result.merged)
+        XCTAssertEqual(result.reason, "verify failed on merged tree (item verify: exit 1)")
+    }
+
+    func testTheBaseAttributionNamesTheBaseAndItsTip() {
+        let reason = WorktreeManager.baseAlsoFailsReason(
+            "verify failed on merged tree (merge-verify: cargo test)", base: "main", sha: "0123456789abcdef")
+
+        XCTAssertEqual(reason, "verify failed on merged tree (merge-verify: cargo test) — the same command also "
+                       + "fails on main at 0123456 with no diff on it, so this failure is not caused by this "
+                       + "branch alone; fix the base first")
+    }
+
+    /// The failing lines of a long log survive the tail's cut.
+    func testAFailedVerifyKeepsTheFailureLinesItsTailCutOff() {
+        let result = WorktreeManager.runShellCapturingOutput(
+            "echo 'test early ... FAILED'; for i in $(seq 1 60000); do echo \"test case_$i ... ok\"; done; exit 1",
+            in: tempDir, timeout: 120)
+
+        XCTAssertFalse(result.ok)
+        XCTAssertTrue(result.output.hasPrefix("… (earlier output omitted"), result.output.prefix(120).description)
+        XCTAssertTrue(result.output.contains("test early ... FAILED"), "the failing line was in the omitted part")
+        XCTAssertTrue(result.output.contains("test case_60000 ... ok"), "and the end is still there")
     }
 
     /// A kept merge names everything that gated it, so a merge validated by a

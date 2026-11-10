@@ -411,13 +411,13 @@ final class BacklogItemDetailViewModel: Identifiable {
         guard action(.groom)?.isAvailable == true, let aiEditor,
               let root = autopilot.projectRoot, let backlogFile = backlog.backlogFile else { return }
         groomPhase = .thinking
-        let vaultURL = backlog.vaultURL
+        let (vaultURL, base) = (backlog.vaultURL, autopilot.baseBranch)
         let grant = RepoRead.Grant(projectName: projectName, projectPath: projectPath)
         do {
             // Walks the tree, so it happens off this actor rather than
             // blocking it for however long a large repo takes to index.
             let sources = await Task.detached {
-                GroundingCheck.Sources.repository(root: root, vault: vaultURL)
+                GroundingCheck.Sources.repository(root: root, vault: vaultURL, baseBranch: base)
             }.value
             let proposal = try await BacklogGroomer.propose(
                 item: item, detail: detail, backlog: backlogFile, sources: sources,

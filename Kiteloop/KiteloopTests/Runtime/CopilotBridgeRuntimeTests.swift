@@ -41,7 +41,8 @@ final class CopilotBridgeRuntimeTests: XCTestCase {
 
         let request = try XCTUnwrap(parse(payload))
         XCTAssertEqual(request["type"] as? String, "chat")
-        XCTAssertEqual(request["model"] as? String, "copilot-gpt-4o", "the agent's model rides on the request")
+        XCTAssertEqual(request["model"] as? String, "gpt-4o",
+                       "the agent's model rides on the request, without the app's own copilot- prefix")
         XCTAssertFalse((request["id"] as? String ?? "").isEmpty, "the request must carry an id to match replies against")
         XCTAssertEqual(request["messages"] as? [[String: String]], [
             ["role": "system", "content": "You are terse."],
@@ -85,6 +86,64 @@ final class CopilotBridgeRuntimeTests: XCTestCase {
     }
 
     // MARK: - Response frames
+
+    // MARK: - Which model is asked for, and which answered
+
+    /// `copilot` is the app's name for the runtime. Sent as a model it matched
+    /// no Copilot family, and the bridge silently answered with the first
+    /// model VS Code listed.
+    func testTheBareCopilotAliasAsksTheBridgeForNoModel() async throws {
+        let stub = try startStub { _, request in [doneFrame(for: request, content: "ok")] }
+        let runtime = CopilotBridgeRuntime(socketPath: stub.path)
+        let session = try await runtime.startSession(
+            agent: Agent(name: "Copilot", model: "copilot", systemPrompt: "", tools: [], denied: [],
+                         permissionMode: "default", runtimeKind: "copilot"),
+            cwd: temporaryCwd, strategy: .fresh)
+
+        _ = await collect(runtime.send("hello", attachments: [], to: session))
+
+        let request = try XCTUnwrap(parse(try XCTUnwrap(stub.rawRequests.first)))
+        XCTAssertNil(request["model"], "no model is named, so the bridge takes Copilot's own first")
+    }
+
+    func testTheBridgeModelDropsOnlyTheAppsOwnPrefix() {
+        XCTAssertNil(CopilotBridgeRuntime.bridgeModel(for: "copilot"))
+        XCTAssertNil(CopilotBridgeRuntime.bridgeModel(for: "  "))
+        XCTAssertEqual(CopilotBridgeRuntime.bridgeModel(for: "copilot-gpt-4o"), "gpt-4o")
+        XCTAssertEqual(CopilotBridgeRuntime.bridgeModel(for: "claude-haiku-5.5"), "claude-haiku-5.5")
+    }
+
+    func testADoneFrameNamingItsModelReportsItBeforeTheResult() async throws {
+        let stub = try startStub { _, request in
+            [frame(["id": requestID(of: request), "type": "done", "content": "ok",
+                    "model": "claude-haiku-5.5", "vendor": "copilot", "family": "claude-haiku-5.5"])]
+        }
+        let runtime = CopilotBridgeRuntime(socketPath: stub.path)
+        let session = try await runtime.startSession(agent: copilotAgent(), cwd: temporaryCwd, strategy: .fresh)
+
+        let events = await collect(runtime.send("hello", attachments: [], to: session))
+
+        let reported = events.compactMap { (event: StreamEvent) -> String? in
+            guard case .system(let subtype, let payload) = event, subtype == "init" else { return nil }
+            return payload["model"] as? String
+        }
+        XCTAssertEqual(reported, ["claude-haiku-5.5"])
+        XCTAssertNotNil(firstResult(events))
+    }
+
+    /// A bridge built before `done` carried a model claims nothing.
+    func testADoneFrameWithoutAModelReportsNone() async throws {
+        let stub = try startStub { _, request in [doneFrame(for: request, content: "ok")] }
+        let runtime = CopilotBridgeRuntime(socketPath: stub.path)
+        let session = try await runtime.startSession(agent: copilotAgent(), cwd: temporaryCwd, strategy: .fresh)
+
+        let events = await collect(runtime.send("hello", attachments: [], to: session))
+
+        XCTAssertFalse(events.contains { event in
+            if case .system(let subtype, _) = event { return subtype == "init" }
+            return false
+        })
+    }
 
     func testDeltaFramesYieldAssistantTextAndAccumulateIntoTheResult() async throws {
         let stub = try startStub { _, request in

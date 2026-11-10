@@ -1645,7 +1645,7 @@ The same block appears on every entry of [`GET /v1/projects`](#get-v1projects).
 
 | Field | Type | Notes |
 |---|---|---|
-| `state` | string | `idle`, `running`, `held` or `inconsistent` — see below |
+| `state` | string | `idle`, `starting`, `running`, `held` or `inconsistent` — see below |
 | `running` | bool | True exactly when `state` is `running` |
 | `item` | string \| null | The item in flight; `null` unless running |
 | `itemTitle` | string \| null | Its title |
@@ -1653,14 +1653,15 @@ The same block appears on every entry of [`GET /v1/projects`](#get-v1projects).
 | `startedAt` | string \| null | ISO 8601, when the item became the one in flight |
 | `status` | string | What the autopilot's own status reads (`idle`, `running`, `reviewing`, `paused`) — the claim `state` was checked against |
 | `heldItems` | integer | Items still queued from the current one on, it included. For `held`, exactly what a resume picks up |
-| `detail` | string \| null | Why, for `held` and `inconsistent`; `null` otherwise |
+| `detail` | string \| null | Why, for `starting`, `held` and `inconsistent`; `null` otherwise |
 | `phaseRail` | object \| null | Where the run is inside the pipeline — see [The phase rail](#the-phase-rail) |
 
-The four states:
+The five states:
 
 | `state` | Meaning |
 |---|---|
 | `idle` | Nothing running, nothing queued. A run can be started |
+| `starting` | A start was accepted and is still checking before its first item runs — the selected items against the Definition-of-Ready and the repo, then, for a project that lands its own work, the base against the merge-verify, which is a whole build and suite. `detail` names the check, how long it has run and, for the base check, the deadline it ends within (`autoMergeVerifyTimeoutMinutes`). `heldItems` is the queue waiting on it |
 | `running` | An item is in flight. `POST /v1/runs` will refuse with 409 until it ends |
 | `held` | A paused queue with items left — [`POST /v1/autopilot/resume`](#post-v1autopilotresume) picks them up. Not a fault |
 | `inconsistent` | The autopilot's `status` claims a run with **none behind it**. A stale claim, not a run — see below |
@@ -2009,7 +2010,7 @@ curl -s -H "$H" $B/fleet/quiesce
 | `quiesced` | New work is being refused fleet-wide |
 | `drained` | No run in flight anywhere |
 | `running` | Projects with a run still finishing |
-| `state` | The derived phase (`idle`, `running`, `held`, `inconsistent`) — read from the same check the run guard makes, so this and `GET /v1/projects` cannot disagree |
+| `state` | The derived phase (`idle`, `starting`, `running`, `held`, `inconsistent`) — read from the same check the run guard makes, so this and `GET /v1/projects` cannot disagree |
 | `heldByQuiesce` | Whether [`POST /v1/fleet/resume`](#post-v1fleetresume) will pick this project up |
 | `action` | What the quiesce did to it — on that call's reply only, `null` here |
 
@@ -2735,9 +2736,20 @@ merge attempt as before.
 
 When the refusal was the verify failing, the response also carries
 `verifyOutput` — the tail (last 16 KB) of that command's combined stdout and
-stderr. The refusal rolls the merged tree back, so this is the only surviving
+stderr. When the log was longer than that, the failure lines of the part the
+tail omits — `FAILED`, `panicked at`, `error:`, `error[`, a `test result:`
+summary, a failed XCTest case, `--- FAIL` — are kept too, up to another 16 KB,
+under the "earlier output omitted" line and ahead of the tail, so the names of
+the failing tests survive a long run of passing ones. The refusal rolls the
+merged tree back, so this is the only surviving
 evidence of the failure; without it a driver has nothing to decide between
-retrying and rejecting. Refusals that never ran a command — a dirty tree, a
+retrying and rejecting. When the failing command is a project-wide one (a
+verify-map rule or the merge-verify, not the item's own `verify:`), the gate
+runs it once more on the base tip alone, and when the base fails it too
+`reason` ends "— the same command also fails on <base> at <sha> with no diff on
+it, so this failure is not caused by this branch alone; fix the base first".
+The base's answer is remembered per tip, so only the first refusal on a tip
+pays for it; a command the deadline killed is not asked again. Refusals that never ran a command — a dirty tree, a
 merge conflict — omit the field rather than sending an empty one.
 
 ```json

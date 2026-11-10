@@ -982,9 +982,9 @@ final class CoordinatorQueueRefill {
         // The vault too: a draft cites its own detail file and the backlog it
         // will be filed in, and both live there rather than in the repo.
         stage(.gating, of: pass)
-        let vault = globalConfigStore.vaultURL
+        let (vault, base) = (globalConfigStore.vaultURL, entry.autopilot.baseBranch)
         let sources = await Task.detached {
-            GroundingCheck.Sources.repository(root: root, vault: vault)
+            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base)
         }.value
         let drafted = drafts.map { gate($0, sources: sources, mapCoversEveryPath: SignalDrafting.hasCatchAll(verifyMap)) }.map {
             Proposal(project: target.project, draft: $0.draft, status: $0.status,

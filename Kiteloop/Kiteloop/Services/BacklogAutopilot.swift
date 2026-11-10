@@ -75,8 +75,13 @@ class BacklogAutopilot {
         /// items and a `resume` that picks them up, while an `inconsistent` one
         /// is a claim with nothing behind it — the state that had a project
         /// refusing every item with no run to wait for.
+        ///
+        /// `starting` is the fifth: a start that was accepted and is still
+        /// checking before its first item runs. It read as `idle` with one
+        /// held item and no reason — for seven minutes on 2026-11-10, while
+        /// the base was put through the merge-verify.
         enum Phase: String {
-            case idle, running, held, inconsistent
+            case idle, starting, running, held, inconsistent
         }
 
         var phase: Phase
@@ -1989,7 +1994,10 @@ class BacklogAutopilot {
         let (base, timeout, setup) = (baseBranch, verifyTimeout, effectiveWorktreeSetup.command)
         let check = Task { await manager.verifyBase(command: command, base: base, timeout: timeout, setupCommand: setup) }
         baseHealthChecks[tip] = check
-        let verdict = await check.value
+        let verdict = await preflight(
+            "checking the base \(baseBranch ?? "HEAD") at \(tip.prefix(7)) against the merge-verify",
+            deadline: timeout
+        ) { await check.value }
         baseHealthChecks.removeValue(forKey: tip)
         if let verdict { baseHealthByTip[verdict.sha] = verdict }
         return verdict
@@ -2036,7 +2044,9 @@ class BacklogAutopilot {
         // and why" is never guessed at from the outside.
         if refusedByHold() || refusedByBudget(initiator: initiator) { return }
         guard let context = startContext() else { return }
-        let outcome = await admitSelection(context: context)
+        let outcome = await preflight("checking the selected items against the Definition-of-Ready and the repo") {
+            await admitSelection(context: context)
+        }
         guard !runQueue.isEmpty else {
             refuseNoRunnableItems(outcome)
             return
@@ -2409,9 +2419,9 @@ class BacklogAutopilot {
     /// project. The index reads the project's own `extraExecutablePaths` for the
     /// executables its verify commands run.
     private func groundingSources(root: URL) async -> GroundingCheck.Sources {
-        let vault = globalConfigStore?.vaultURL
+        let (vault, base) = (globalConfigStore?.vaultURL, baseBranch)
         return await Task.detached {
-            GroundingCheck.Sources.repository(root: root, vault: vault)
+            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base)
         }.value
     }
 
@@ -2451,6 +2461,39 @@ class BacklogAutopilot {
             ("retired", String(outcome.retired.count)),
             ("notGrounded", String(outcome.notGrounded.count)),
         ], isError: true)
+    }
+
+    /// What an accepted start is doing before its first item runs.
+    struct StartingStep: Equatable {
+        /// The check under way, as a clause: "checking the base … against …".
+        let what: String
+        let since: Date
+        /// The longest the step may take, when it runs under a deadline.
+        var deadline: TimeInterval?
+
+        /// The run state's `detail`: the step, how long it has been going and
+        /// — under a deadline — the latest it can end.
+        func detail(now: Date) -> String {
+            let elapsed = max(0, Int(now.timeIntervalSince(since).rounded()))
+            let bound = deadline.map { " — it ends within \(Int(($0 / 60).rounded(.up))) min of starting" } ?? ""
+            return "starting: \(what), for \(elapsed)s so far\(bound); the run begins when it finishes"
+        }
+    }
+
+    /// The check an accepted start is in before its first item runs — nil
+    /// outside one. See `preflight`.
+    private(set) var startingStep: StartingStep?
+
+    /// Runs one of a start's checks with `startingStep` naming it, so the run
+    /// state says what the start is waiting on. Put back to what it was on the
+    /// way out: a second start waiting on the first one's base check must not
+    /// clear the first one's step.
+    private func preflight<T>(_ what: String, deadline: TimeInterval? = nil,
+                              _ check: () async -> T) async -> T {
+        let previous = startingStep
+        startingStep = StartingStep(what: what, since: Date(), deadline: deadline)
+        defer { startingStep = previous }
+        return await check()
     }
 
     /// The bookkeeping a queue about to run starts from.
@@ -2675,6 +2718,10 @@ class BacklogAutopilot {
                 detail: "run \(stranded) is still live with no run loop behind it — a finished "
                       + "run's execution, cleared by the next run request or by reopening the project"
             )
+        }
+        if let startingStep {
+            return RunState(phase: .starting, statusLabel: label, heldItems: held,
+                            detail: startingStep.detail(now: Date()))
         }
         if status == .idle {
             return RunState(phase: .idle, statusLabel: label, heldItems: held)
@@ -3547,6 +3594,14 @@ class BacklogAutopilot {
                         mergeRefusal = reason
                         appendLog("Not auto-merged \(item.id): \(reason) — left at Awaiting Approval for review")
                     }
+                }
+
+                // A run the Backlog Flow marked Done past the gate attempted no
+                // merge; its Notes say where the work is.
+                if let note = Self.unmergedDoneNote(outcome: itemResult.outcome, branch: itemResult.branch,
+                                                    mergeAttempted: mergeVerify != nil) {
+                    appendLog("\(item.id): \(note)")
+                    backlogViewModel.appendNote(itemID: item.id, note)
                 }
 
                 // The PR half of ADR-0001: work that reached the gate is
@@ -5453,7 +5508,8 @@ class BacklogAutopilot {
         why: String,
         reviewPassed: Bool
     ) async -> ItemResult {
-        if backlog.workflow.stageAfterAgentReview == .done {
+        if Self.marksDoneWithoutGate(stageAfterReview: backlog.workflow.stageAfterAgentReview,
+                                     landsOwnWork: autoMergeOnApproval, reviewPassed: reviewPassed) {
             appendLog("Passed: \(item.title) — \(why); marked Done (approval gate off)")
             backlog.markDone(itemID: item.id, queries: nil, cost: nil)
             return ItemResult(id: item.id, title: item.title, outcome: .done, duration: duration)
@@ -5492,6 +5548,36 @@ class BacklogAutopilot {
             notify(gate: gate, detail: nil)
         }
         return ItemResult(id: item.id, title: item.title, outcome: .awaitingApproval, duration: duration)
+    }
+
+    /// Whether a passing run is marked Done on the spot, never reaching the
+    /// gate — what the Backlog Flow's "Require human approval before Done",
+    /// switched off, asks for.
+    ///
+    /// Not when the run is about to land its own work. The merge hangs off the
+    /// gate (`shouldAutoMerge` reads `.awaitingApproval`), so marking Done here
+    /// skipped it: under `approvalGate: land` with the approval stage off,
+    /// every review-passed run ended `done` with its commit on a branch the
+    /// base never saw and no merge attempt recorded. Such a run takes the gate
+    /// path instead — it clears the gate itself once the branch lands, and
+    /// waits there, said out loud, when the merge is refused.
+    nonisolated static func marksDoneWithoutGate(
+        stageAfterReview: BacklogItemStatus, landsOwnWork: Bool, reviewPassed: Bool
+    ) -> Bool {
+        stageAfterReview == .done && !(landsOwnWork && reviewPassed)
+    }
+
+    /// What the item's Notes say when a run ended Done with its work still on
+    /// a branch and no merge attempted — the approval stage is off and the
+    /// project does not land its own work (or the run was salvaged by its own
+    /// `verify:`, which `land` does not cover). Nil when there is nothing
+    /// unmerged to name.
+    nonisolated static func unmergedDoneNote(
+        outcome: ItemResult.Outcome, branch: String?, mergeAttempted: Bool
+    ) -> String? {
+        guard case .done = outcome, !mergeAttempted, let branch, !branch.isEmpty else { return nil }
+        return "Marked Done with the approval stage off, and no merge was attempted: the work is on "
+            + "branch \(branch) and has not been merged — land it by hand."
     }
 
     /// Who resolves the approval gate an item has ended at.
@@ -8809,6 +8895,8 @@ extension BacklogAutopilot {
     /// How far into the queue a paused run got, so a test can stage a hold that
     /// still has items to resume (a genuine hold) or one that has none (stale).
     func stageQueueIndexForTesting(_ index: Int) { currentIndex = index }
+    /// A start caught in one of its checks, before any item runs.
+    func stageStartingStepForTesting(_ step: StartingStep?) { startingStep = step }
     /// Timestamps are explicit: the log endpoint slices by them, so a test has to
     /// place lines before, during and after a run's window. Rolls at
     /// `logCapacity` the way `appendLog` does — a test staging a full buffer has

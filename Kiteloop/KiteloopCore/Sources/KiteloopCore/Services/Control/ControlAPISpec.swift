@@ -2363,8 +2363,10 @@ package enum ControlAPISpec {
                    + "one without any reply ever carrying it."),
 
         "AutopilotRunState": object([
-            "state": described(enumOf(["idle", "running", "held", "inconsistent"]), """
+            "state": described(enumOf(["idle", "starting", "running", "held", "inconsistent"]), """
                 What the project is doing. `running`: an item is in flight. `idle`: nothing is. \
+                `starting`: a start was accepted and is still checking before its first item runs — \
+                `detail` names the check, how long it has run and, under a deadline, when it ends. \
                 `held`: a paused queue with items left, which resume picks up. `inconsistent`: \
                 the autopilot's status claims a run with none behind it — a stale claim. This read \
                 reports it and then clears it, so the next read, a run request and the fleet's next \
@@ -2439,7 +2441,7 @@ package enum ControlAPISpec {
             "id": string,
             "name": string,
             "status": described(string, "What the autopilot's own status reads."),
-            "state": described(enumOf(["idle", "running", "held", "inconsistent"]),
+            "state": described(enumOf(["idle", "starting", "running", "held", "inconsistent"]),
                                "The derived phase, read from the same check the run guard makes."),
             "running": bool,
             "item": described(nullable(string), "The item in flight; null unless running."),

@@ -115,6 +115,43 @@ final class BacklogAutopilotAutoApprovalTests: XCTestCase {
     /// The Notes line has to be readable as "nobody looked at this" by someone
     /// scanning the backlog in the morning — that is the whole point of
     /// recording it.
+    // MARK: - The approval stage switched off
+
+    /// The hole: with "Require human approval before Done" off, a passing run
+    /// was marked Done before the merge could run, so `land` landed nothing.
+    func testALandingRunTakesTheGatePathEvenWithTheApprovalStageOff() {
+        XCTAssertFalse(BacklogAutopilot.marksDoneWithoutGate(
+            stageAfterReview: .done, landsOwnWork: true, reviewPassed: true))
+    }
+
+    func testTheApprovalStageOffStillMarksDoneWhenTheRunWillNotMerge() {
+        XCTAssertTrue(BacklogAutopilot.marksDoneWithoutGate(
+            stageAfterReview: .done, landsOwnWork: false, reviewPassed: true))
+        // A salvaged run is not a review pass, so `land` does not merge it.
+        XCTAssertTrue(BacklogAutopilot.marksDoneWithoutGate(
+            stageAfterReview: .done, landsOwnWork: true, reviewPassed: false))
+    }
+
+    func testWithTheApprovalStageOnNothingIsMarkedDonePastTheGate() {
+        for lands in [true, false] {
+            XCTAssertFalse(BacklogAutopilot.marksDoneWithoutGate(
+                stageAfterReview: .awaitingApproval, landsOwnWork: lands, reviewPassed: true))
+        }
+    }
+
+    func testADoneRunThatAttemptedNoMergeNamesItsBranch() throws {
+        let note = try XCTUnwrap(BacklogAutopilot.unmergedDoneNote(
+            outcome: .done, branch: "autopilot/x-1", mergeAttempted: false))
+        XCTAssertTrue(note.contains("autopilot/x-1"))
+        XCTAssertTrue(note.contains("has not been merged"))
+    }
+
+    func testTheUnmergedNoteIsSilentWhenThereIsNothingUnmergedToName() {
+        XCTAssertNil(BacklogAutopilot.unmergedDoneNote(outcome: .done, branch: nil, mergeAttempted: false))
+        XCTAssertNil(BacklogAutopilot.unmergedDoneNote(outcome: .done, branch: "b", mergeAttempted: true))
+        XCTAssertNil(BacklogAutopilot.unmergedDoneNote(outcome: .awaitingApproval, branch: "b", mergeAttempted: false))
+    }
+
     func testTheNoteSaysNoHumanAcceptedTheItem() {
         let note = BacklogAutopilot.automaticApprovalNote(unmergedBranch: nil)
         XCTAssertTrue(note.contains("Approved automatically"), note)

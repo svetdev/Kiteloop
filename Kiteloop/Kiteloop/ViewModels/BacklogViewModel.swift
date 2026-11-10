@@ -1257,6 +1257,11 @@ class BacklogViewModel {
     /// merge, either one — a clean pass writes nothing), and records the
     /// outcome. Split out on its own so that note-writing does not count
     /// against `resolveGate`'s own complexity.
+    /// What a done item's Notes say when landing its branch was refused.
+    nonisolated static func landRefusedNote(branch: String, reason: String) -> String {
+        "Land refused: \(reason). The item is Done but its work is still on branch \(branch), not merged."
+    }
+
     /// What landing a done item's branch came to — see `landDoneItem`.
     enum LandOutcome: Equatable {
         /// The branch is in the base, as this commit when git named one.
@@ -1290,7 +1295,11 @@ class BacklogViewModel {
             setupCommand: setupCommand, timeout: timeout, closure: nil)
         switch outcome {
         case .approvedAndMerged(let commit): return .landed(commit: commit)
-        case .mergeFailed(let why, let verifyOutput): return .refused(why, verifyOutput: verifyOutput)
+        case .mergeFailed(let why, let verifyOutput):
+            // The item reads Done either way, so its Notes are the only place
+            // a reader of the backlog learns the work is still not in the base.
+            appendNote(itemID: itemID, Self.landRefusedNote(branch: WorktreeSession.branchName(for: itemID), reason: why))
+            return .refused(why, verifyOutput: verifyOutput)
         case .approvedWithoutMerge, .workNotOnBranch, .rejected:
             return .nothingToLand("nothing to land")
         }

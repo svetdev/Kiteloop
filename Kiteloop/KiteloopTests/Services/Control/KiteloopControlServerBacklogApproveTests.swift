@@ -647,6 +647,16 @@ final class KiteloopControlServerBacklogApproveTests: XCTestCase {
         XCTAssertEqual(item("item-1", in: backlog)?.status, .done)
     }
 
+    /// A done item whose land was refused still reads Done, so its Notes carry
+    /// the refusal: why, and which branch the work is still on.
+    func testARefusedLandIsNotedWithItsReasonAndBranch() {
+        let note = BacklogViewModel.landRefusedNote(branch: "kiteloop/item-1",
+                                                    reason: "merge conflict in: CHANGELOG.md")
+        XCTAssertTrue(note.hasPrefix("Land refused: merge conflict in: CHANGELOG.md"))
+        XCTAssertTrue(note.contains("kiteloop/item-1"))
+        XCTAssertTrue(note.contains("not merged"))
+    }
+
     // MARK: - Merge on approval
 
     /// The defect this covers: approving used to stamp `done` and merge nothing,

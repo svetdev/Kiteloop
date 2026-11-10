@@ -5690,9 +5690,9 @@ final class KiteloopControlServer {
 
         // The same index the coordinator's drafts are grounded against, built off
         // the main actor — it walks the repo, and the orchestrator must not block.
-        let vault = backlog.vaultURL
+        let (vault, base) = (backlog.vaultURL, entry.autopilot.baseBranch)
         let sources = await Task.detached {
-            GroundingCheck.Sources.repository(root: root, vault: vault)
+            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base)
         }.value
         let gated = kind?.gate(stamped, sources: sources) ?? BacklogTemplate.gate(stamped, sources: sources)
         let epic = template.section(in: backlog.backlogFile)
@@ -5809,7 +5809,10 @@ final class KiteloopControlServer {
         let vault = backlog.vaultURL
         let grant = RepoRead.Grant(projectName: root.lastPathComponent, projectPath: root.path(percentEncoded: false))
         let system = BacklogGroomer.personaPrompt + "\n\n" + RepoRead.contract(for: grant)
-        let sources = await Task.detached { GroundingCheck.Sources.repository(root: root, vault: vault) }.value
+        let base = entry.autopilot.baseBranch
+        let sources = await Task.detached {
+            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base)
+        }.value
         do {
             let proposal = try await BacklogGroomer.propose(
                 item: item, detail: backlog.loadDetail(for: item), backlog: file, sources: sources,

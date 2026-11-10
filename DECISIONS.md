@@ -157,3 +157,31 @@ Entry format:
 **Why:** The owner asked on 2026-10-13 to uncrowd the Autopilot with the Planner and Fleet open. Running work unattended is one question split over two drawers, each with its own projects table.
 **Evidence:** `FleetDrawer` (`Kiteloop/Kiteloop/Views/Portfolio/FleetDrawer.swift`), `CoordinatorPanel.plannerOnly`, the `last 24h` column in `FleetBoard`; `FleetDrawerPlannerTests`.
 **Status:** holds
+
+## [2026-11-10] A run that lands its own work always takes the gate path
+**Kind:** rule
+**What:** With `approvalGate: land`, a review-passed run goes to `awaiting-approval`, merges and then approves itself, even when the Backlog Flow's "Require human approval before Done" is off. That toggle marks an item Done on the spot only when the run will not merge (a `propose` project, or a run salvaged by its own `verify:`), and such an item's Notes name the unmerged branch.
+**Why:** The merge hangs off the gate. Marking Done before it left every review-passed run `done` with its commit on a branch and no merge attempt, and each following item forked from a base one item behind.
+**Evidence:** GitHub issues #2 and #3; `BacklogAutopilot.marksDoneWithoutGate`, `BacklogAutopilotAutoApprovalTests`.
+**Status:** holds
+
+## [2026-11-10] Grounding reads the tree a run forks from
+**Kind:** decision
+**What:** When `baseBranch` names a local branch the project folder is not on, the grounding check indexes that branch's tree (archived out of git into a scratch directory); the checkout still answers for paths as a second corpus.
+**Why:** A check that reads one tree and gates a run that forks from another refuses true items. The checkout is kept for paths because files git does not track are real there, and this check errs towards a missed refusal.
+**Evidence:** GitHub issue #1; `GroundingCheck.BaseTree`, `GroundingCheckBaseBranchTests`.
+**Status:** holds
+
+## [2026-11-10] A red project-wide verify is asked of the base once per tip
+**Kind:** decision
+**What:** When a verify-map or merge-verify step fails on the merged tree, the gate runs the same command on the base tip alone and says so in the refusal when the base fails it too. The item's own `verify:` is never asked of the base, nor is a step the deadline killed; the answer is remembered per project, tip and command for the life of the process.
+**Why:** A base that is already red was being attributed to each branch in turn. An item's `verify:` is expected to fail without the item's change, so its failing on the base says nothing.
+**Evidence:** GitHub issue #4; `WorktreeManager.attributingToBase`, `WorktreeManagerTests`.
+**Status:** holds
+
+## [2026-11-10] `copilot` names the runtime, not a model
+**Kind:** rule
+**What:** An agent whose model is `copilot` sends the bridge no model and takes Copilot's first; `copilot-<name>` asks for `<name>`. The bridge matches a name as a family, then as an id, and answers an unknown one with an error listing what is available. Its `done` frame names the model that answered.
+**Why:** `copilot` matched no Copilot family, so every such agent was answered by whichever model VS Code listed first, and nothing recorded which.
+**Evidence:** GitHub issue #5; `CopilotBridgeRuntime.bridgeModel(for:)`, `copilot-bridge-extension/src/copilotBridge.ts`.
+**Status:** holds

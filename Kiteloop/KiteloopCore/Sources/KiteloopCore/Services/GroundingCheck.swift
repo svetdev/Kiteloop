@@ -398,12 +398,12 @@ package enum GroundingCheck {
         ///
         /// `searchDirectories` is where a verify command's executable is looked
         /// for — the app's one search policy for this project unless a test
-        /// hands in a list of its own.
-        package static func repository(root: URL, vault: URL? = nil,
+        /// hands in a list of its own. `baseBranch`: see `BaseTree.read`.
+        package static func repository(root: URL, vault: URL? = nil, baseBranch: String? = nil,
                                        searchDirectories: [String]? = nil) -> Sources {
             let directories = searchDirectories ?? ExecutableSearchPath.resolved(projectRoot: root).directories
-            let index = SourceIndex.build(root: root)
-            var corpora = [Corpus(name: "the repo", contains: { index.containsPath($0) })]
+            let reading = BaseTree.read(root: root, baseBranch: baseBranch)
+            var corpora = reading.corpora
 
             if let vault {
                 // Paths only: a symbol that appears in a note rather than in
@@ -416,20 +416,20 @@ package enum GroundingCheck {
 
             return Sources(
                 corpora: corpora,
-                definesSymbol: { index.identifiers.contains($0) },
-                resolvesExecutable: { Executables.resolves($0, root: root, searchDirectories: directories) },
+                definesSymbol: { reading.index.identifiers.contains($0) },
+                resolvesExecutable: { reading.resolvesExecutable($0, root: root, searchDirectories: directories) },
                 // The repo's index alone: a verify command runs in the checkout,
                 // so the vault and the sibling projects have no standing to say
                 // one of its paths is there.
-                pathsNamed: { index.pathsByName[$0] ?? [] },
+                pathsNamed: { reading.index.pathsByName[$0] ?? [] },
                 // Likewise: the question is what *this* repo's code writes, so
                 // the vault's notes and a sibling's sources never answer it.
-                constructsFile: { index.fileLiterals.contains($0) },
+                constructsFile: { reading.index.fileLiterals.contains($0) },
                 // And likewise: which actions *this* CI runs is a question only
                 // this repo's `.github/workflows/` can answer, so the vault's
                 // notes and a sibling's workflows never do.
-                usesAction: { index.actionReferences.contains($0) },
-                declaresType: { index.declaredTypes.contains($0) },
+                usesAction: { reading.index.actionReferences.contains($0) },
+                declaresType: { reading.index.declaredTypes.contains($0) },
                 searchDirectories: directories
             )
         }
@@ -1756,6 +1756,101 @@ package enum GroundingCheck {
     ]
 
     // MARK: - The live index
+
+    /// A project's `baseBranch`, read as a tree rather than as the checkout.
+    package enum BaseTree {
+        /// What stands for "the repo" in a check: one index, and — when that
+        /// index is the base branch's tree — the checkout's paths beside it.
+        package struct Reading: Sendable {
+            package let index: SourceIndex
+            /// Nil when `index` is the checkout itself.
+            package let checkout: SourceIndex?
+
+            /// The checkout still answers for paths, as a corpus of its own:
+            /// files git does not track are real there, and this check errs
+            /// towards a missed refusal, never a false one.
+            package var corpora: [Corpus] {
+                let index = index
+                var corpora = [Corpus(name: "the repo", contains: { index.containsPath($0) })]
+                if let checkout {
+                    corpora.append(Corpus(name: "the checkout", contains: { checkout.containsPath($0) }))
+                }
+                return corpora
+            }
+
+            /// A script the base branch tracks is there for the run, which
+            /// forks from the base, even when the checkout has no such file.
+            package func resolvesExecutable(_ token: String, root: URL, searchDirectories: [String]) -> Bool {
+                Executables.resolves(token, root: root, searchDirectories: searchDirectories)
+                    || (checkout != nil && BaseTree.tracksScript(token, in: index))
+            }
+        }
+
+        /// `baseBranch` is the project's own setting. Runs fork from it and land
+        /// on it, so when it names a local branch the checkout is not on, that
+        /// branch's tree is what gets indexed — otherwise an item about code the
+        /// checkout predates is refused as naming nothing, by a check that read
+        /// a different tree from the run it gates.
+        package static func read(root: URL, baseBranch: String?) -> Reading {
+            let base = branchToIndex(root: root, baseBranch: baseBranch).flatMap { index(root: root, branch: $0) }
+            guard let base else { return Reading(index: SourceIndex.build(root: root), checkout: nil) }
+            return Reading(index: base, checkout: SourceIndex.build(root: root, indexingIdentifiers: false))
+        }
+
+        /// The branch to index in place of the checkout: the configured base
+        /// when it is a local branch the checkout is not on. Nil otherwise —
+        /// none configured, the checkout is already on it, it names no local
+        /// branch, or `root` is no git repository — and the checkout is read
+        /// exactly as before.
+        package static func branchToIndex(root: URL, baseBranch: String?) -> String? {
+            guard let base = baseBranch?.trimmingCharacters(in: .whitespacesAndNewlines), !base.isEmpty else {
+                return nil
+            }
+            let path = root.path(percentEncoded: false)
+            let head = SubprocessOutput.git(["-C", path, "rev-parse", "--abbrev-ref", "HEAD"])
+            guard head.status == 0,
+                  head.output.trimmingCharacters(in: .whitespacesAndNewlines) != base else { return nil }
+            let ref = SubprocessOutput.git(
+                ["-C", path, "rev-parse", "--verify", "--quiet", "refs/heads/\(base)^{commit}"])
+            return ref.status == 0 ? base : nil
+        }
+
+        /// The index of `branch`'s tree: archived out of git into a scratch
+        /// directory, walked by the same `SourceIndex.build` the checkout is,
+        /// and removed. Nil when git or tar refused, so the caller falls back
+        /// to the checkout rather than grounding against nothing.
+        ///
+        /// It writes the whole tree once per index — the price of one walker
+        /// for both trees — and only for a project whose base is not checked
+        /// out. `scratchParent` is where the scratch directory is made.
+        package static func index(root: URL, branch: String,
+                                  scratchParent: URL = FileManager.default.temporaryDirectory) -> SourceIndex? {
+            let fileManager = FileManager.default
+            let scratch = scratchParent.appending(path: "kiteloop-grounding-\(UUID().uuidString)")
+            let tree = scratch.appending(path: "tree")
+            defer { try? fileManager.removeItem(at: scratch) }
+            guard (try? fileManager.createDirectory(at: tree, withIntermediateDirectories: true)) != nil else {
+                return nil
+            }
+            let archive = scratch.appending(path: "tree.tar").path(percentEncoded: false)
+            let archived = SubprocessOutput.git(
+                ["-C", root.path(percentEncoded: false), "archive", "--format=tar", "-o", archive,
+                 "refs/heads/\(branch)"])
+            guard archived.status == 0,
+                  let unpacked = try? SubprocessOutput.run(
+                    executable: "/usr/bin/tar",
+                    arguments: ["-xf", archive, "-C", tree.path(percentEncoded: false)]),
+                  unpacked.status == 0 else { return nil }
+            return SourceIndex.build(root: tree)
+        }
+
+        /// Whether `token` — a verify command's executable — is a repo-relative
+        /// script the base tree holds. A bare name is not: that is looked up on
+        /// the search path, which no branch changes.
+        package static func tracksScript(_ token: String, in index: SourceIndex) -> Bool {
+            !token.hasPrefix("/") && token.contains("/") && index.containsPath(token)
+        }
+    }
 
     /// A snapshot of what's in the repo: every path, and every identifier that
     /// appears in a source file. Built once and queried many times — a per-symbol

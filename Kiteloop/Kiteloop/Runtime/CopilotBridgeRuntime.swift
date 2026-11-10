@@ -165,13 +165,13 @@ final class CopilotBridgeRuntime: AgentRuntime, @unchecked Sendable {
         }
 
         let requestID = UUID().uuidString
-        let request: [String: Any] = [
+        var request: [String: Any] = [
             "id": requestID,
             "type": "chat",
-            "model": copilotSession.agent.model,
             "messages": copilotSession.history,
             "maxTokens": 4096
         ]
+        if let model = Self.bridgeModel(for: copilotSession.agent.model) { request["model"] = model }
         guard let requestData = try? JSONSerialization.data(withJSONObject: request),
               let requestLine = String(data: requestData, encoding: .utf8) else {
             continuation.yield(.system(subtype: "error", payload: ["message": "Failed to encode request" as Any]))
@@ -179,6 +179,32 @@ final class CopilotBridgeRuntime: AgentRuntime, @unchecked Sendable {
             return nil
         }
         return PreparedRequest(requestID: requestID, requestLine: requestLine + "\n", startGeneration: copilotSession.turnGeneration)
+    }
+
+    /// The model name the bridge is asked for, or nil to leave the choice to
+    /// Copilot.
+    ///
+    /// `copilot` is this app's name for the runtime, not a model: sent as one,
+    /// it matched no Copilot family, and the bridge answered with whichever
+    /// model VS Code listed first. So the bare alias asks for nothing, and
+    /// `copilot-gpt-4o` asks for `gpt-4o`. Anything else is passed as written
+    /// — a family or an id from the bridge's `ping` list.
+    static func bridgeModel(for agentModel: String) -> String? {
+        let name = agentModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty || name == "copilot" { return nil }
+        if name.hasPrefix("copilot-") { return String(name.dropFirst("copilot-".count)) }
+        return name
+    }
+
+    /// Says which model answered, when the bridge's `done` frame names one:
+    /// an `init` notice, the frame every runtime reports its model on, so the
+    /// chat's status line and the turn's trace span carry it. A bridge built
+    /// before the frame carried a model says nothing, and nothing is claimed.
+    private func yieldAnsweringModel(_ frame: [String: Any], continuation: AsyncStream<StreamEvent>.Continuation) {
+        guard let model = frame["model"] as? String, !model.isEmpty else { return }
+        let vendor = frame["vendor"] as? String ?? ""
+        log.info("Copilot bridge answered with \(model, privacy: .public) (\(vendor, privacy: .public))")
+        continuation.yield(.system(subtype: "init", payload: ["model": model as Any]))
     }
 
     /// Connects to the bridge and writes the request, or reports why it could
@@ -245,6 +271,7 @@ final class CopilotBridgeRuntime: AgentRuntime, @unchecked Sendable {
                 fullText = content
             }
             appendAssistantHistory(fullText, sessionID: sessionID)
+            yieldAnsweringModel(json, continuation: continuation)
             let resultPayload = makeResultPayload(text: fullText, sessionID: sessionID, startTime: startTime)
             continuation.yield(.result(resultPayload))
             continuation.finish()

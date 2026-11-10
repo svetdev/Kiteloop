@@ -16,6 +16,10 @@ export interface DoneResponse {
   id: string;
   type: "done";
   content: string;
+  /** The id of the model that answered, with its vendor and family. */
+  model: string;
+  vendor: string;
+  family: string;
 }
 
 export interface ErrorResponse {
