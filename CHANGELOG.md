@@ -6,7 +6,7 @@ The version here is the app's `MARKETING_VERSION` (what `/health` reports and
 what the About panel shows). Every build that ships a behavioural change gets an
 entry — see the changelog convention in `CLAUDE.md`.
 
-## 0.4.9 — unreleased
+## 0.4.9 — 2026-11-10
 
 ### Added
 
