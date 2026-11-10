@@ -86,7 +86,6 @@
 		0FBB9EEC572C615EE3A5A077 /* KiteloopFileLoggerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E1D6A3E43D59535669797CE /* KiteloopFileLoggerTests.swift */; };
 		3000E4BD322ECB39C6159652 /* StreamEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CF4CF32487880476E34E31 /* StreamEvent.swift */; };
 		302E2308D386921A13AF08A6 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36D51269C23F3E66A51B23DB /* DiagnosticsView.swift */; };
-		081D9655ED63774943A98919 /* SoftwareUpdateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56F51A0AE43E9FF16A931803 /* SoftwareUpdateView.swift */; };
 		30B2A78A77C33602FD40F5A1 /* EmptyDiffHandoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA259BF41102F50B24787588 /* EmptyDiffHandoffTests.swift */; };
 		31D3C45F695575463231C830 /* StrandedWorkSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C8502565D9B3A7EA4C49B28 /* StrandedWorkSweepTests.swift */; };
 		341BDE2AD15CD4C36A6BC48D /* BacklogAutopilotReviewRoundsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B5F242A8E084B6419AB83D /* BacklogAutopilotReviewRoundsTests.swift */; };
@@ -109,7 +108,7 @@
 		A1C7E4B29D3F60815A2B4C71 /* AutopilotTranscriptScrollTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C7E4B29D3F60815A2B4C72 /* AutopilotTranscriptScrollTests.swift */; };
 		3C229D38B8291F3A628B5319 /* CoordinatorAdvisor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B1C236B2218D02F96AD9B0 /* CoordinatorAdvisor.swift */; };
 		3C7CDBD4ACE11B99D09A85F1 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFEB6D1710478B419C41D99C /* NotificationService.swift */; };
-		D05E7E2E0F4B5158E2DA2F1A /* UpdateCheckService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2F62671944816C6EF9F461 /* UpdateCheckService.swift */; };
+		D05E7E2E0F4B5158E2DA2F1A /* SoftwareUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2F62671944816C6EF9F461 /* SoftwareUpdater.swift */; };
 		3CC29D342168B74DA98C2EE6 /* WorkspaceGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AA4F0F9BEE699D998ED0B3C /* WorkspaceGeneratorTests.swift */; };
 		3D7AE98513AF5F53D70D5601 /* QueueHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B2DC3D234077054FAC965C4 /* QueueHealth.swift */; };
 		3DB4E6754E8529C0C01B1A16 /* ItemGitTruthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 116D063C3901CF620C8929B3 /* ItemGitTruthTests.swift */; };
@@ -187,7 +186,6 @@
 		5AE2E66EC6C117171D6E78A2 /* CrossAgentRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196C249243AD0437C7392FC0 /* CrossAgentRoutingTests.swift */; };
 		5BFA0DCE432FB1A9ACD250D4 /* KiteloopControlServerRunBusyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 346DC42FD7503DB1BF3618CE /* KiteloopControlServerRunBusyTests.swift */; };
 		5C4D1FB3EF4A5376FEA15997 /* ModelPricing.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC442F86C539BC30C9B3C2BA /* ModelPricing.swift */; };
-		8E9E5433E45E29A4E8CEAD57 /* ReleaseVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A8231EC1565C302C9A4E86 /* ReleaseVersion.swift */; };
 		5D89452AC998978A335DCBC6 /* AutonomyLadderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F84819F5A0EBC0057A4DCBAB /* AutonomyLadderView.swift */; };
 		5E71EFD13DC37581EBB1DB39 /* CoordinatorQueueRefillRepoReadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A8BAF34EE9028B17E318C37 /* CoordinatorQueueRefillRepoReadTests.swift */; };
 		0EE70E738A8A491DA5BF8D66 /* CoordinatorQueueRefillSignalDraftingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35337E0D993F431AAF6A769F /* CoordinatorQueueRefillSignalDraftingTests.swift */; };
@@ -327,8 +325,7 @@
 		2C2BA3729830415094EF8FA1 /* BacklogAutopilotPauseHoldTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96A4A96C2BAD4935AB4A53E7 /* BacklogAutopilotPauseHoldTests.swift */; };
 		A44F98EBDDA6DCDC0A29FE02 /* BacklogTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E7E75F011B3F30BC53D81C /* BacklogTemplate.swift */; };
 		A47DEDD74A7AA92005AA5394 /* ModelPricingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FA95DD301028CD9C7FA470 /* ModelPricingTests.swift */; };
-		77B8FDE0BD4AE0991AF8DAD4 /* ReleaseVersionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A9B541C5FA3C661E0E9EA64 /* ReleaseVersionTests.swift */; };
-		9E1D4B72C6A80F5314BD7E26 /* UpdateCheckServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C7A1E44B9D5027E61FA8C10 /* UpdateCheckServiceTests.swift */; };
+		9E1D4B72C6A80F5314BD7E26 /* SoftwareUpdaterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C7A1E44B9D5027E61FA8C10 /* SoftwareUpdaterTests.swift */; };
 		A484F9478F919F9ED0F1BB54 /* AgentConfigSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D56440DA7C13F39C5743E2 /* AgentConfigSheet.swift */; };
 		A54D832128789CD35B041F0B /* WebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA153D9FEF3101EBD1E6274B /* WebView.swift */; };
 		A5B09299CB9DA26FED674E98 /* CoordinatorStartsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE1A981061E2D9E7CE47337 /* CoordinatorStartsModel.swift */; };
@@ -356,6 +353,7 @@
 		D394AEF8D2CB4DC28C003C21 /* BacklogGroomerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317991ABF2864F3EBE22E474 /* BacklogGroomerTests.swift */; };
 		AEEF7F7072A142FEB0D7DA8A /* Highlightr in Frameworks */ = {isa = PBXBuildFile; productRef = 8493014AFE373555B0E8242E /* Highlightr */; };
 		8A15D4CB49AE2124A198FFAD /* KiteloopCore in Frameworks */ = {isa = PBXBuildFile; productRef = 57E7BD958FBE8350DAF83939 /* KiteloopCore */; };
+		C4E19A7D2B5F4D0E93A6871B /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 7D2E5B9A41C64F38A0E7C315 /* Sparkle */; };
 		AF189E4DAF66BCD8CE6C2F04 /* OpeningContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0018CB9F50E711C0462AEE /* OpeningContext.swift */; };
 		AFE5F1AF5646DB204A5853E6 /* CrossAgentNonBlockingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1E2087D46C813B26B69DF4C /* CrossAgentNonBlockingTests.swift */; };
 		B07B780DA306D6D1FE88BEEF /* AgentAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98B44E7C15BD25CA69FA4F42 /* AgentAvatarView.swift */; };
@@ -693,6 +691,7 @@
 		05F7420E3958738C6E7A2E88 /* BacklogViewModelDurableWriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogViewModelDurableWriteTests.swift; sourceTree = "<group>"; };
 		BB20LANEMIGRATION1FILE1 /* BacklogViewModelLaneMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogViewModelLaneMigrationTests.swift; sourceTree = "<group>"; };
 		06ECCA2643C16981E4D01923 /* Kiteloop.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Kiteloop.entitlements; sourceTree = "<group>"; };
+		5BA7C1E09D3F4A6682E15C07 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		074B9E552A06A9B8110D9D36 /* ClaudeCodeCLIRuntimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeCLIRuntimeTests.swift; sourceTree = "<group>"; };
 		08C621ACB43A2D825FBCDE7A /* TraceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceViewModel.swift; sourceTree = "<group>"; };
 		C4C3817C7A024615B376FF61 /* RuntimeProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeProbe.swift; sourceTree = "<group>"; };
@@ -798,7 +797,6 @@
 		365939BE5640DA3F77F6012E /* AutopilotHistorySummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutopilotHistorySummary.swift; sourceTree = "<group>"; };
 		4481F207D99D6F441C5920B4 /* QAStoryboardSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QAStoryboardSheet.swift; sourceTree = "<group>"; };
 		36D51269C23F3E66A51B23DB /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
-		56F51A0AE43E9FF16A931803 /* SoftwareUpdateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftwareUpdateView.swift; sourceTree = "<group>"; };
 		3AA4F0F9BEE699D998ED0B3C /* WorkspaceGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceGeneratorTests.swift; sourceTree = "<group>"; };
 		3B84272166C9867A303F0034 /* Orchestrator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Orchestrator.swift; sourceTree = "<group>"; };
 		3C0609F63FF88216C2D322BB /* ActivityFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFeedView.swift; sourceTree = "<group>"; };
@@ -1192,7 +1190,6 @@
 		EC0220CCBC342498CFED9AC5 /* CoordinatorQueueRefillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorQueueRefillTests.swift; sourceTree = "<group>"; };
 		EC04DDF864EA60BEAD7BFFA6 /* AgentCatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentCatalogStore.swift; sourceTree = "<group>"; };
 		EC442F86C539BC30C9B3C2BA /* ModelPricing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPricing.swift; sourceTree = "<group>"; };
-		01A8231EC1565C302C9A4E86 /* ReleaseVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseVersion.swift; sourceTree = "<group>"; };
 		ED1936FE6AC06EFD1F644777 /* ItemTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemTimeline.swift; sourceTree = "<group>"; };
 		EDF0B73707405BF550817F7B /* WebScrollToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebScrollToolTests.swift; sourceTree = "<group>"; };
 		EE3379E0473762A2A30E6460 /* KnowledgePathResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgePathResolverTests.swift; sourceTree = "<group>"; };
@@ -1226,8 +1223,7 @@
 		F51DDF92C958384558B65FC5 /* Phase1IntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase1IntegrationTests.swift; sourceTree = "<group>"; };
 		F5D56440DA7C13F39C5743E2 /* AgentConfigSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentConfigSheet.swift; sourceTree = "<group>"; };
 		F5FA95DD301028CD9C7FA470 /* ModelPricingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPricingTests.swift; sourceTree = "<group>"; };
-		0A9B541C5FA3C661E0E9EA64 /* ReleaseVersionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseVersionTests.swift; sourceTree = "<group>"; };
-		3C7A1E44B9D5027E61FA8C10 /* UpdateCheckServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckServiceTests.swift; sourceTree = "<group>"; };
+		3C7A1E44B9D5027E61FA8C10 /* SoftwareUpdaterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftwareUpdaterTests.swift; sourceTree = "<group>"; };
 		F6A06A254F384156A300EFB0 /* OrchestratorRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorRoutingTests.swift; sourceTree = "<group>"; };
 		F73D7E5B42202DD55DAD9AB5 /* ClaudeCodeCLIRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCodeCLIRuntime.swift; sourceTree = "<group>"; };
 		64133D5D882D4A0DB261ABEB /* ChatViewModelStoppedAgentSendTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelStoppedAgentSendTests.swift; sourceTree = "<group>"; };
@@ -1257,7 +1253,7 @@
 		FF47966FC26B7D61212FB423 /* StreamEventImageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamEventImageTests.swift; sourceTree = "<group>"; };
 		FF736E7DFBFD02BFFD22478B /* TurnTokenUsageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TurnTokenUsageTests.swift; sourceTree = "<group>"; };
 		FFEB6D1710478B419C41D99C /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
-		0C2F62671944816C6EF9F461 /* UpdateCheckService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckService.swift; sourceTree = "<group>"; };
+		0C2F62671944816C6EF9F461 /* SoftwareUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftwareUpdater.swift; sourceTree = "<group>"; };
 		0B9743B60B2E6161675324DA /* ControlServerHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlServerHarness.swift; sourceTree = "<group>"; };
 		2F26448B566F5CC1E1388F2D /* KiteloopControlServerInProcessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerInProcessTests.swift; sourceTree = "<group>"; };
 		211960FE8A27179F2C9A8785 /* KiteloopControlServerListenerStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerListenerStateTests.swift; sourceTree = "<group>"; };
@@ -1332,6 +1328,7 @@
 			files = (
 				AEEF7F7072A142FEB0D7DA8A /* Highlightr in Frameworks */,
 				8A15D4CB49AE2124A198FFAD /* KiteloopCore in Frameworks */,
+				C4E19A7D2B5F4D0E93A6871B /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1351,7 +1348,6 @@
 			children = (
 				DCD0904AC1BAD0968E88DAEE /* DesignTokens.swift */,
 				36D51269C23F3E66A51B23DB /* DiagnosticsView.swift */,
-				56F51A0AE43E9FF16A931803 /* SoftwareUpdateView.swift */,
 				C77873CBC6991FFCFBC8656D /* MainWindow.swift */,
 				22ED6F30F74E7DDD533339B6 /* NewAgentSheet.swift */,
 				721374B39837EC25D3991A9A /* Backlog */,
@@ -1544,7 +1540,7 @@
 				E275C6213328A28B53577597 /* MergeOutcomeFold.swift */,
 				B892EA5B432A9025B2091F18 /* MetricIndex.swift */,
 				FFEB6D1710478B419C41D99C /* NotificationService.swift */,
-				0C2F62671944816C6EF9F461 /* UpdateCheckService.swift */,
+				0C2F62671944816C6EF9F461 /* SoftwareUpdater.swift */,
 				3B84272166C9867A303F0034 /* Orchestrator.swift */,
 				0BE6CDA9C27B0F8D11460DB6 /* Orchestrator+PendingAgentLaunch.swift */,
 				1A7D0C31B4E20A5590CC71D2 /* WorkflowDismiss.swift */,
@@ -1829,7 +1825,6 @@
 				B5AB17729FD35387332DD670 /* AgentTemplate.swift */,
 				51AE66567DD42E0C701B1B25 /* MetricAggregate.swift */,
 				EC442F86C539BC30C9B3C2BA /* ModelPricing.swift */,
-				01A8231EC1565C302C9A4E86 /* ReleaseVersion.swift */,
 				AD0018CB9F50E711C0462AEE /* OpeningContext.swift */,
 				5F17F6D7DCA23887BBD2FDA6 /* OrgManifest.swift */,
 				93A0640855697204BBF04174 /* PredefinedTemplates.swift */,
@@ -1848,7 +1843,6 @@
 				68D504CCDCD49ABBCA65B75B /* AgentCodableTests.swift */,
 				C28FFC61EA782184F344AA7A /* AgentTemplateCodableTests.swift */,
 				F5FA95DD301028CD9C7FA470 /* ModelPricingTests.swift */,
-				0A9B541C5FA3C661E0E9EA64 /* ReleaseVersionTests.swift */,
 				7C16A39B123E04C9C213C713 /* OpeningContextTests.swift */,
 				7653DBEB2EE7864BE5A58F5F /* OrgManifestDecodeTests.swift */,
 				FF47966FC26B7D61212FB423 /* StreamEventImageTests.swift */,
@@ -2028,6 +2022,7 @@
 			children = (
 				04F920DF3D47DAE6E9FC024D /* AppDelegate.swift */,
 				06ECCA2643C16981E4D01923 /* Kiteloop.entitlements */,
+				5BA7C1E09D3F4A6682E15C07 /* Info.plist */,
 				69EC8600918D68A61AA3646D /* KiteloopApp.swift */,
 				3F2329D5CDCD429BCC047A01 /* Extensions */,
 				ADF0D63A8B0355C60E440FC5 /* Models */,
@@ -2071,7 +2066,7 @@
 			isa = PBXGroup;
 			children = (
 				6B12293A28616BB1D8E97758 /* AutonomyArmingTests.swift */,
-				3C7A1E44B9D5027E61FA8C10 /* UpdateCheckServiceTests.swift */,
+				3C7A1E44B9D5027E61FA8C10 /* SoftwareUpdaterTests.swift */,
 				1AE16ACA7099C9DA193D48EB /* Agents */,
 				2AE031C2E75A45365BB146CA /* Autopilot */,
 				2FF0C0D38F2AE6F31C29DB5B /* Backlog */,
@@ -2395,6 +2390,7 @@
 			packageProductDependencies = (
 				8493014AFE373555B0E8242E /* Highlightr */,
 				57E7BD958FBE8350DAF83939 /* KiteloopCore */,
+				7D2E5B9A41C64F38A0E7C315 /* Sparkle */,
 			);
 			productName = Kiteloop;
 			productReference = 025D5163B31C3212E8E935A1 /* Kiteloop.app */;
@@ -2428,6 +2424,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				4FDAE0AB9B0BBC8F7944727E /* XCRemoteSwiftPackageReference "Highlightr" */,
+				91F3A6C8E05B47D2B6A4D9E3 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				D083DE90E12CDA3DD1FF2AB4 /* XCLocalSwiftPackageReference "KiteloopCore" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -2552,7 +2549,6 @@
 				F7DF9CBB01636C453842A937 /* DefaultContextEngine.swift in Sources */,
 				90E2A4E4549D05BC0C45012E /* DesignTokens.swift in Sources */,
 				302E2308D386921A13AF08A6 /* DiagnosticsView.swift in Sources */,
-				081D9655ED63774943A98919 /* SoftwareUpdateView.swift in Sources */,
 				115364EBEE7604A86C3E112A /* EmptyDiffHandoff.swift in Sources */,
 				8DDD13EBE13525FED4FF6927 /* EpicBacklogView.swift in Sources */,
 				82FB53581411DFF5C564D76F /* EscapedDefectTracker.swift in Sources */,
@@ -2599,13 +2595,12 @@
 				818291E00F577F7BF4540E22 /* MetricIndex.swift in Sources */,
 				B80E4E8498FEC58F3023FE95 /* MockAgentRuntime.swift in Sources */,
 				5C4D1FB3EF4A5376FEA15997 /* ModelPricing.swift in Sources */,
-				8E9E5433E45E29A4E8CEAD57 /* ReleaseVersion.swift in Sources */,
 				03CEF756B2D5173D2236787B /* MultilineTextInput.swift in Sources */,
 				D299E25D7372361BA4A7187B /* NewAgentSheet.swift in Sources */,
 				B76302FB8E9A3FA230D18941 /* NotificationBadge.swift in Sources */,
 				F88E54BE1B1620A0009EE3F9 /* NotificationListView.swift in Sources */,
 				3C7CDBD4ACE11B99D09A85F1 /* NotificationService.swift in Sources */,
-				D05E7E2E0F4B5158E2DA2F1A /* UpdateCheckService.swift in Sources */,
+				D05E7E2E0F4B5158E2DA2F1A /* SoftwareUpdater.swift in Sources */,
 				731F74937E625DFD04E626D6 /* OllamaRuntime.swift in Sources */,
 				AF189E4DAF66BCD8CE6C2F04 /* OpeningContext.swift in Sources */,
 				479A726C85DE1D78695B92E3 /* Orchestrator.swift in Sources */,
@@ -2945,8 +2940,7 @@
 				AA10LANEORDER0001TEST01 /* AutopilotLaneOrderTests.swift in Sources */,
 				41A2DED3F6124BCCE920DE3D /* MetricIndexTests.swift in Sources */,
 				A47DEDD74A7AA92005AA5394 /* ModelPricingTests.swift in Sources */,
-				77B8FDE0BD4AE0991AF8DAD4 /* ReleaseVersionTests.swift in Sources */,
-				9E1D4B72C6A80F5314BD7E26 /* UpdateCheckServiceTests.swift in Sources */,
+				9E1D4B72C6A80F5314BD7E26 /* SoftwareUpdaterTests.swift in Sources */,
 				5584584FBF26D5206E561075 /* NotificationServiceTests.swift in Sources */,
 				D64C0DD0C79C440D5AAB9392 /* OpeningContextTests.swift in Sources */,
 				1FEDD2CBDE7CCAA89CC06BF2 /* OrchestratorLifecycleTests.swift in Sources */,
@@ -3148,9 +3142,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Kiteloop/Kiteloop.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Kiteloop/Info.plist;
 				INFOPLIST_GENERATION_MODE = GeneratedFile;
 				INFOPLIST_KEY_NSBonjourServices = _ssh._tcp;
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Kiteloop needs access to your project files to provide AI coding assistance.";
@@ -3283,9 +3278,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Kiteloop/Kiteloop.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = "$(MARKETING_VERSION)";
 				ENABLE_APP_SANDBOX = NO;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Kiteloop/Info.plist;
 				INFOPLIST_GENERATION_MODE = GeneratedFile;
 				INFOPLIST_KEY_NSBonjourServices = _ssh._tcp;
 				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "Kiteloop needs access to your project files to provide AI coding assistance.";
@@ -3434,6 +3430,14 @@
 				minimumVersion = 2.2.1;
 			};
 		};
+		91F3A6C8E05B47D2B6A4D9E3 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.10.1;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -3448,6 +3452,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 4FDAE0AB9B0BBC8F7944727E /* XCRemoteSwiftPackageReference "Highlightr" */;
 			productName = Highlightr;
+		};
+		7D2E5B9A41C64F38A0E7C315 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 91F3A6C8E05B47D2B6A4D9E3 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		57E7BD958FBE8350DAF83939 /* KiteloopCore */ = {
 			isa = XCSwiftPackageProductDependency;

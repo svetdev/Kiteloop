@@ -6,6 +6,7 @@ struct AppPreferencesView: View {
     @Bindable var globalConfigStore: GlobalConfigStore
     @Bindable var agentCatalogStore: AgentCatalogStore
     @Bindable var controlServer: KiteloopControlServer
+    @Bindable var softwareUpdater: SoftwareUpdater
     /// The resolver `chooseKnowledgeRepo` rescans through: writing the chosen path
     /// to the config is not enough, because the resolver keeps the scan paths it
     /// resolved at launch and would go on offering the packages found then until
@@ -54,7 +55,6 @@ struct AppPreferencesView: View {
     @State private var controlServerEnabled = false
     @State private var controlServerPort = String(KiteloopControlServer.defaultPort)
     @AppStorage("playfulStatusVerbs") private var playfulStatusVerbs = true
-    @AppStorage(UpdateCheckService.automaticCheckDefaultsKey) private var checkForUpdatesAutomatically = true
 
     @State private var confirmingTokenRotation = false
     @State private var pairingPhone = false
@@ -160,8 +160,7 @@ struct AppPreferencesView: View {
             }
 
             Section("Setup & Health") {
-                Toggle("Automatically check for updates", isOn: $checkForUpdatesAutomatically)
-                    .help("Asks GitHub at most once a day, at launch. Check for Updates… in the Kiteloop menu still checks whenever you choose it.")
+                UpdatePreferenceRows(updater: softwareUpdater)
                 // The same resolve the app spawns through, so these rows report
                 // the binary that will actually run rather than one the
                 // configured `claudePath`/`nodePath` may have replaced.
@@ -743,6 +742,22 @@ extension AppPreferencesView {
 
 /// One row of the app-wide MCP Servers tab: the fields it edits, and the
 /// entry it was loaded from — nil for a row added since the last save.
+/// App Preferences' two update switches. Both are off and disabled in a copy
+/// that does not update itself; downloading in the background follows
+/// checking, so it is disabled while checking is off.
+struct UpdatePreferenceRows: View {
+    @Bindable var updater: SoftwareUpdater
+
+    var body: some View {
+        Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
+            .help("Looks for a newer version about once a day while Kiteloop runs. Check for Updates… in the Kiteloop menu still checks whenever you choose it.")
+            .disabled(!updater.isAvailable)
+        Toggle("Automatically download updates", isOn: $updater.automaticallyDownloadsUpdates)
+            .help("Downloads a newer version when one is found and installs it the next time Kiteloop quits, instead of asking first.")
+            .disabled(!updater.isAvailable || !updater.automaticallyChecksForUpdates)
+    }
+}
+
 struct GlobalMCPServerRow: Identifiable {
     var fields: MCPServerRow
     var original: ClaudeMCPServerEntry?

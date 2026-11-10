@@ -286,7 +286,7 @@ Legend: `[x]` = implemented + tested, `[~]` = implemented, no test, `[ ]` = plan
 | [x] | Per-item git worktree isolation ([model](worktree-isolation.md)) | `Services/WorktreeSession.swift`, `Services/WorktreeManager.swift` | `Services/Autopilot/WorktreeSessionTests.swift`, `Services/Autopilot/WorktreeManagerTests.swift` |
 | [~] | Shared team templates (`.kiteloop/team.json`) | `Services/TeamConfigManager.swift` | — |
 | [x] | Bundled sample project ("Try a Sample Project" — a groomed demo backlog with worker/reviewer pre-assigned) | `Services/SampleProjectService.swift` | `Services/Agents/SampleProjectServiceTests.swift` |
-| [x] | Update check (**Check for Updates…** in the app menu, plus a passive check at launch at most once a day; a notice naming the newer release with a link to its GitHub release page — no download and no install) | `Services/UpdateCheckService.swift`, `Models/ReleaseVersion.swift`, `Views/SoftwareUpdateView.swift` | `Services/UpdateCheckServiceTests.swift`, `Models/ReleaseVersionTests.swift` |
+| [x] | In-app updates (Sparkle: **Check for Updates…** in the app menu and a scheduled check while the app runs, against the appcast at `SUFeedURL`; a newer version is downloaded, its EdDSA signature verified, installed and relaunched — the relaunch goes through the same quit prompt as Cmd-Q, so runs in flight are asked about; App Preferences switches automatic checking and automatic download; Debug builds and test hosts do not update themselves) | `Services/SoftwareUpdater.swift`, `Services/LegacyUpdatePreferences.swift`, `Info.plist` | `Services/SoftwareUpdaterTests.swift`, `Services/LegacyUpdatePreferencesTests.swift` |
 | [ ] | MDM / internal distribution | — | — |
 
 ---

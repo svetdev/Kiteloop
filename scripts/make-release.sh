@@ -49,6 +49,21 @@
 # tests pass, and the shipped app is just missing whatever the resource was —
 # so this is checked right alongside the version, before anything is built.
 #
+# The signed path ends by writing the update feed. Kiteloop updates itself
+# through Sparkle, which reads an appcast — the list of versions, where each
+# zip is, and its EdDSA signature — from the URL in Info.plist's SUFeedURL. So a
+# release is two files, not one: the zip, and the appcast.xml that offers it.
+# Sparkle's own generate_appcast writes the entry, signing the zip with the
+# private key in this Mac's keychain; the script refuses, before it builds, a
+# tree whose Info.plist names no feed or no public key, and refuses, before it
+# notarizes, a keychain whose key is not the one the app ships with — an update
+# signed with any other key is one every installed copy rejects.
+#
+#   KITELOOP_APPCAST         optional: the published feed's file, in the checkout
+#                            of the site that serves it. Its entries are carried
+#                            into the new feed, and the new feed is written back
+#                            over it — committing and pushing that is yours.
+#
 # Release notes come out of CHANGELOG.md — exactly the tagged version's section,
 # from its `## <version> — <date>` heading to the next heading. That discipline
 # already exists and is already enforced by review, so a release note is
@@ -65,6 +80,7 @@ set -u
 
 SIGN_IDENTITY_VAR="KITELOOP_SIGN_IDENTITY"
 NOTARY_PROFILE_VAR="KITELOOP_NOTARY_PROFILE"
+APPCAST_VAR="KITELOOP_APPCAST"
 
 # The order these are named in when they are missing, which is the order you
 # would set them up in.
@@ -74,6 +90,10 @@ PBXPROJ_RELPATH="Kiteloop/Kiteloop.xcodeproj/project.pbxproj"
 PROJECT_YML_RELPATH="Kiteloop/project.yml"
 CHANGELOG_RELPATH="CHANGELOG.md"
 ENTITLEMENTS_RELPATH="Kiteloop/Kiteloop/Kiteloop.entitlements"
+INFO_PLIST_RELPATH="Kiteloop/Kiteloop/Info.plist"
+# Where a release's zip is downloaded from — the GitHub Release its tag makes —
+# and the page a copy that cannot update itself is sent to.
+RELEASES_URL="https://github.com/svetdev/Kiteloop/releases"
 DEFAULT_OUTPUT_RELPATH="dist"
 # Where --install-local puts the app; overridable so the guard suite installs
 # into a temporary directory rather than the machine's /Applications.
@@ -448,11 +468,31 @@ xcodebuild_argv() {
 # Everything inside the bundle that carries code, deepest first, then the bundle
 # itself. `codesign --deep` is deprecated and signs nested code with the outer
 # entitlements, which is not what any of these want.
+#
+# The last three patterns are Sparkle's: its framework carries two XPC services,
+# a helper app and a bare `Autoupdate` executable, each signed by Sparkle's
+# build and not by this identity — which the notary service refuses. Symlinks
+# are skipped: a framework reaches its current version through several, and
+# each would sign the same code a second time.
 nested_code() {
   local app=$1
-  find "$app/Contents" \
-    \( -name '*.framework' -o -name '*.dylib' -o -name '*.bundle' -o -name '*.appex' \) \
+  find "$app/Contents" ! -type l \
+    \( -name '*.framework' -o -name '*.dylib' -o -name '*.bundle' -o -name '*.appex' \
+       -o -name '*.xpc' -o -name '*.app' -o \( -name 'Autoupdate' -type f \) \) \
     -print 2>/dev/null | awk '{ print length($0), $0 }' | sort -rn | cut -d' ' -f2-
+}
+
+# One piece of nested code, signed — `command` as the first argument runs
+# codesign, `print_command` prints it — with the codesign options after the
+# path. An XPC service can carry entitlements of its own — Sparkle's downloader
+# does — and a re-sign drops them unless told to keep them.
+sign_nested() {
+  local run=$1 identity=$2 nested=$3
+  shift 3
+  case "$nested" in
+    *.xpc) "$run" codesign --force "$@" --preserve-metadata=entitlements --sign "$identity" "$nested" ;;
+    *) "$run" codesign --force "$@" --sign "$identity" "$nested" ;;
+  esac
 }
 
 # The signed path, as commands. This is one list so that what --dry-run prints
@@ -464,8 +504,7 @@ signing_commands() {
 
   while IFS= read -r nested; do
     [ -n "$nested" ] || continue
-    print_command codesign --force --timestamp --options runtime \
-      --sign "$identity" "$nested"
+    sign_nested print_command "$identity" "$nested" --timestamp --options runtime
   done < <(nested_code "$app")
 
   print_command codesign --force --timestamp --options runtime \
@@ -488,8 +527,7 @@ run_signing() {
   while IFS= read -r nested; do
     [ -n "$nested" ] || continue
     say "Signing $(basename "$nested")"
-    codesign --force --timestamp --options runtime \
-      --sign "$identity" "$nested" || return 1
+    sign_nested command "$identity" "$nested" --timestamp --options runtime || return 1
   done < <(nested_code "$app")
 
   say "Signing $(basename "$app")"
@@ -544,7 +582,7 @@ local_install_commands() {
   local nested
   while IFS= read -r nested; do
     [ -n "$nested" ] || continue
-    print_command codesign --force --options runtime --sign "$identity" "$nested"
+    sign_nested print_command "$identity" "$nested" --options runtime
   done < <(nested_code "$app")
   print_command codesign --force --options runtime --entitlements "$entitlements" --sign "$identity" "$app"
   print_command codesign --verify --deep --strict --verbose=2 "$app"
@@ -557,7 +595,7 @@ run_local_install() {
   local nested
   while IFS= read -r nested; do
     [ -n "$nested" ] || continue
-    codesign --force --options runtime --sign "$identity" "$nested" || return 1
+    sign_nested command "$identity" "$nested" --options runtime || return 1
   done < <(nested_code "$app")
   say "Signing $(basename "$app")"
   codesign --force --options runtime --entitlements "$entitlements" --sign "$identity" "$app" || return 1
@@ -565,6 +603,124 @@ run_local_install() {
   say "Installing into $dest"
   rm -rf "$dest/Kiteloop.app" || return 1
   ditto "$app" "$dest/Kiteloop.app" || return 1
+}
+
+# --- The update feed ---------------------------------------------------------
+#
+# What installed copies read to learn there is a newer one. The zip stays on the
+# GitHub Release; the feed says where it is and carries the signature Sparkle
+# checks the download against.
+
+plist_value() {
+  /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null
+}
+
+# Why this tree cannot ship an update, or nothing when it can. Both keys are
+# read from the source Info.plist, so the answer comes before the build.
+update_feed_refusal() {
+  local plist=$1
+  if [ -z "$(plist_value "$plist" SUFeedURL)" ]; then
+    printf '%s has no SUFeedURL — the address installed copies read the update feed from.\n' "$plist"
+  fi
+  if [ -z "$(plist_value "$plist" SUPublicEDKey)" ]; then
+    printf '%s has no SUPublicEDKey — the public half of the key updates are signed with.\n' "$plist"
+    printf 'Generate the key once and paste what it prints (docs/release-runbook.md).\n'
+  fi
+}
+
+# Sparkle's command-line tools, which arrive with the package the build resolves.
+sparkle_bin() {
+  printf '%s\n' "$1/SourcePackages/artifacts/sparkle/Sparkle/bin"
+}
+
+# Why this keychain cannot sign the update, or nothing when it can: the key it
+# holds has to be the one in the app, or every installed copy refuses the result.
+signing_key_refusal() {
+  local bin=$1 expected=$2 held
+  if [ ! -x "$bin/generate_keys" ]; then
+    printf 'Sparkle'"'"'s tools are not at %s — the build did not resolve the package.\n' "$bin"
+    return
+  fi
+  held=$("$bin/generate_keys" -p 2>/dev/null)
+  if [ -z "$held" ]; then
+    printf 'This keychain holds no Sparkle signing key (docs/release-runbook.md).\n'
+  elif [ "$held" != "$expected" ]; then
+    printf 'The signing key in this keychain is not the one the app ships with:\n'
+    printf '  keychain:      %s\n  SUPublicEDKey: %s\n' "$held" "$expected"
+  fi
+}
+
+# One generate_appcast invocation for both the printed and the executed path.
+# No deltas: every update is the whole zip, which is what the release carries.
+# --maximum-versions 0 keeps every earlier entry rather than the newest three.
+generate_appcast_argv() {
+  local bin=$1 version=$2 stage=$3
+  printf '%s\n' \
+    "$bin/generate_appcast" \
+    --download-url-prefix "$RELEASES_URL/download/v$version/" \
+    --embed-release-notes \
+    --link "$RELEASES_URL" \
+    --maximum-deltas 0 \
+    --maximum-versions 0 \
+    -o "$stage/appcast.xml" \
+    "$stage"
+}
+
+# The feed, as commands — what --dry-run prints and what run_appcast executes.
+# `published` is the feed already being served, or empty when there is none to
+# carry forward.
+appcast_commands() {
+  local bin=$1 zip=$2 notes=$3 version=$4 stage=$5 feed=$6 published=$7
+  local name arg
+  local -a argv=()
+  name=$(basename "$zip" .zip)
+  print_command rm -rf "$stage"
+  print_command mkdir -p "$stage"
+  print_command cp "$zip" "$stage/$name.zip"
+  print_command cp "$notes" "$stage/$name.md"
+  [ -n "$published" ] && print_command cp "$published" "$stage/appcast.xml"
+  while IFS= read -r arg; do
+    argv+=("$arg")
+  done < <(generate_appcast_argv "$bin" "$version" "$stage")
+  print_command "${argv[@]}"
+  print_command cp "$stage/appcast.xml" "$feed"
+  [ -n "$published" ] && print_command cp "$feed" "$published"
+  return 0
+}
+
+# Run what appcast_commands describes. A feed whose new entry carries no
+# signature is refused rather than written: generate_appcast leaves it off
+# without complaint when the app has no public key, and an unsigned entry is one
+# every installed copy rejects.
+run_appcast() {
+  local bin=$1 zip=$2 notes=$3 version=$4 stage=$5 feed=$6 published=$7
+  local name arg
+  local -a argv=()
+  name=$(basename "$zip" .zip)
+
+  rm -rf "$stage" || return 1
+  mkdir -p "$stage" || return 1
+  cp "$zip" "$stage/$name.zip" || return 1
+  cp "$notes" "$stage/$name.md" || return 1
+  if [ -n "$published" ] && [ -e "$published" ]; then
+    cp "$published" "$stage/appcast.xml" || return 1
+  fi
+
+  while IFS= read -r arg; do
+    argv+=("$arg")
+  done < <(generate_appcast_argv "$bin" "$version" "$stage")
+  say 'Writing the update feed'
+  "${argv[@]}" || return 1
+
+  if ! grep -F "$name.zip" "$stage/appcast.xml" | grep -q 'sparkle:edSignature='; then
+    fail "the feed's entry for $name.zip carries no EdDSA signature."
+    return 1
+  fi
+  cp "$stage/appcast.xml" "$feed" || return 1
+  if [ -n "$published" ]; then
+    mkdir -p "$(dirname -- "$published")" || return 1
+    cp "$feed" "$published" || return 1
+  fi
 }
 
 # Sourcing this file defines its functions and does nothing else, which is how
@@ -656,6 +812,12 @@ if [ "$dry_run" -eq 0 ] && [ "$notes_only" -eq 0 ] && [ "$install_local" -eq 0 ]
     refuse_missing_credentials "${missing[@]}"
     exit 1
   fi
+  refusal=$(update_feed_refusal "$root/$INFO_PLIST_RELPATH")
+  if [ -n "$refusal" ]; then
+    fail 'this tree cannot ship an update, so nothing was built:'
+    printf '%s\n' "$refusal" >&2
+    exit 1
+  fi
 fi
 
 if [ -n "$output_dir" ]; then
@@ -703,6 +865,10 @@ done < <(xcodebuild_argv "$root/Kiteloop/Kiteloop.xcodeproj" "$derived")
 
 entitlements="$root/$ENTITLEMENTS_RELPATH"
 app="$derived/Build/Products/Release/Kiteloop.app"
+sparkle=$(sparkle_bin "$derived")
+appcast_stage="$output_dir/appcast"
+feed_path="$output_dir/appcast.xml"
+published_feed="${!APPCAST_VAR:-}"
 
 if [ "$install_local" -eq 1 ] && [ "$dry_run" -eq 1 ]; then
   say 'A local install would run these — no notarizing, no stapling:'
@@ -742,9 +908,26 @@ if [ "$dry_run" -eq 1 ]; then
   say 'refuse it on anyone else'"'"'s. With the credentials set, the signed path'
   say 'would have run these instead of packaging it directly:'
   printf '\n'
-  signing_commands "$app" "$entitlements" "$zip_path" \
-    "\$$SIGN_IDENTITY_VAR" "\$$NOTARY_PROFILE_VAR" | sed 's/^/  /'
+  { signing_commands "$app" "$entitlements" "$zip_path" \
+      "\$$SIGN_IDENTITY_VAR" "\$$NOTARY_PROFILE_VAR"
+    appcast_commands "$sparkle" "$zip_path" "$notes_path" "$version" \
+      "$appcast_stage" "$feed_path" "$published_feed"; } | sed 's/^/  /'
+  refusal=$(update_feed_refusal "$root/$INFO_PLIST_RELPATH")
+  if [ -n "$refusal" ]; then
+    printf '\n'
+    say 'Note: the signed path would refuse this tree before building:'
+    printf '%s\n' "$refusal" | sed 's/^/      /'
+  fi
   exit 0
+fi
+
+# Before Apple's minutes, not after them: a keychain that cannot sign the update
+# is known the moment the build has brought Sparkle's tools with it.
+refusal=$(signing_key_refusal "$sparkle" "$(plist_value "$root/$INFO_PLIST_RELPATH" SUPublicEDKey)")
+if [ -n "$refusal" ]; then
+  fail 'cannot sign the update, so nothing was notarized:'
+  printf '%s\n' "$refusal" >&2
+  exit 1
 fi
 
 if ! run_signing "$app" "$entitlements" "$zip_path" \
@@ -753,5 +936,18 @@ if ! run_signing "$app" "$entitlements" "$zip_path" \
   exit 1
 fi
 
+if ! run_appcast "$sparkle" "$zip_path" "$notes_path" "$version" \
+  "$appcast_stage" "$feed_path" "$published_feed"; then
+  fail 'the update feed was not written; the zip is signed, but no installed copy will be offered it.'
+  exit 1
+fi
+
 say "Artifact       $zip_path"
 say "Release notes  $notes_path"
+say "Update feed    $feed_path"
+if [ -n "$published_feed" ]; then
+  say "Published feed $published_feed — upload the zip to the GitHub Release first,"
+  say "               then commit and push this file in the site's checkout."
+else
+  say "Note: $APPCAST_VAR is not set, so this feed lists this release alone."
+fi

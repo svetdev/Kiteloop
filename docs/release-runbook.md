@@ -1,7 +1,8 @@
 # Release runbook
 
 How a Kiteloop version becomes a signed, notarized zip a stranger's Mac will
-open. `scripts/make-release.sh` is the whole path — it does every step below
+open, and an entry in the update feed that offers it to every copy already
+installed. `scripts/make-release.sh` is the whole path — it does every step below
 or refuses to do any of them. It runs on your Mac; nothing builds a release
 on a hosted runner.
 
@@ -61,8 +62,45 @@ available without one).
    export KITELOOP_NOTARY_PROFILE=kiteloop-notary
    ```
 
-Keep the `.p8` and the exported `.p12` **outside the repository** — a key
-that lands in a commit is a key to revoke.
+5. **The update signing key.** Kiteloop updates itself through
+   [Sparkle](https://sparkle-project.org), which only installs a download
+   signed with a key the installed copy already trusts. Generate that key once,
+   with the tool the package brings (any build resolves it):
+
+   ```bash
+   cd "$(git rev-parse --show-toplevel)"
+   ./scripts/make-release.sh --dry-run   # resolves Sparkle into dist/DerivedData
+   dist/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys
+   ```
+
+   The private half goes into your login keychain. The public half is printed;
+   put it in `Kiteloop/Kiteloop/Info.plist`, beside the feed address, and commit
+   it:
+
+   ```xml
+   <key>SUPublicEDKey</key>
+   <string>the base64 string generate_keys printed</string>
+   ```
+
+   **Back the private key up** — `generate_keys -x <file>` exports it, and
+   `-f <file>` imports it on another Mac. A lost key cannot be replaced: every
+   copy already installed trusts that key only, and would have to be updated by
+   hand. The script refuses a signed release from a tree with no
+   `SUPublicEDKey`, and from a keychain whose key is not that one.
+
+6. **Where the feed is published.** Installed copies read
+   `https://kasatkin.ai/kiteloop/appcast.xml` — `SUFeedURL` in the same
+   `Info.plist`, and permanent: it is in every copy ever shipped. That file is
+   `public/kiteloop/appcast.xml` in the site's checkout. Point the script at it
+   so each release carries the earlier entries forward and writes the new feed
+   back:
+
+   ```bash
+   export KITELOOP_APPCAST=~/path/to/site-checkout/public/kiteloop/appcast.xml
+   ```
+
+Keep the `.p8`, the exported `.p12` and an exported update key **outside the
+repository** — a key that lands in a commit is a key to revoke.
 
 ### Releasing
 
@@ -70,7 +108,10 @@ that lands in a commit is a key to revoke.
    names — the Debug and Release entries in
    `Kiteloop/Kiteloop.xcodeproj/project.pbxproj`, and `Kiteloop/project.yml`.
    Patch for fixes, minor for new capability. The script refuses to build if they
-   disagree, so a missed one costs you seconds rather than a bad artifact.
+   disagree, so a missed one costs you seconds rather than a bad artifact. The
+   build number (`CFBundleVersion`) is the same number — it is what Sparkle
+   orders releases by — so there is nothing else to bump, and a version cannot
+   be shipped twice.
 
 
    ```bash
@@ -95,8 +136,9 @@ that lands in a commit is a key to revoke.
    ```
 
    It writes `dist/Kiteloop-<version>.zip` and
-   `dist/Kiteloop-<version>-notes.md`, then prints the signing commands it did
-   not run. Read the notes file: it is what everyone will see.
+   `dist/Kiteloop-<version>-notes.md`, then prints the signing and feed
+   commands it did not run. Read the notes file: it is what everyone will see,
+   on the release page and in the update window.
 
 4. **Build the real one.**
 
@@ -106,8 +148,11 @@ that lands in a commit is a key to revoke.
 
    It builds, signs, submits to Apple and waits — notarization usually takes a
    few minutes and occasionally much longer — staples the ticket, repackages, and
-   asks Gatekeeper for its verdict on the result. A failure at any step leaves
-   you without an artifact rather than with a bad one.
+   asks Gatekeeper for its verdict on the result. Then it writes the update
+   feed: `dist/appcast.xml`, with this version's entry — the zip's address on
+   the GitHub Release, its EdDSA signature, and the notes — above the entries
+   `KITELOOP_APPCAST` already held, and copies it back over that file. A failure
+   at any step leaves you without an artifact rather than with a bad one.
 
 5. **Tag and push.** Take the version from the tree rather than retyping it —
    the script has already checked that all three sites agree on it:
@@ -125,6 +170,20 @@ that lands in a commit is a key to revoke.
    gh release create "v$VERSION" "dist/Kiteloop-$VERSION.zip" --title "Kiteloop $VERSION" --notes-file <notes.md>
    ```
 
+7. **Publish the feed — after the zip, never before.** The feed names the zip's
+   address on the release, so it must not go live while that address is a 404.
+   Commit and push `public/kiteloop/appcast.xml` in the site's checkout, wait
+   for its deploy, and check what installed copies will now read:
+
+   ```bash
+   curl -sI https://kasatkin.ai/kiteloop/appcast.xml | head -1
+   curl -s https://kasatkin.ai/kiteloop/appcast.xml | grep -c "Kiteloop-$VERSION.zip"
+   ```
+
+   `200` and `1`. From here every installed copy is offered the version at its
+   next check. To pull a release, revert that commit in the site's checkout:
+   copies that have not updated yet stop being offered it.
+
 ### Verifying an artifact
 
 What the person downloading it will experience, on a Mac that has never seen your
@@ -138,6 +197,19 @@ xcrun stapler validate /Applications/Kiteloop.app
 `accepted / source=Notarized Developer ID` and `The validate action worked!` are
 the two answers you want. Anything else means the download is broken for everyone
 but you.
+
+### Checking that copies update
+
+The updater is Sparkle's, and what proves a release is a copy updating itself.
+After step 7, on a Mac running the previous version, choose **Kiteloop > Check
+for Updates…**: the window names the new version with its notes, and Install
+downloads it, verifies it and relaunches into it — About and `/health` then
+report the new version. With a run in flight, the relaunch asks the same
+question Cmd-Q does.
+
+The first release that carries Sparkle cannot be checked this way: no earlier
+copy knows how to update, so it is installed by hand, and the release after it
+is the first one a copy can fetch for itself.
 
 ### The copy on your own Mac
 

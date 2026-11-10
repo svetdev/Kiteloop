@@ -185,3 +185,17 @@ Entry format:
 **Why:** `copilot` matched no Copilot family, so every such agent was answered by whichever model VS Code listed first, and nothing recorded which.
 **Evidence:** GitHub issue #5; `CopilotBridgeRuntime.bridgeModel(for:)`, `copilot-bridge-extension/src/copilotBridge.ts`.
 **Status:** holds
+
+## [2026-11-10] In-app updates are Sparkle, fed from kasatkin.ai
+**Kind:** decision
+**What:** The app updates itself through Sparkle 2, reading `https://kasatkin.ai/kiteloop/appcast.xml` (`SUFeedURL`); the zips stay on GitHub Releases and `make-release.sh` writes the feed entry. The build number is the version (`CURRENT_PROJECT_VERSION = $(MARKETING_VERSION)`). The earlier notify-only check against GitHub's `releases/latest` is removed.
+**Why:** A notice with a download link left every other Mac to be updated by hand, and only told a copy at launch that never comes for an app left running. The feed sits on a domain we own because its address is in every shipped copy and can never change, while the host behind it can; the main site rather than a subdomain for one less thing to run. Sparkle orders releases by build number, which was a constant `1`.
+**Evidence:** `Services/SoftwareUpdater.swift`, `Kiteloop/Kiteloop/Info.plist`, `scripts/make-release.sh` (`run_appcast`), `docs/release-runbook.md`.
+**Status:** holds
+
+## [2026-11-10] The update relaunch has no run-awareness of its own
+**Kind:** decision
+**What:** Nothing postpones Sparkle's relaunch while runs are in flight. Sparkle quits the app the way Cmd-Q does, so `AppDelegate.applicationShouldTerminate` asks its existing fleet question, and an update whose quit was cancelled installs at the next quit.
+**Why:** A second mechanism deciding when the app may quit would have to agree with the first forever.
+**Evidence:** `AppDelegate.applicationShouldTerminate`, `FleetQuitPrompt`.
+**Status:** holds — not yet observed end to end; no release with Sparkle in it has been published.

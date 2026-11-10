@@ -329,6 +329,127 @@ check 'a variable set to the empty string counts as missing' \
      export KITELOOP_NOTARY_PROFILE=kiteloop-notary
      missing_credentials)"
 
+# --- The nested code ---------------------------------------------------------
+
+printf '\nnested code\n'
+
+# The shape Sparkle's framework has inside an app: two XPC services, a helper
+# app and a bare executable, none of which the framework's own signature covers.
+fw="$tmp/Nested.app/Contents/Frameworks/Sparkle.framework/Versions/B"
+mkdir -p "$fw/XPCServices/Downloader.xpc" "$fw/XPCServices/Installer.xpc" "$fw/Updater.app" || exit 1
+: >"$fw/Autoupdate"
+nested=$(nested_code "$tmp/Nested.app")
+check_contains 'an XPC service inside a framework is signed' 'XPCServices/Downloader.xpc' "$nested"
+check_contains 'and a helper app' 'Versions/B/Updater.app' "$nested"
+check_contains 'and the bare Autoupdate executable' 'Versions/B/Autoupdate' "$nested"
+check 'the framework is signed after everything inside it' \
+  "$tmp/Nested.app/Contents/Frameworks/Sparkle.framework" "$(printf '%s\n' "$nested" | tail -n 1)"
+check 'an XPC service keeps the entitlements it came with' \
+  "codesign --force --options runtime --preserve-metadata=entitlements --sign ID $fw/XPCServices/Downloader.xpc" \
+  "$(sign_nested print_command ID "$fw/XPCServices/Downloader.xpc" --options runtime)"
+check 'and a framework is signed with nothing preserved' \
+  "codesign --force --options runtime --sign ID $tmp/Nested.app/Contents/Frameworks/Sparkle.framework" \
+  "$(sign_nested print_command ID "$tmp/Nested.app/Contents/Frameworks/Sparkle.framework" --options runtime)"
+check_contains 'the release signs the service that way, timestamped' \
+  "codesign --force --timestamp --options runtime --preserve-metadata=entitlements --sign ID $fw/XPCServices/Downloader.xpc" \
+  "$(signing_commands "$tmp/Nested.app" /e.plist /out.zip ID profile)"
+ln -s Versions/B/Updater.app "$tmp/Nested.app/Contents/Frameworks/Sparkle.framework/Updater.app"
+check_lacks 'a symlink into the framework is not signed a second time' \
+  'Sparkle.framework/Updater.app' "$(nested_code "$tmp/Nested.app")"
+
+# --- The update feed ---------------------------------------------------------
+
+printf '\nupdate feed\n'
+
+# An Info.plist carrying whichever of Sparkle's two keys the case names.
+write_info_plist() {
+  local file=$1 feed=$2 key=$3
+  {
+    printf '<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n'
+    [ -n "$feed" ] && printf '\t<key>SUFeedURL</key>\n\t<string>%s</string>\n' "$feed"
+    [ -n "$key" ] && printf '\t<key>SUPublicEDKey</key>\n\t<string>%s</string>\n' "$key"
+    printf '</dict>\n</plist>\n'
+  } >"$file"
+}
+
+write_info_plist "$tmp/both.plist" 'https://example.test/appcast.xml' 'cHVibGlj'
+write_info_plist "$tmp/no-key.plist" 'https://example.test/appcast.xml' ''
+write_info_plist "$tmp/no-feed.plist" '' 'cHVibGlj'
+
+check 'a plist naming the feed and the public key is not refused' \
+  '' "$(update_feed_refusal "$tmp/both.plist")"
+check_contains 'a plist with no public key is refused, naming the key' \
+  'no SUPublicEDKey' "$(update_feed_refusal "$tmp/no-key.plist")"
+check_lacks 'and is not blamed for the feed it does name' \
+  'no SUFeedURL' "$(update_feed_refusal "$tmp/no-key.plist")"
+check_contains 'a plist with no feed is refused, naming the feed' \
+  'no SUFeedURL' "$(update_feed_refusal "$tmp/no-feed.plist")"
+check 'the checked-in Info.plist names a feed' \
+  'https://kasatkin.ai/kiteloop/appcast.xml' \
+  "$(plist_value "$here/../$INFO_PLIST_RELPATH" SUFeedURL)"
+
+# A generate_keys that prints whatever key the case says the keychain holds.
+mkdir -p "$tmp/sparkle-bin" || exit 1
+cat >"$tmp/sparkle-bin/generate_keys" <<'STUB'
+#!/bin/bash
+[ -n "${FAKE_KEYCHAIN_KEY:-}" ] || exit 1
+printf '%s\n' "$FAKE_KEYCHAIN_KEY"
+STUB
+chmod +x "$tmp/sparkle-bin/generate_keys"
+
+check 'a keychain holding the key the app ships with is not refused' \
+  '' "$(FAKE_KEYCHAIN_KEY=cHVibGlj signing_key_refusal "$tmp/sparkle-bin" cHVibGlj)"
+check_contains 'a keychain holding a different key is refused, showing both' \
+  'SUPublicEDKey: cHVibGlj' "$(FAKE_KEYCHAIN_KEY=b3RoZXI= signing_key_refusal "$tmp/sparkle-bin" cHVibGlj)"
+check_contains 'a keychain holding no key is refused as that' \
+  'holds no Sparkle signing key' "$(signing_key_refusal "$tmp/sparkle-bin" cHVibGlj)"
+check_contains 'tools the build did not bring are reported as that' \
+  'did not resolve the package' "$(signing_key_refusal "$tmp/nowhere" cHVibGlj)"
+
+feed_argv=$(generate_appcast_argv /sparkle/bin 0.3.0 "$tmp/stage")
+check_contains 'the feed points each download at the release its tag makes' \
+  "$RELEASES_URL/download/v0.3.0/" "$feed_argv"
+check_contains 'and makes no delta updates the release would not carry' \
+  '--maximum-deltas
+0' "$feed_argv"
+
+feed_commands=$(appcast_commands /sparkle/bin "$tmp/out/Kiteloop-0.3.0.zip" \
+  "$tmp/out/Kiteloop-0.3.0-notes.md" 0.3.0 "$tmp/stage" "$tmp/out/appcast.xml" "$tmp/site/appcast.xml")
+check_contains 'the notes go in beside the zip under its name, which is how they are embedded' \
+  "cp $tmp/out/Kiteloop-0.3.0-notes.md $tmp/stage/Kiteloop-0.3.0.md" "$feed_commands"
+check_contains 'a published feed is carried in before the new entry is written' \
+  "cp $tmp/site/appcast.xml $tmp/stage/appcast.xml" "$feed_commands"
+check_contains 'and written back over afterwards' \
+  "cp $tmp/out/appcast.xml $tmp/site/appcast.xml" "$feed_commands"
+check_lacks 'with no published feed there is nothing to carry in or write back' \
+  'site/appcast.xml' "$(appcast_commands /sparkle/bin "$tmp/out/Kiteloop-0.3.0.zip" \
+    "$tmp/out/Kiteloop-0.3.0-notes.md" 0.3.0 "$tmp/stage" "$tmp/out/appcast.xml" '')"
+
+# run_appcast against a generate_appcast that writes the entry the case names:
+# a signed entry is published, an unsigned one is refused and nothing written.
+cat >"$tmp/sparkle-bin/generate_appcast" <<'STUB'
+#!/bin/bash
+for last; do :; done
+printf '<enclosure url="https://example.test/Kiteloop-0.3.0.zip" %s/>\n' "${FAKE_ENCLOSURE_ATTRS:-}" >>"$last/appcast.xml"
+STUB
+chmod +x "$tmp/sparkle-bin/generate_appcast"
+mkdir -p "$tmp/feed-out" "$tmp/site" || exit 1
+: >"$tmp/feed-out/Kiteloop-0.3.0.zip"
+printf -- '- A thing.\n' >"$tmp/feed-out/Kiteloop-0.3.0-notes.md"
+printf '<item>0.2.9</item>\n' >"$tmp/site/appcast.xml"
+
+unsigned_out=$(run_appcast "$tmp/sparkle-bin" "$tmp/feed-out/Kiteloop-0.3.0.zip" \
+  "$tmp/feed-out/Kiteloop-0.3.0-notes.md" 0.3.0 "$tmp/stage" "$tmp/feed-out/appcast.xml" "$tmp/site/appcast.xml" 2>&1)
+check_contains 'an entry with no signature is refused' 'carries no EdDSA signature' "$unsigned_out"
+check 'and the published feed is left as it was' '<item>0.2.9</item>' "$(cat "$tmp/site/appcast.xml")"
+
+FAKE_ENCLOSURE_ATTRS='sparkle:edSignature="c2ln"' run_appcast "$tmp/sparkle-bin" "$tmp/feed-out/Kiteloop-0.3.0.zip" \
+  "$tmp/feed-out/Kiteloop-0.3.0-notes.md" 0.3.0 "$tmp/stage" "$tmp/feed-out/appcast.xml" "$tmp/site/appcast.xml" >/dev/null 2>&1
+check_contains 'a signed entry is written over the published feed' \
+  'sparkle:edSignature="c2ln"' "$(cat "$tmp/site/appcast.xml")"
+check_contains 'with the entries that were already there' \
+  '<item>0.2.9</item>' "$(cat "$tmp/site/appcast.xml")"
+
 # --- What the script does with all that, end to end --------------------------
 #
 # A throwaway checkout with the three version sites, a CHANGELOG, an
@@ -345,6 +466,7 @@ git -C "$repo" init -q 2>/dev/null || exit 1
 write_pbxproj "$repo/Kiteloop/Kiteloop.xcodeproj/project.pbxproj" 0.3.0 0.3.0
 write_yml "$repo/Kiteloop/project.yml" 0.3.0
 printf '<plist/>\n' >"$repo/Kiteloop/Kiteloop/Kiteloop.entitlements"
+write_info_plist "$repo/Kiteloop/Kiteloop/Info.plist" 'https://example.test/appcast.xml' 'cHVibGlj'
 cat >"$repo/CHANGELOG.md" <<'CHANGELOG'
 # Changelog
 
@@ -398,6 +520,16 @@ check_lacks 'and says nothing about missing credentials' \
   'does not set' "$configured_out"
 check_contains 'a build that produced no app is reported as that, not as success' \
   'is not there' "$configured_out"
+
+# A tree that names no public key cannot ship an update at all, and says so
+# before it builds — the same reasoning as the credentials.
+write_info_plist "$repo/Kiteloop/Kiteloop/Info.plist" 'https://example.test/appcast.xml' ''
+keyless_out=$(KITELOOP_SIGN_IDENTITY='Developer ID Application: Someone' \
+  KITELOOP_NOTARY_PROFILE=kiteloop-notary run_release --output "$tmp/out")
+check_contains 'with credentials but no public key in the tree, the signed path refuses' \
+  'no SUPublicEDKey' "$keyless_out"
+check 'and starts no build' '' "$(cat "$calls")"
+write_info_plist "$repo/Kiteloop/Kiteloop/Info.plist" 'https://example.test/appcast.xml' 'cHVibGlj'
 
 # --expect is the tag as a fourth site. A mismatch is caught before the build for
 # the same reason.

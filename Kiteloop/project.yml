@@ -17,6 +17,10 @@ packages:
   Highlightr:
     url: https://github.com/raspu/Highlightr
     from: "2.2.1"
+  # In-app updates: reads the appcast, verifies and installs a new version.
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: "2.10.1"
   # The host-less core (KiteloopCore/Package.swift): code the app runs that
   # needs no app, with tests that run under `swift test` and no test host.
   KiteloopCore:
@@ -48,6 +52,7 @@ targets:
     dependencies:
       - package: Highlightr
       - package: KiteloopCore
+      - package: Sparkle
     # Signing lives in Signing.xcconfig, which includes the gitignored
     # Signing.local.xcconfig where a developer's own identity goes.
     configFiles:
@@ -60,7 +65,13 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: "ai.kasatkin.kiteloop$(KITELOOP_QA_SUFFIX)"
         INFOPLIST_GENERATION_MODE: GeneratedFile
         MARKETING_VERSION: "0.4.9"
-        CURRENT_PROJECT_VERSION: 1
+        # Sparkle orders releases by CFBundleVersion, so the build number is
+        # the version: one number to bump, and a newer release always compares
+        # newer.
+        CURRENT_PROJECT_VERSION: "$(MARKETING_VERSION)"
+        # The keys Xcode has no INFOPLIST_KEY_ for (Sparkle's feed and public
+        # key), merged into the generated Info.plist.
+        INFOPLIST_FILE: Kiteloop/Info.plist
         CODE_SIGN_ENTITLEMENTS: Kiteloop/Kiteloop.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_APP_SANDBOX: NO

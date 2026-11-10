@@ -35,36 +35,13 @@ private struct NewChatMenuButton: View {
     }
 }
 
-/// The app menu's **Check for Updates…**, right under About. It opens the
-/// notice first and asks GitHub second, so the window is there to show the
-/// checking state rather than appearing once the answer is already in.
+/// The app menu's **Check for Updates…**, right under About. Disabled while a
+/// check is already on screen, and in a copy that does not update itself.
 private struct CheckForUpdatesMenuButton: View {
-    @Environment(\.openWindow) private var openWindow
-    let service: UpdateCheckService
+    let updater: SoftwareUpdater
     var body: some View {
-        Button("Check for Updates…") {
-            openWindow(id: SoftwareUpdateView.windowID)
-            Task { await service.checkNow() }
-        }
-    }
-}
-
-/// The passive check at launch, which opens the notice only when there is
-/// something newer to say. A view of its own, sized to nothing, because
-/// `openWindow` is an environment value and has to be read where there is an
-/// environment to read it from.
-private struct PassiveUpdateCheck: View {
-    @Environment(\.openWindow) private var openWindow
-    let service: UpdateCheckService
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .task {
-                guard !UITestingSupport.isTesting else { return }
-                if await service.checkPassively() {
-                    openWindow(id: SoftwareUpdateView.windowID)
-                }
-            }
+        Button("Check for Updates…") { updater.checkForUpdates() }
+            .disabled(!updater.canCheckForUpdates)
     }
 }
 
@@ -76,7 +53,7 @@ struct KiteloopApp: App {
     @StateObject private var statusLine = StatusLineService()
     @State private var agentCatalogStore = AgentCatalogStore()
     @State private var globalConfigStore = GlobalConfigStore()
-    @State private var updateCheck = UpdateCheckService()
+    @State private var softwareUpdater = SoftwareUpdater()
     // One ledger for the whole app: the daily budget is portfolio-wide, so every
     // project's autopilot charges the same day and reads the same total.
     @State private var dailySpendLedger = DailySpendLedger()
@@ -273,14 +250,13 @@ struct KiteloopApp: App {
                     controlServer.start(port: KiteloopControlServer.resolvedPort(globalConfigStore.config.controlServerPort))
                 }
             }
-            .background(PassiveUpdateCheck(service: updateCheck))
         }
         .commands {
             CommandGroup(replacing: .newItem) {
                 NewChatMenuButton()
             }
             CommandGroup(after: .appInfo) {
-                CheckForUpdatesMenuButton(service: updateCheck)
+                CheckForUpdatesMenuButton(updater: softwareUpdater)
             }
             CommandGroup(after: .toolbar) {
                 OpenDiagnosticsMenuButton()
@@ -293,13 +269,6 @@ struct KiteloopApp: App {
             DiagnosticsView(registry: controlRegistry)
         }
         .defaultSize(width: 900, height: 500)
-
-        // Sized by its content: the notice is a sentence and a link, and a
-        // window a user can stretch to nothing around them helps nobody.
-        Window("Software Update", id: SoftwareUpdateView.windowID) {
-            SoftwareUpdateView(service: updateCheck)
-        }
-        .windowResizability(.contentSize)
 
         MenuBarExtra {
             MenuBarView(tracker: activeOrchestratorTracker)
@@ -316,6 +285,7 @@ struct KiteloopApp: App {
                 globalConfigStore: globalConfigStore,
                 agentCatalogStore: agentCatalogStore,
                 controlServer: controlServer,
+                softwareUpdater: softwareUpdater,
                 packageResolver: packageResolver
             )
         }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SUFeedURL</key>
+	<string>https://kasatkin.ai/kiteloop/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>sHwDwBWZAcO1hk2ZpU2qFmOGM1j23qvcM7bBm9jYqQc=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+</dict>
+</plist>

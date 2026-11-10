@@ -144,6 +144,8 @@ entry — see the changelog convention in `CLAUDE.md`.
 - The phone's chat draws an agent's Markdown — headings, bullet and numbered lists, quotes, code blocks, bold, italic, inline code and links — instead of showing the asterisks and fences as typed.
 
 #### Releases
+- Kiteloop updates itself. When a newer version is published it is offered in a window with its release notes, then downloaded, verified, installed and relaunched from there — no trip to the download page. It looks about once a day while the app runs, not only at launch, and Check for Updates… in the Kiteloop menu still looks whenever you choose it. With a run in flight, the relaunch asks the same question quitting does.
+- App Preferences has an "Automatically download updates" toggle beside "Automatically check for updates": with it on, a newer version is fetched without asking and installed the next time Kiteloop quits.
 - ./scripts/make-release.sh --install-local builds a Release copy signed with your Developer ID identity and installs it in /Applications without notarizing — the everyday copy for your own Mac, which keeps its macOS permissions between installs.
 
 ### Fixes
