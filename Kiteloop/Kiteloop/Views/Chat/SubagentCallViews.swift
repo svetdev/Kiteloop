@@ -316,12 +316,16 @@ struct TaskStatusLabel: View {
 // MARK: - Background strip
 
 /// `Background: 1 running · Run the tests` above the input while a background
-/// shell or subagent is up; nothing at all while none is.
+/// shell or subagent is up; nothing at all while none is. Its Stop menu names
+/// each running task — a subagent the turn is waiting on included — and stops
+/// that one, leaving the session and its other tasks going.
 struct BackgroundTasksStrip: View {
     let tasks: [AgentActivityEvent.BackgroundTask]
+    var running: [AgentActivity.TaskState] = []
+    var onStop: (String) -> Void = { _ in }
 
     var body: some View {
-        if let summary = AgentActivityDisplay.backgroundSummary(tasks) {
+        if let summary = AgentActivityDisplay.runningSummary(background: tasks, running: running) {
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
                 Text(summary)
@@ -330,6 +334,17 @@ struct BackgroundTasksStrip: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer()
+                if !running.isEmpty {
+                    Menu("Stop") {
+                        ForEach(running, id: \.taskID) { task in
+                            Button(task.description.isEmpty ? task.taskID : task.description) { onStop(task.taskID) }
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .font(.caption)
+                    .accessibilityIdentifier("background-tasks-stop")
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 4)

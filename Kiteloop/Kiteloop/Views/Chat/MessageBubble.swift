@@ -131,7 +131,7 @@ struct MessageBubble: View {
         case .systemEvent(let event):
             SystemEventDivider(event: event)
 
-        case .mcpAuthRequest, .plan:
+        case .mcpAuthRequest, .plan, .permission, .choices:
             EmptyView()
         }
     }

@@ -138,20 +138,22 @@ final class ClaudeCodeCLIRuntimeScopeTests: XCTestCase {
                        "no deny list of the app's own is added")
     }
 
-    /// A chat agent is spawned with its configured mode, its own denials and
-    /// prompts off. Nobody is asked at run time: the CLI enforces these.
-    func testAnAttendedSpawnKeepsTheAgentsModeAndDenials() {
+    /// A chat agent is spawned with its configured mode and its own denials,
+    /// and asks Kiteloop — over its own stdin and stdout — whatever a
+    /// terminal would ask its person.
+    func testAnAttendedSpawnKeepsTheAgentsModeAndDenialsAndAsksItsHost() {
         let agent = Agent(id: "chat", name: "Chat", model: "sonnet", systemPrompt: "",
                           tools: [], denied: [],
                           permissionMode: "default", state: .idle)
 
         XCTAssertEqual(ClaudeCodeCLIRuntime.permissionArguments(agent: agent, unattended: false),
-                       ["--permission-mode", "default", "--permission-prompts", "none"])
+                       ["--permission-mode", "default", "--permission-prompts", "host",
+                        "--permission-prompt-tool", "stdio"])
         var withDenials = agent
         withDenials.denied = ["WebSearch"]
         XCTAssertEqual(ClaudeCodeCLIRuntime.permissionArguments(agent: withDenials, unattended: false),
-                       ["--permission-mode", "default", "--permission-prompts", "none",
-                        "--disallowedTools", "WebSearch"])
+                       ["--permission-mode", "default", "--permission-prompts", "host",
+                        "--permission-prompt-tool", "stdio", "--disallowedTools", "WebSearch"])
     }
 
     func testBuildProfileScopeFromAgent() {
@@ -213,6 +215,31 @@ final class ClaudeCodeCLIRuntimeScopeTests: XCTestCase {
         XCTAssertEqual(args, ["--allowedTools", "Bash,Edit"])
     }
 
+    /// A session that asks approves none of the agent's built-in tools ahead
+    /// of time — the CLI asks about them as its mode says — and still
+    /// approves an MCP server's tools and a rule the agent spells out.
+    func testAnAskingSessionApprovesNoBareBuiltInTool() {
+        let scope = ResolvedToolScope(
+            effective: ["Bash", "Edit", "Read", "Bash(git status)", "mcp__docs__*"],
+            base: [], denied: [], contributions: [])
+
+        XCTAssertEqual(ClaudeCodeCLIRuntime.buildAllowedToolsArgs(from: scope, asking: true),
+                       ["--allowedTools", "Bash(git status),mcp__docs__*"])
+        XCTAssertEqual(ClaudeCodeCLIRuntime.buildAllowedToolsArgs(from: scope, asking: false),
+                       ["--allowedTools", "Bash,Bash(git status),Edit,Read,mcp__docs__*"])
+    }
+
+    /// With nothing but built-in tools there is no flag at all, and the
+    /// bridge's own tools still get one written for them.
+    func testAnAskingSessionOfBuiltInToolsWritesNoFlagUntilTheBridgeDoes() {
+        let scope = ResolvedToolScope(effective: ["Bash", "Edit"], base: [], denied: [], contributions: [])
+
+        var args = ClaudeCodeCLIRuntime.buildAllowedToolsArgs(from: scope, asking: true)
+        XCTAssertEqual(args, [])
+        ClaudeCodeCLIRuntime.allowTools(["mcp__kiteloop-tools__message_agent"], in: &args)
+        XCTAssertEqual(args, ["--allowedTools", "mcp__kiteloop-tools__message_agent"])
+    }
+
     func testMCPBridgeToolsReachAllowedToolsForNarrowedAgent() {
         let agent = Agent(
             name: "narrow",
@@ -262,7 +289,9 @@ final class ClaudeCodeCLIRuntimeScopeTests: XCTestCase {
         let mode = try XCTUnwrap(args.firstIndex(of: "--permission-mode"))
         XCTAssertEqual(args[mode + 1], "acceptEdits")
         let prompts = try XCTUnwrap(args.firstIndex(of: "--permission-prompts"))
-        XCTAssertEqual(args[prompts + 1], "none", "a --print session has nobody to answer a prompt")
+        XCTAssertEqual(args[prompts + 1], "host", "an attended session's prompts are Kiteloop's to answer")
+        let tool = try XCTUnwrap(args.firstIndex(of: "--permission-prompt-tool"))
+        XCTAssertEqual(args[tool + 1], "stdio", "and they travel on the session's own pipes")
         let allowed = try XCTUnwrap(args.firstIndex(of: "--allowedTools"))
         XCTAssertTrue(args[allowed + 1].contains("Read"))
         let denied = try XCTUnwrap(args.firstIndex(of: "--disallowedTools"))
@@ -270,7 +299,6 @@ final class ClaudeCodeCLIRuntimeScopeTests: XCTestCase {
 
         XCTAssertFalse(args.contains { $0.contains("kiteloop-permission") },
                        "no allow-list entry and no --mcp-config names a permission server")
-        XCTAssertFalse(args.contains("--permission-prompt-tool"))
     }
 
     /// Every session asks the CLI for its subagents' text and thinking, tagged

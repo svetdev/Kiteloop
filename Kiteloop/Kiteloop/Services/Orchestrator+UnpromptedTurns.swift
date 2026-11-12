@@ -29,6 +29,7 @@ extension Orchestrator {
     /// through here.
     func installSession(_ session: AgentSession, runtime: any AgentRuntime,
                         options: SessionOptions, for agentID: String) {
+        takeBackPermissionPrompts(for: agentID)
         sessions[agentID] = ManagedSession(session: session, runtime: runtime, options: options)
         let token = UUID()
         unpromptedTurns.sessionTokens[agentID] = token
@@ -38,6 +39,7 @@ extension Orchestrator {
                 self?.deliverUnpromptedTurn(UnpromptedTurn(events: events, sessionToken: token), for: agentID)
             }
         }
+        listenForPermissionPrompts(of: session, runtime: runtime, agentID: agentID)
     }
 
     /// Where `agentID`'s unprompted turns go — its chat, which shows them as

@@ -32,6 +32,101 @@ package struct Message: Identifiable, Codable {
         case error(String)
         case systemEvent(SystemEvent)
         case plan(PlanProposal)
+        case permission(PermissionRequest)
+        case choices(ChoiceQuestion)
+    }
+
+    /// A call the session stopped to ask leave for, as a terminal would, and
+    /// what was answered — nil while it waits, which has no limit. A card the
+    /// session no longer wants answered — the turn was interrupted, the
+    /// session ended — is `lapsed`.
+    package struct PermissionRequest: Identifiable, Codable, Equatable {
+        /// The id the CLI gave the request; the answer carries it back.
+        package let id: String
+        package let toolName: String
+        /// The call's input, a JSON object as text.
+        package let input: String
+        /// One line of what the call would do.
+        package let summary: String
+        /// The subagent whose call it is, in the words its task was given;
+        /// nil for the agent's own call.
+        package let subagent: String?
+        /// What the CLI offers to remember so it need not ask again.
+        package let suggestions: [PermissionSuggestion]
+        package var answer: Answer?
+
+        /// The request as one line: whose call it is, and what it would do.
+        package var question: String { subagent.map { "\($0) — \(summary)" } ?? summary }
+
+        package enum Answer: String, Codable {
+            case allowed
+            case allowedAlways
+            case denied
+            case lapsed
+        }
+
+        package init(id: String, toolName: String, input: String, summary: String, subagent: String? = nil,
+                     suggestions: [PermissionSuggestion] = [], answer: Answer? = nil) {
+            self.id = id
+            self.toolName = toolName
+            self.input = input
+            self.summary = summary
+            self.subagent = subagent
+            self.suggestions = suggestions
+            self.answer = answer
+        }
+    }
+
+    /// The questions the model put with the CLI's own `AskUserQuestion`, each
+    /// with the choices it offered, and what was answered — one answer per
+    /// question, in order; nil while it waits.
+    package struct ChoiceQuestion: Identifiable, Codable, Equatable {
+        /// The id the CLI gave the request; the answer carries it back.
+        package let id: String
+        /// The call's input, a JSON object as text: the answer is this with
+        /// the answers added.
+        package let input: String
+        package let questions: [Question]
+        package var answers: [String]?
+        /// True for a card the session no longer wants answered.
+        package var lapsed = false
+
+        package var isOpen: Bool { answers == nil && !lapsed }
+
+        /// Every question asked, one to a line.
+        package var text: String { questions.map(\.question).joined(separator: "\n") }
+
+        package struct Question: Codable, Equatable {
+            package let question: String
+            package let header: String
+            package let options: [Option]
+            package let multiSelect: Bool
+
+            package init(question: String, header: String = "", options: [Option] = [], multiSelect: Bool = false) {
+                self.question = question
+                self.header = header
+                self.options = options
+                self.multiSelect = multiSelect
+            }
+        }
+
+        package struct Option: Codable, Equatable {
+            package let label: String
+            package let description: String
+
+            package init(label: String, description: String = "") {
+                self.label = label
+                self.description = description
+            }
+        }
+
+        package init(id: String, input: String, questions: [Question], answers: [String]? = nil, lapsed: Bool = false) {
+            self.id = id
+            self.input = input
+            self.questions = questions
+            self.answers = answers
+            self.lapsed = lapsed
+        }
     }
 
     /// The plan a `plan`-mode agent wrote under `~/.claude/plans/` during a
@@ -40,6 +135,13 @@ package struct Message: Identifiable, Codable {
     package struct PlanProposal: Codable {
         package let text: String
         package var answer: Answer?
+        /// The CLI's request this plan was offered with (`ExitPlanMode`),
+        /// which the answer goes back to; nil for a plan read off the
+        /// transcript, and on a card saved before the request was kept.
+        package var requestID: String?
+        /// That request's input, a JSON object as text, handed back with an
+        /// approval; nil wherever `requestID` is.
+        package var requestInput: String?
 
         package enum Answer: String, Codable {
             case approveAuto
@@ -57,9 +159,11 @@ package struct Message: Identifiable, Codable {
             }
         }
 
-        package init(text: String, answer: Answer? = nil) {
+        package init(text: String, answer: Answer? = nil, requestID: String? = nil, requestInput: String? = nil) {
             self.text = text
             self.answer = answer
+            self.requestID = requestID
+            self.requestInput = requestInput
         }
     }
 
@@ -216,7 +320,7 @@ extension Message.Sender {
 
 extension Message.Content {
     private enum CodingKeys: String, CodingKey {
-        case type, value, toolCall, toolResult, approval, mcpAuthRequest, systemEvent, plan
+        case type, value, toolCall, toolResult, approval, mcpAuthRequest, systemEvent, plan, permission, choices
     }
 
     package func encode(to encoder: Encoder) throws {
@@ -239,6 +343,8 @@ extension Message.Content {
         switch self {
         case .systemEvent(let e):     try c.encode("systemEvent", forKey: .type);     try c.encode(e, forKey: .systemEvent)
         case .plan(let p):            try c.encode("plan", forKey: .type);            try c.encode(p, forKey: .plan)
+        case .permission(let r):      try c.encode("permission", forKey: .type);      try c.encode(r, forKey: .permission)
+        case .choices(let q):         try c.encode("choices", forKey: .type);         try c.encode(q, forKey: .choices)
         default:                      break
         }
     }
@@ -264,6 +370,8 @@ extension Message.Content {
         switch type {
         case "systemEvent":     .systemEvent(try c.decode(Message.SystemEvent.self, forKey: .systemEvent))
         case "plan":            .plan(try c.decode(Message.PlanProposal.self, forKey: .plan))
+        case "permission":      .permission(try c.decode(Message.PermissionRequest.self, forKey: .permission))
+        case "choices":         .choices(try c.decode(Message.ChoiceQuestion.self, forKey: .choices))
         default:                .text("[unknown]")
         }
     }

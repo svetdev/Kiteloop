@@ -199,3 +199,31 @@ Entry format:
 **Why:** A second mechanism deciding when the app may quit would have to agree with the first forever.
 **Evidence:** `AppDelegate.applicationShouldTerminate`, `FleetQuitPrompt`.
 **Status:** holds — not yet observed end to end; no release with Sparkle in it has been published.
+
+## [2026-11-10] An attended session's prompts are Kiteloop's to answer
+**Kind:** decision
+**What:** A chat agent's session is spawned with `--permission-prompts host --permission-prompt-tool stdio`, so what a terminal would ask — leave for a call, a subagent's included; the model's own questions; a plan — arrives as a `control_request` on its stdout and is answered on its stdin from a card in the chat. An unattended session keeps `--permission-prompts none`. Supersedes the "permissions are flags, not a conversation" rule for attended sessions.
+**Why:** With prompts off, a call that would have asked was refused where nobody saw it until the turn ended, a subagent's refusals never surfaced at all, and nothing could be allowed for good from the chat.
+**Evidence:** Probed against CLI 2.1.322: `host` alone still denies; with the stdio prompt tool the request arrives and `allow` / `deny` / `updatedPermissions` are honoured, `agent_id` names a subagent's task, `AskUserQuestion` takes `updatedInput.answers`, `ExitPlanMode` takes a `setMode` with its approval, and an interrupt sends `control_cancel_request`. `Runtime/PermissionPrompt.swift`, `Services/PermissionCards.swift`.
+**Status:** holds
+
+## [2026-11-10] An open prompt waits; nothing times it out
+**Kind:** rule
+**What:** A permission, choices or plan card stays open until it is answered on the Mac or a phone, or the session takes the question back. No timeout answers it, and the chat's ten-minute silence watchdog does not count a session stopped on a card as hung.
+**Why:** A deadline that denies is a decision made for the person by a clock, and one that allows is worse; the agent reading as waiting on you is the honest state.
+**Evidence:** `ChatViewModel.openPromptCount`, `runTurnWithWatchdog`; `PermissionCardsTests`.
+**Status:** holds
+
+## [2026-11-10] Prompts travel beside the turn, not inside it
+**Kind:** decision
+**What:** The runtime hands a session's prompts to one per-session listener (`AgentRuntime.permissionPrompts(of:)`) instead of yielding them into the turn's event stream; the orchestrator keeps the ids a session still waits on and takes them back when the session stops or is replaced, and a prompt for an agent with no chat is refused at once.
+**Why:** A subagent outlives the turn that started it and asks after that turn's `result`, when no turn is listening and everything else is dropped; a prompt lost there stops the session for good.
+**Evidence:** `ClaudeCodeCLIRuntimePermissionPromptTests`, `Orchestrator+PermissionPrompts.swift`.
+**Status:** holds
+
+## [2026-11-10] The modes that promise to ask do not pre-approve the agent's tools
+**Kind:** decision
+**What:** An attended session in `default`, `acceptEdits` or `plan` is spawned with only the agent's MCP tools and spelled-out rules in `--allowedTools`; its built-in tools are the CLI's to ask about. `auto`, `dontAsk`, `bypassPermissions` and every unattended session keep the whole list approved. A mode change across the two groups replaces the process.
+**Why:** `--allowedTools` approves, so with the whole list passed an agent in Ask never asked before Bash or Edit — the mode's name was untrue. Auto is left alone because its users chose not to be asked, and the list keeps listed tools out of the classifier.
+**Evidence:** CLI 2.1.322 with no built-in tool approved: `default` reads without asking and asks before Write; `acceptEdits` writes and runs `touch` without asking and asks before `python3 -c`. `ClaudeCodeCLIRuntime.buildAllowedToolsArgs`, `Orchestrator.liveSessionTakes`.
+**Status:** holds

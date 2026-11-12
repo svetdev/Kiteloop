@@ -26,7 +26,7 @@ enum APICompatibility: Equatable {
     /// The control API this build calls — raised with the Mac's
     /// `ControlRouter.apiVersion` whenever an endpoint the phone calls is
     /// added or changes shape.
-    static let phoneVersion = 1
+    static let phoneVersion = 2
 
     static func judge(macVersion: Int?) -> APICompatibility {
         guard let macVersion, macVersion >= phoneVersion else { return .macOutdated }
@@ -253,6 +253,39 @@ struct AgentInfo: Decodable, Identifiable {
     var name: String?
     var model: String?
     var state: String?
+    /// The agent's permission mode, as stored: `auto`, `acceptEdits`, …
+    var mode: String?
+}
+
+/// The permission modes an agent can be moved to, as the Mac stores them,
+/// with the names its pickers give them.
+enum PermissionMode {
+    static let all: [(id: String, name: String)] = [
+        ("auto", "Auto"), ("acceptEdits", "Accept Edits"), ("plan", "Plan (read-only)"),
+        ("default", "Ask"), ("dontAsk", "Don't Ask"), ("bypassPermissions", "Bypass All"),
+    ]
+
+    /// The picker name of a stored mode; a mode this build has no name for
+    /// reads as itself.
+    static func name(_ id: String) -> String {
+        all.first { $0.id == id }?.name ?? id
+    }
+}
+
+struct AgentTasksReply: Decodable { var tasks: [AgentTaskInfo]? }
+/// A subagent or background shell an agent's session has running.
+struct AgentTaskInfo: Decodable, Identifiable, Equatable {
+    var id: String
+    /// `subagent`, `shell`, or the CLI's own name for another kind.
+    var kind: String?
+    var description: String?
+    var subagent: String?
+
+    /// What the row says: the words the task was started with, else its kind.
+    var title: String {
+        let words = (description ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return words.isEmpty ? (kind ?? id) : words
+    }
 }
 
 struct TranscriptReply: Decodable { var messages: [TranscriptMessage]? }
@@ -279,6 +312,10 @@ struct TranscriptMessage: Decodable, Identifiable {
     var plan: PlanState?
     /// On a `question` message: the request it answers, and whether it is open.
     var question: QuestionState?
+    /// On a `permission` message: the call waiting on leave to run.
+    var permission: PermissionState?
+    /// On a `choices` message: the model's questions and the options of each.
+    var choices: ChoicesState?
     /// On a file tool's `tool` message: the whole path it touched.
     var path: String?
     var listID: String { (id ?? UUID().uuidString) }
@@ -316,6 +353,38 @@ struct PlanState: Decodable {
 struct QuestionState: Decodable {
     var request: String?
     var open: Bool?
+}
+
+struct PermissionState: Decodable, Equatable {
+    var request: String?
+    var open: Bool?
+    var tool: String?
+    /// What an Always answer can remember, by position.
+    var always: [String]?
+    /// `allowed`, `allowedAlways`, `denied` or `lapsed`, once answered.
+    var answer: String?
+    /// The task of the subagent whose call it is; nil for the agent's own.
+    var subagent: String?
+}
+
+struct ChoicesState: Decodable, Equatable {
+    var request: String?
+    var open: Bool?
+    var questions: [ChoiceQuestionInfo]?
+    /// One per question, once answered.
+    var answers: [String]?
+}
+
+struct ChoiceQuestionInfo: Decodable, Equatable {
+    var question: String?
+    var header: String?
+    var multiSelect: Bool?
+    var options: [ChoiceOptionInfo]?
+}
+
+struct ChoiceOptionInfo: Decodable, Equatable {
+    var label: String?
+    var description: String?
 }
 
 struct ItemDetailReply: Decodable {

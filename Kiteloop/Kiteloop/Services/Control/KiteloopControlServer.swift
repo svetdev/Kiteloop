@@ -565,6 +565,7 @@ final class KiteloopControlServer {
              .workspaceChanges, .workspaceFile, .previewScreenshot,
              .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents,
              .interruptAgent, .answerAgentPlan, .answerAgentQuestion,
+             .answerAgentPermission, .answerAgentChoices, .setAgentMode, .listAgentTasks, .stopAgentTask,
              .listMemoryProposals, .approveMemoryProposal, .rejectMemoryProposal:
             return await teamRoute(route, req)
         case .listBacklog, .backlogItemDetail, .backlogItemDiff, .listTemplates,
@@ -645,6 +646,8 @@ final class KiteloopControlServer {
             return await agentsRoute(route, req)
         case .interruptAgent, .answerAgentPlan, .answerAgentQuestion:
             return agentSteeringRoute(route, req)
+        case .answerAgentPermission, .answerAgentChoices, .setAgentMode, .listAgentTasks, .stopAgentTask:
+            return await agentPromptRoute(route, req)
         case .listMemoryProposals:
             return await listMemoryProposals(project: req.query["project"])
         case .approveMemoryProposal:
@@ -665,6 +668,18 @@ final class KiteloopControlServer {
         case .messageAgent: return await messageAgent(body: req.body)
         case .agentTranscript: return agentTranscript(query: req.query)
         case .agentEvents: return agentEvents(query: req.query)
+        default: return Self.notThisArea(route)
+        }
+    }
+
+    /// What a session stops to ask, its mode, and the tasks it has running.
+    private func agentPromptRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
+        switch route {
+        case .answerAgentPermission: return answerAgentPermission(body: req.body)
+        case .answerAgentChoices: return answerAgentChoices(body: req.body)
+        case .setAgentMode: return await setAgentMode(body: req.body)
+        case .listAgentTasks: return listAgentTasks(query: req.query)
+        case .stopAgentTask: return stopAgentTask(body: req.body)
         default: return Self.notThisArea(route)
         }
     }
@@ -5003,7 +5018,8 @@ final class KiteloopControlServer {
             return .error("Project not open in Kiteloop: \(project)", status: 409)
         }
         let agents = entry.session.orchestrator.agents.map { agent -> [String: Any] in
-            ["id": agent.id, "name": agent.name, "model": agent.model, "state": agent.state.rawValue]
+            ["id": agent.id, "name": agent.name, "model": agent.model, "state": agent.state.rawValue,
+             "mode": agent.permissionMode]
         }
         return .json(["agents": agents])
     }
@@ -5206,6 +5222,86 @@ final class KiteloopControlServer {
             Self.announceResumedTurnEnd(vm, project: project, agent: agent, since: countBefore)
         }
         return .json(["agent": agent.id, "request": request])
+    }
+
+    /// Answers a permission card as its buttons do.
+    private func answerAgentPermission(body: Data) -> HTTPServer.Response {
+        let json = Self.jsonBody(body)
+        let target = agentTarget(json)
+        guard case .found(let entry, let agent) = target else { return target.refusal }
+        guard let request = json["request"] as? String, let answer = json["answer"] as? String,
+              ["allow", "always", "deny"].contains(answer) else {
+            return .error("Body must include \"request\" and \"answer\": allow, always or deny", status: 400)
+        }
+        let remembering = answer == "always" ? json["always"] as? Int ?? 0 : nil
+        let vm = entry.session.chatViewModel(for: agent.id)
+        guard vm.answerPermission(requestID: request, allow: answer != "deny", remembering: remembering) else {
+            return .error("No open permission card \(request) to answer that way — answered already, taken back, "
+                + "or it offers nothing at that position", status: 409)
+        }
+        return .json(["agent": agent.id, "request": request, "answer": answer])
+    }
+
+    /// Answers the model's own questions, one answer each.
+    private func answerAgentChoices(body: Data) -> HTTPServer.Response {
+        let json = Self.jsonBody(body)
+        let target = agentTarget(json)
+        guard case .found(let entry, let agent) = target else { return target.refusal }
+        guard let request = json["request"] as? String, let answers = json["answers"] as? [String] else {
+            return .error("Body must include \"request\" and \"answers\", one per question", status: 400)
+        }
+        guard entry.session.chatViewModel(for: agent.id).answerChoices(requestID: request, answers: answers) else {
+            return .error("No open questions card \(request) those answers fit — answered already, taken back, "
+                + "or they do not number its questions or one is blank", status: 409)
+        }
+        return .json(["agent": agent.id, "request": request])
+    }
+
+    /// Moves the agent to a permission mode, as `/mode` does in its chat.
+    private func setAgentMode(body: Data) async -> HTTPServer.Response {
+        let json = Self.jsonBody(body)
+        let target = agentTarget(json)
+        guard case .found(let entry, let agent) = target else { return target.refusal }
+        guard let mode = json["mode"] as? String,
+              await entry.session.chatViewModel(for: agent.id).setPermissionMode(named: mode) else {
+            return .error("Body must include \"mode\": auto, acceptEdits, plan, default, dontAsk or bypassPermissions", status: 400)
+        }
+        let stored = entry.session.orchestrator.agents.first { $0.id == agent.id }?.permissionMode ?? mode
+        return .json(["agent": agent.id, "mode": stored])
+    }
+
+    /// The subagents and background shells the agent's session has running.
+    private func listAgentTasks(query: [String: String]) -> HTTPServer.Response {
+        let target = agentTarget(query)
+        guard case .found(let entry, let agent) = target else { return target.refusal }
+        let tasks = (entry.session.chatViewModels[agent.id]?.runningTasks ?? []).map { task -> [String: Any] in
+            var row: [String: Any] = ["id": task.taskID, "kind": Self.taskKindName(task.kind), "description": task.description]
+            if let subagent = task.subagentType { row["subagent"] = subagent }
+            return row
+        }
+        return .json(["agent": agent.id, "tasks": tasks])
+    }
+
+    private static func taskKindName(_ kind: AgentTaskKind) -> String {
+        switch kind {
+        case .subagent: "subagent"
+        case .backgroundShell: "shell"
+        case .other(let name): name
+        }
+    }
+
+    /// Stops one running task and leaves the session going.
+    private func stopAgentTask(body: Data) -> HTTPServer.Response {
+        let json = Self.jsonBody(body)
+        let target = agentTarget(json)
+        guard case .found(let entry, let agent) = target else { return target.refusal }
+        guard let task = json["task"] as? String else {
+            return .error("Body must include \"task\"", status: 400)
+        }
+        guard entry.session.chatViewModel(for: agent.id).stopTask(task) else {
+            return .error("No running task \(task) in this agent's session", status: 409)
+        }
+        return .json(["agent": agent.id, "task": task])
     }
 
     /// How many of the newest messages a transcript read answers and an event

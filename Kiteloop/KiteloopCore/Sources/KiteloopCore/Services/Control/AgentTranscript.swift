@@ -33,9 +33,35 @@ package enum AgentTranscript {
             return ("plan", state)
         case .approval(let request) where request.tool == "ask_human":
             return ("question", ["request": request.id, "open": request.status == .pending])
+        case .permission(let request):
+            return ("permission", permissionState(request))
+        case .choices(let asked):
+            return ("choices", choicesState(asked))
         default:
             return nil
         }
+    }
+
+    /// A permission card: the request to answer, whether it still waits, what
+    /// was answered, and what an Always answer would remember — by position,
+    /// which is how the answer endpoint names one.
+    private static func permissionState(_ request: Message.PermissionRequest) -> [String: Any] {
+        var state: [String: Any] = ["request": request.id, "open": request.answer == nil, "tool": request.toolName,
+                                    "always": request.suggestions.map(\.label)]
+        if let answer = request.answer { state["answer"] = answer.rawValue }
+        if let subagent = request.subagent { state["subagent"] = subagent }
+        return state
+    }
+
+    /// A card of the model's own questions: each with its choices, and the
+    /// answers once given, one per question.
+    private static func choicesState(_ asked: Message.ChoiceQuestion) -> [String: Any] {
+        var state: [String: Any] = ["request": asked.id, "open": asked.isOpen, "questions": asked.questions.map { question in
+            ["question": question.question, "header": question.header, "multiSelect": question.multiSelect,
+             "options": question.options.map { ["label": $0.label, "description": $0.description] }] as [String: Any]
+        }]
+        if let answers = asked.answers { state["answers"] = answers }
+        return state
     }
 
     private static func senderName(_ sender: Message.Sender) -> String {
@@ -63,17 +89,20 @@ package enum AgentTranscript {
         switch content {
         case .error(let e): return ("error", e)
         case .systemEvent(let event): return ("system", event.detail)
-        case .plan, .approval: return cardText(content)
+        case .plan, .approval, .permission, .choices: return cardText(content)
         case .toolResult, .mcpAuthRequest, .image, .text, .thinking, .toolCall: return nil
         }
     }
 
-    /// A card the phone can answer: a plan, or a question an agent asked.
+    /// A card the phone can answer: a plan, a question an agent asked, a call
+    /// waiting on leave to run, or the model's own questions with choices.
     /// An approval for any other tool is left out.
     private static func cardText(_ content: Message.Content) -> (String, String)? {
         switch content {
         case .plan(let plan): return ("plan", plan.text)
         case .approval(let request) where request.tool == "ask_human": return ("question", request.action)
+        case .permission(let request): return ("permission", request.question)
+        case .choices(let asked): return ("choices", asked.text)
         default: return nil
         }
     }

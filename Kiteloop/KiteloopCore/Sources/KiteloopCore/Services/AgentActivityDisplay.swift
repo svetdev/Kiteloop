@@ -98,6 +98,18 @@ package enum AgentActivityDisplay {
         return names.isEmpty ? head : ([head] + names).joined(separator: " · ")
     }
 
+    /// The strip's line when what runs is not in the background list — a
+    /// subagent the turn itself is waiting on — so each still has a row to be
+    /// stopped from: `Running: 2 · Review the diff · Run the tests`. The
+    /// background line when there is one; nil when nothing runs.
+    package static func runningSummary(background: [AgentActivityEvent.BackgroundTask],
+                                       running: [AgentActivity.TaskState]) -> String? {
+        if let summary = backgroundSummary(background) { return summary }
+        guard !running.isEmpty else { return nil }
+        let names = running.map(\.description).filter { !$0.isEmpty }
+        return (["Running: \(running.count)"] + names).joined(separator: " · ")
+    }
+
     /// The system line a rate-limit notice earns, or nil.
     ///
     /// The CLI sends one of these as a matter of course, with `allowed`; that

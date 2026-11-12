@@ -31,7 +31,7 @@ All app code lives under `Kiteloop/` (the Xcode project directory):
 
 - **Agent lifecycle:** Template → Agent → Session (CLI process). Agents persist across messages.
 - **Tool bridge:** Named pipes (FIFOs) for MCP tool calls between Claude Code and Kiteloop
-- **Permissions:** spawn flags — `--permission-mode` (default `auto`), `--permission-prompts none`
+- **Permissions:** spawn flags — `--permission-mode` (default `auto`), `--permission-prompts host`/`none`
 - **Subprocess seam:** every child the app runs to completion goes through
   `SubprocessOutput` → `SubprocessRunning` (`Kiteloop/KiteloopCore/Sources/KiteloopCore/Services/SubprocessOutput.swift`);
   a test installs `ScriptedSubprocessRunner` (`KiteloopTestSupport`) via

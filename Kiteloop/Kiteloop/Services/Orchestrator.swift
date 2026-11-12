@@ -73,6 +73,9 @@ class Orchestrator {
     /// Who takes the turns each agent's session starts on its own. See
     /// `Orchestrator+UnpromptedTurns.swift`.
     let unpromptedTurns = UnpromptedTurnRouter()
+    /// Who answers what each agent's session stops to ask. See
+    /// `Orchestrator+PermissionPrompts.swift`.
+    let permissionPrompts = PermissionPromptRouter()
     /// Asked before a workflow node is activated; `false` leaves it unactivated.
     ///
     /// Nil by default — a workflow with no gate runs every node it transitions
@@ -442,7 +445,7 @@ class Orchestrator {
     /// are chatted with between runs, through this same call, and a session a
     /// human is typing into is one this decision leaves alone.
     func sessionOptions(for agentID: String) -> SessionOptions {
-        SessionOptions(unattended: unattendedAgentIDs.contains(agentID))
+        options(unattended: unattendedAgentIDs.contains(agentID), for: agentID)
     }
 
     /// Whether this agent's live session was started for an unattended run.
@@ -508,6 +511,7 @@ class Orchestrator {
     func stopAgent(_ agentID: String) {
         guard let managed = sessions.removeValue(forKey: agentID) else { return }
         managed.runtime.stop(session: managed.session)
+        takeBackPermissionPrompts(for: agentID)
         if let index = agents.firstIndex(where: { $0.id == agentID }) {
             agents[index].state = pendingQuestions.sessionEnded(agentID)
         }

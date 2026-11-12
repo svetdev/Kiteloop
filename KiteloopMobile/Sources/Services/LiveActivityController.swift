@@ -42,6 +42,10 @@ final class LiveActivityController {
         switch message.kind {
         case "question": return .init(working: false, status: "Waiting for your answer", line: text)
         case "plan": return .init(working: false, status: "Plan ready for you", line: String(text.prefix(120)))
+        case "permission" where message.permission?.open == true:
+            return .init(working: false, status: "Waiting for your permission", line: String(text.prefix(120)))
+        case "choices" where message.choices?.open == true:
+            return .init(working: false, status: "Waiting for your answer", line: String(text.prefix(120)))
         case "text" where message.sender != "you", "tool":
             return .init(working: current.working, status: current.status, line: String(text.prefix(120)))
         default: return nil

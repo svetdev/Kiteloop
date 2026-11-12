@@ -52,6 +52,17 @@ package enum ControlRoute: Equatable {
     case answerAgentPlan
     /// `POST /v1/agents/answer` — answer the question the agent is waiting on.
     case answerAgentQuestion
+    /// `POST /v1/agents/permission` — allow or refuse a call the session
+    /// stopped to ask leave for.
+    case answerAgentPermission
+    /// `POST /v1/agents/choices` — answer the model's own questions.
+    case answerAgentChoices
+    /// `POST /v1/agents/mode` — move the agent to a permission mode.
+    case setAgentMode
+    /// `GET /v1/agents/tasks` — the subagents and shells a session has running.
+    case listAgentTasks
+    /// `POST /v1/agents/tasks/stop` — stop one of them.
+    case stopAgentTask
     case backlogItemDetail
     case backlogItemDiff
     case listTemplates
@@ -140,7 +151,7 @@ package enum ControlRouter {
     /// whenever an endpoint the phone calls is added or changes shape — the
     /// same change that adds or edits a row in `KiteloopMobile/README.md` —
     /// and the phone's `APICompatibility.phoneVersion` raised with it.
-    package static let apiVersion = 1
+    package static let apiVersion = 2
 
     /// The route for a request, or `nil` when nothing matches (the server answers
     /// 404). A path that exists under another method is a miss like any other:
@@ -228,6 +239,11 @@ package enum ControlRouter {
         Row("GET", "/v1/preview/screenshot")    { _ in .previewScreenshot },
         Row("POST", "/v1/agents/plan")          { _ in .answerAgentPlan },
         Row("POST", "/v1/agents/answer")        { _ in .answerAgentQuestion },
+        Row("POST", "/v1/agents/permission")    { _ in .answerAgentPermission },
+        Row("POST", "/v1/agents/choices")       { _ in .answerAgentChoices },
+        Row("POST", "/v1/agents/mode")          { _ in .setAgentMode },
+        Row("GET",  "/v1/agents/tasks")         { _ in .listAgentTasks },
+        Row("POST", "/v1/agents/tasks/stop")    { _ in .stopAgentTask },
         Row("GET", "/v1/backlog/detail")        { _ in .backlogItemDetail },
         Row("GET", "/v1/backlog/diff")          { _ in .backlogItemDiff },
 

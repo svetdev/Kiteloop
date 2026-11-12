@@ -130,7 +130,7 @@ struct TerminalMessageRow: View {
         case .approval(let request): marked(TerminalStyle.replyMark, color: .orange) { plain("Approval: \(request.action)", color: .secondary) }
         case .toolResult(let result): ToolResultView(result: result)
         case .systemEvent(let event): SystemEventDivider(event: event)
-        case .toolCall, .mcpAuthRequest, .plan: EmptyView()
+        case .toolCall, .mcpAuthRequest, .plan, .permission, .choices: EmptyView()
         }
     }
 

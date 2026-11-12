@@ -188,10 +188,29 @@ class ChatViewModel {
         }
     }
 
-    /// The agent waits on you while either gate is open, so closing one
-    /// never releases the state while the other still holds it.
+    /// How many cards the session itself is stopped on — a call waiting on
+    /// leave to run, the model's own questions, a plan it offered
+    /// (`PermissionCards`). The session waits on each without limit, so while
+    /// there is one the agent reads as waiting on you.
+    private(set) var openPromptCount = 0 {
+        didSet {
+            guard (oldValue == 0) != (openPromptCount == 0) else { return }
+            reportAwaitingAnswer()
+        }
+    }
+
+    /// Whether the turn is stopped on something only a person can answer — a
+    /// question, an MCP access card, a card the session itself waits on —
+    /// which is idle time with a reason, however long it lasts.
+    private var isWaitingOnAnAnswer: Bool {
+        pendingHumanToolCallID != nil || pendingMCPAuthRequestID != nil || openPromptCount > 0
+    }
+
+    /// The agent waits on you while any gate is open, so closing one never
+    /// releases the state while another still holds it.
     private func reportAwaitingAnswer() {
-        orchestrator.setAwaitingAnswer(pendingHumanToolCallID != nil || hasOpenPlanCard, for: agentID)
+        orchestrator.setAwaitingAnswer(pendingHumanToolCallID != nil || hasOpenPlanCard || openPromptCount > 0,
+                                       for: agentID)
     }
     private(set) var pendingMCPAuthRequestID: String?
     private(set) var currentSession: ChatSession?
@@ -246,6 +265,9 @@ class ChatViewModel {
 
         orchestrator.setUnpromptedTurnHandler(for: agentID) { [weak self] turn in
             self?.receiveUnpromptedTurn(turn)
+        }
+        orchestrator.setPermissionPromptHandler(for: agentID) { [weak self] prompt in
+            self?.receivePermissionPrompt(prompt)
         }
 
         NotificationCenter.default.addObserver(
@@ -681,7 +703,7 @@ class ChatViewModel {
     }
 
     /// The permission modes `/mode <name>` switches between, as stored.
-    private static let permissionModes = ["auto", "acceptEdits", "plan", "default", "bypassPermissions"]
+    private static let permissionModes = ["auto", "acceptEdits", "plan", "default", "dontAsk", "bypassPermissions"]
 
     /// Bare `/mode`: the agent's permission mode by its picker name and the
     /// choices, without touching the agent.
@@ -691,14 +713,37 @@ class ChatViewModel {
             + " — /mode <name> to switch (\(choices))")
     }
 
-    /// Stores the mode `typed` names and restarts the agent on the session it
-    /// was in, so the conversation carries on under the new flag; an unknown
+    /// Stores the mode `typed` names and moves the agent to it; an unknown
     /// name is refused with the choices and changes nothing.
     private func switchPermissionMode(to typed: String) async {
-        guard let mode = Self.permissionMode(named: typed) else {
+        guard await setPermissionMode(named: typed) else {
             return postSystem("Unknown permission mode: **\(typed)**. Choose one of: "
                 + Self.permissionModes.joined(separator: ", "))
         }
+    }
+
+    /// Moves the agent to the mode `typed` names — its stored spelling or its
+    /// picker name. A session Kiteloop answers the prompts of takes the change
+    /// as it runs, mid-turn included, as a terminal's does — between modes
+    /// spawned on the same terms (`Orchestrator.liveSessionTakes`); any other
+    /// is restarted on the session it was in, so the conversation carries on
+    /// under the new flags. False, with nothing changed, for a name that is no
+    /// mode.
+    @discardableResult
+    func setPermissionMode(named typed: String) async -> Bool {
+        guard let mode = Self.permissionMode(named: typed) else { return false }
+        if runtimeKind == .claude, orchestrator.liveSessionTakes(mode: mode, for: agentID) {
+            orchestrator.updateAgent(id: agentID) { $0.permissionMode = mode }
+            orchestrator.sendControl(PermissionPrompt.setMode(mode, requestID: "mode-\(UUID().uuidString)"),
+                                     agentID: agentID)
+            postSystem("Permission mode set to: **\(SettingNames.permissionMode(mode))**")
+            return true
+        }
+        await restartInPermissionMode(mode)
+        return true
+    }
+
+    private func restartInPermissionMode(_ mode: String) async {
         let sessionID = project.loadConfig().agentSessionIDs?[agentName]
         orchestrator.stopAgent(agentID)
         orchestrator.updateAgent(id: agentID) { $0.permissionMode = mode }
@@ -1765,7 +1810,7 @@ class ChatViewModel {
                 guard let self, !Task.isCancelled else { return }
                 // Waiting on a human answer — a question or an MCP access
                 // card — is legitimate idle time, not a hang.
-                if self.pendingHumanToolCallID != nil || self.pendingMCPAuthRequestID != nil {
+                if self.isWaitingOnAnAnswer {
                     self.lastStreamEventAt = Date()
                     continue
                 }
@@ -1900,8 +1945,14 @@ class ChatViewModel {
     /// run of prose is one message the stream keeps editing, not a message per
     /// chunk, so this is what makes a partial answer visible.
     private func writeStreamedText(_ text: inout StreamingText) {
-        if let lastIndex = messages.indices.last {
-            messages[lastIndex].content = .text(text.current)
+        // The run being written is the agent's newest prose, which is the last
+        // message unless a card or a notice landed after it mid-sentence.
+        let own = Message.Sender.agent(agentID)
+        if let index = messages.lastIndex(where: { message in
+            guard case .text = message.content else { return false }
+            return message.sender == own && message.parentToolUseID == nil
+        }) {
+            messages[index].content = .text(text.current)
         }
         text.pendingFlush = false
     }
@@ -2188,7 +2239,10 @@ class ChatViewModel {
         if currentText.isEmpty && !payload.text.isEmpty {
             messages.append(.agentText(payload.text, agent: agentID))
         }
-        for denial in payload.permissionDenials {
+        // A call refused on its card already says so there; the line below is
+        // for one the session refused with nobody asked.
+        for denial in payload.permissionDenials
+        where !PermissionCards.wasRefusedOnACard(toolName: denial.toolName, detail: denial.detail, in: messages.suffix(200)) {
             messages.append(.permissionDenied(tool: denial.toolName, detail: denial.detail))
         }
         if let note = Self.turnStopNote(subtype: payload.subtype, numTurns: payload.numTurns) {
@@ -2256,9 +2310,37 @@ class ChatViewModel {
             messages.append(.systemEvent(.compaction, detail: "Context compacted — responses may drift from earlier context"))
         case "api_retry":
             appendRetryNotice(payload)
+        case "status":
+            followSessionMode(payload)
         default:
             applyActivityNotice(subtype: subtype, payload: payload)
         }
+    }
+
+    /// The session says which permission mode it is in whenever that changes
+    /// — a plan approved, a remembered "switch to Accept Edits", the model
+    /// entering plan mode by itself. The agent's stored mode follows, so the
+    /// picker, `/mode` and the next session say what the session is doing.
+    private func followSessionMode(_ payload: [String: Any]) {
+        guard let mode = payload["permissionMode"] as? String, Self.permissionModes.contains(mode),
+              mode != agentPermissionMode else { return }
+        orchestrator.updateAgent(id: agentID) { $0.permissionMode = mode }
+    }
+
+    /// The tasks the session has running beside the conversation — its
+    /// subagents and background shells — oldest first by id.
+    var runningTasks: [AgentActivity.TaskState] {
+        agentActivity.tasks.values.filter { $0.status == .running }.sorted { $0.taskID < $1.taskID }
+    }
+
+    /// Stops one running task of the session and leaves the rest of it
+    /// alone. False when no such task is running.
+    @discardableResult
+    func stopTask(_ taskID: String) -> Bool {
+        guard agentActivity.tasks[taskID]?.status == .running else { return false }
+        orchestrator.sendControl(PermissionPrompt.stopTask(taskID, requestID: "stop-\(UUID().uuidString)"),
+                                 agentID: agentID)
+        return true
     }
 
     /// The opening frame: which model actually answered and, from a CLI that
@@ -3944,9 +4026,14 @@ class ChatViewModel {
             if case .plan(let proposal) = message.content { return proposal.text }
             return nil
         }.first
-        guard let plan = PlanProposalDetector.plan(in: messages[turnStartIndex...],
-                                                   permissionMode: agentPermissionMode,
-                                                   basePlan: basePlan) else { return }
+        // A plan the session itself offered already has its card.
+        let offered = messages[turnStartIndex...].contains { message in
+            if case .plan(let plan) = message.content { return plan.requestID != nil }
+            return false
+        }
+        guard !offered, let plan = PlanProposalDetector.plan(in: messages[turnStartIndex...],
+                                                             permissionMode: agentPermissionMode,
+                                                             basePlan: basePlan) else { return }
         closeUnansweredPlanCards()
         messages.append(Message(id: UUID(), timestamp: .now, sender: .agent(agentID),
                                 content: .plan(Message.PlanProposal(text: plan))))
@@ -3976,8 +4063,13 @@ class ChatViewModel {
             plan.answer = .keepPlanning
             messages[idx].content = .plan(plan)
             closed = true
+            // A plan the session offered is a call it is stopped on: moving
+            // past the card has to say so, or the session waits for good.
+            if let requestID = plan.requestID {
+                orchestrator.answerPermissionPrompt(requestID, .deny(message: PermissionPrompt.declined), agentID: agentID)
+            }
         }
-        if closed { saveMessages() }
+        if closed { promptCardsChanged() }
     }
 
     /// Records the choice on the card, once. Approving switches the agent's
@@ -3986,6 +4078,7 @@ class ChatViewModel {
     /// Keep planning leaves the agent as it is, and sends what should change,
     /// if you said, as your message through the same queue.
     func answerPlan(messageID: UUID, with answer: Message.PlanProposal.Answer, feedback: String? = nil) async {
+        if answerOfferedPlan(messageID: messageID, with: answer, feedback: feedback) { return }
         guard let idx = messages.firstIndex(where: { $0.id == messageID }),
               case .plan(var plan) = messages[idx].content, plan.answer == nil else { return }
         plan.answer = answer
@@ -4001,6 +4094,83 @@ class ChatViewModel {
             pendingForwards.append(QueuedMessage(text: feedback, attachments: []))
         } else { return }
         if !isStreaming { await drainPendingForwards() }
+    }
+
+    // MARK: - Permission prompts
+
+    /// What the session stopped to ask, or a question it took back.
+    private func receivePermissionPrompt(_ prompt: PermissionPrompt.Line) {
+        switch prompt {
+        case .request(let request):
+            openPromptCard(request)
+        case .cancelled(let requestID):
+            if PermissionCards.lapse(requestID, in: &messages) { promptCardsChanged() }
+        }
+    }
+
+    /// The card for a request, and the notice that it waits: the wait has no
+    /// limit, so the card is written at once rather than at a turn boundary
+    /// that may never come.
+    private func openPromptCard(_ request: PermissionPrompt.Request) {
+        if request.toolName == PermissionCards.planTool { closeUnansweredPlanCards() }
+        let subagent = request.subagentTaskID.flatMap { agentActivity.tasks[$0]?.description }
+        let card = PermissionCards.card(for: request, subagent: subagent, agentID: agentID)
+        messages.append(card)
+        promptCardsChanged()
+        if let notice = PermissionCards.notice(for: card.content, agentName: agentName) {
+            orchestrator.notify(agentID: agentID, type: .question, title: notice.title, body: notice.body,
+                                projectPath: project.rootURL.path(percentEncoded: false))
+        }
+    }
+
+    /// After any card opened, was answered or lapsed: the count the agent's
+    /// state follows, the notices once nothing waits, and the chat on disk.
+    private func promptCardsChanged() {
+        openPromptCount = PermissionCards.openRequestIDs(in: messages).count
+        if openPromptCount == 0, pendingHumanToolCallID == nil, !hasOpenPlanCard {
+            orchestrator.resolveQuestionNotices(agentID: agentID)
+        }
+        saveMessages()
+    }
+
+    /// Allows or refuses the call on an open card; `remembering` names one of
+    /// the card's suggestions to keep with an allow. False when the card is
+    /// not open — answered already, or the session moved past it.
+    @discardableResult
+    func answerPermission(requestID: String, allow: Bool, remembering: Int? = nil) -> Bool {
+        let decision = allow
+            ? PermissionCards.allow(requestID, remembering: remembering, in: &messages)
+            : PermissionCards.deny(requestID, in: &messages)
+        return sendPromptAnswer(requestID, decision)
+    }
+
+    /// Answers the model's own questions on an open card, one answer each.
+    /// False when the card is not open or the answers do not fit it.
+    @discardableResult
+    func answerChoices(requestID: String, answers: [String]) -> Bool {
+        sendPromptAnswer(requestID, PermissionCards.answer(requestID, with: answers, in: &messages))
+    }
+
+    private func sendPromptAnswer(_ requestID: String, _ decision: PermissionPrompt.Decision?) -> Bool {
+        guard let decision else { return false }
+        orchestrator.answerPermissionPrompt(requestID, decision, agentID: agentID)
+        promptCardsChanged()
+        return true
+    }
+
+    /// Answers a plan the session itself offered, on the request it is
+    /// stopped on: approving lets it build in the chosen mode, in the same
+    /// turn and the same session; Keep planning hands back what should
+    /// change. False for a plan with no request, answered the older way.
+    private func answerOfferedPlan(messageID: UUID, with answer: Message.PlanProposal.Answer, feedback: String?) -> Bool {
+        let feedback = feedback?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard let offered = PermissionCards.answerPlan(messageID, with: answer, feedback: feedback, in: &messages) else {
+            return false
+        }
+        if let mode = answer.permissionMode {
+            orchestrator.updateAgent(id: agentID) { $0.permissionMode = mode }
+        }
+        return sendPromptAnswer(offered.requestID, offered.decision)
     }
 
     /// Answers the question the bubble carries, and only that one: a bubble the
@@ -4353,6 +4523,10 @@ class ChatViewModel {
         let loaded = sessionStore.loadMessageTail(for: session, limit: 500)
         messages = loaded.messages
         messagesLeftOutOfLoad = loaded.leftOut
+        // Whatever a chat on disk was still asking, it asked from a session
+        // that is gone.
+        PermissionCards.lapse(in: &messages)
+        openPromptCount = 0
         // A chat left with branches reopens on them; one without keeps the
         // fresh tree `quiesceForSessionChange` made and opens on main.
         if let saved = sessionStore.loadBranches(for: session) {

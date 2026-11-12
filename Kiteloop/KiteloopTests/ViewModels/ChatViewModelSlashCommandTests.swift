@@ -619,18 +619,45 @@ final class ChatViewModelSlashCommandTests: XCTestCase {
 
         XCTAssertEqual(vm.messages.filter { $0.sender == .system }.count, 1)
         XCTAssertTrue(messages(vm, containing: "**Permission mode:** Accept Edits"))
-        XCTAssertTrue(messages(vm, containing: "auto, acceptEdits, plan, default, bypassPermissions"))
+        XCTAssertTrue(messages(vm, containing: "auto, acceptEdits, plan, default, dontAsk, bypassPermissions"))
         XCTAssertNil(mock.lastSentMessage, "Bare /mode must not reach the runtime as a prompt")
         XCTAssertNil(mock.lastSessionOptions, "Bare /mode must not restart the agent")
         XCTAssertEqual(testAgent(in: orchestrator)?.permissionMode, "acceptEdits")
         XCTAssertEqual(vm.inputText, "")
     }
 
-    /// The restart resumes the session the last turn left behind, so the
-    /// spawn carries the new flag and the same conversation.
-    func testSlashModePlanOnAnAutoAgentRestartsItInPlanOnTheSameSession() async throws {
+    /// A running session takes the new mode as it is: one line on its control
+    /// channel, the same process, nothing restarted — between two modes that
+    /// both ask.
+    func testSlashModePlanOnAnAskingAgentMovesItsRunningSessionToPlan() async throws {
         let (vm, mock, orchestrator) = try await makeVMOverOrchestrator(events: replyEvents(sessionID: "s-mode"))
+        orchestrator.updateAgent(id: "test-agent") { $0.permissionMode = "acceptEdits" }
+        vm.inputText = "hello"
+        await vm.send()
+        mock.lastStartedAgent = nil
+
+        vm.inputText = "/mode plan"
+        await vm.send()
+
+        XCTAssertEqual(testAgent(in: orchestrator)?.permissionMode, "plan")
+        XCTAssertNil(mock.lastStartedAgent, "a running session is not restarted to change its mode")
+        XCTAssertEqual(mock.controlLines.count, 1)
+        let line = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(mock.controlLines[0].utf8)) as? [String: Any])
+        XCTAssertEqual((line["request"] as? [String: Any])?["subtype"] as? String, "set_permission_mode")
+        XCTAssertEqual((line["request"] as? [String: Any])?["mode"] as? String, "plan")
+        XCTAssertTrue(messages(vm, containing: "Permission mode set to: **Plan (read-only)**"))
+        XCTAssertEqual(mock.sentMessages.count, 1, "/mode must not reach the runtime as a prompt")
+    }
+
+    /// A session spawned in Auto has its agent's tools approved, which no line
+    /// on its control channel takes back: moving it to a mode that asks takes
+    /// a new process, on the same conversation, spawned to ask.
+    func testSlashModePlanOnAnAutoAgentRestartsItToAskOnTheSameSession() async throws {
+        let (vm, mock, orchestrator) = try await makeVMOverOrchestrator(events: replyEvents(sessionID: "s-mode"))
+        orchestrator.stopAgent("test-agent")
         orchestrator.updateAgent(id: "test-agent") { $0.permissionMode = "auto" }
+        try await orchestrator.startAgent("test-agent", cwd: tempDir)
+        XCTAssertEqual(mock.lastSessionOptions?.asksBeforeListedTools, false, "Auto keeps the agent's tools approved")
         vm.inputText = "hello"
         await vm.send()
         mock.lastStartedAgent = nil
@@ -640,6 +667,32 @@ final class ChatViewModelSlashCommandTests: XCTestCase {
         await vm.send()
 
         XCTAssertEqual(testAgent(in: orchestrator)?.permissionMode, "plan")
+        XCTAssertTrue(mock.controlLines.isEmpty, "the running session cannot be told to start asking")
+        XCTAssertNotNil(mock.lastStartedAgent, "so it is replaced")
+        XCTAssertEqual(mock.lastSessionOptions?.asksBeforeListedTools, true)
+        guard case .resume(let sessionID) = mock.lastStrategy else {
+            return XCTFail("The restart should resume the session, not start fresh")
+        }
+        XCTAssertEqual(sessionID, "s-mode")
+    }
+
+    /// An agent with no session running is started in the new mode on the
+    /// session the last turn left behind, so the spawn carries the new flag
+    /// and the same conversation.
+    func testSlashModePlanOnAStoppedAgentStartsItInPlanOnTheSameSession() async throws {
+        let (vm, mock, orchestrator) = try await makeVMOverOrchestrator(events: replyEvents(sessionID: "s-mode"))
+        orchestrator.updateAgent(id: "test-agent") { $0.permissionMode = "auto" }
+        vm.inputText = "hello"
+        await vm.send()
+        orchestrator.stopAgent("test-agent")
+        mock.lastStartedAgent = nil
+        mock.lastStrategy = nil
+
+        vm.inputText = "/mode plan"
+        await vm.send()
+
+        XCTAssertEqual(testAgent(in: orchestrator)?.permissionMode, "plan")
+        XCTAssertTrue(mock.controlLines.isEmpty, "there is no session to tell")
         let spawned = try XCTUnwrap(mock.lastStartedAgent, "/mode <name> should restart the agent")
         XCTAssertEqual(Array(ClaudeCodeCLIRuntime.permissionArguments(agent: spawned, unattended: false).prefix(2)),
                        ["--permission-mode", "plan"])
@@ -674,7 +727,7 @@ final class ChatViewModelSlashCommandTests: XCTestCase {
 
         XCTAssertEqual(testAgent(in: orchestrator)?.permissionMode, "default")
         XCTAssertTrue(messages(vm, containing: "Unknown permission mode: **nonsense**"))
-        XCTAssertTrue(messages(vm, containing: "auto, acceptEdits, plan, default, bypassPermissions"))
+        XCTAssertTrue(messages(vm, containing: "auto, acceptEdits, plan, default, dontAsk, bypassPermissions"))
         XCTAssertNil(mock.lastSessionOptions, "An unknown mode must not restart the agent")
         XCTAssertEqual(KiteloopProject(rootURL: tempDir).loadConfig().agentSessionIDs?["TestAgent"], "s-keep")
         XCTAssertEqual(mock.sentMessages.count, 1, "An unknown mode must not reach the runtime as a prompt")

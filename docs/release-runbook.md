@@ -163,11 +163,17 @@ repository** — a key that lands in a commit is a key to revoke.
    git tag -a "v$VERSION" -m "Kiteloop $VERSION" && git push origin "v$VERSION"
    ```
 
+   `origin` is the remote of a fresh clone; push to whichever remote
+   `git remote -v` shows for the public repository. Skipping this step still
+   publishes — `gh release create` makes the tag on GitHub itself — but that
+   tag is not annotated and is missing here until `git fetch --tags`.
+
 6. **Publish.** Create the GitHub Release from the tag with the zip you built
-   in step 4 and the version's `CHANGELOG.md` section as its notes:
+   in step 4 and the version's `CHANGELOG.md` section as its notes — the script
+   wrote that section to `dist/Kiteloop-<version>-notes.md`:
 
    ```bash
-   gh release create "v$VERSION" "dist/Kiteloop-$VERSION.zip" --title "Kiteloop $VERSION" --notes-file <notes.md>
+   gh release create "v$VERSION" "dist/Kiteloop-$VERSION.zip" --title "Kiteloop $VERSION" --notes-file "dist/Kiteloop-$VERSION-notes.md"
    ```
 
 7. **Publish the feed — after the zip, never before.** The feed names the zip's
@@ -210,6 +216,12 @@ question Cmd-Q does.
 The first release that carries Sparkle cannot be checked this way: no earlier
 copy knows how to update, so it is installed by hand, and the release after it
 is the first one a copy can fetch for itself.
+
+Installing by hand over an older copy needs no uninstall: quit Kiteloop, unzip
+the release, drag `Kiteloop.app` into Applications and choose Replace. Settings,
+agents and projects live outside the bundle and are kept. If the older copy was
+built locally rather than signed with the Developer ID, macOS sees a different
+app and asks once more for the privacy permissions it had granted.
 
 ### The copy on your own Mac
 

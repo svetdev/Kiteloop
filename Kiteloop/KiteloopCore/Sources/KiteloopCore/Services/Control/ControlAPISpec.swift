@@ -185,6 +185,7 @@ package enum ControlAPISpec {
              .workspaceChanges, .workspaceFile, .previewScreenshot,
              .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents,
              .interruptAgent, .answerAgentPlan, .answerAgentQuestion,
+             .answerAgentPermission, .answerAgentChoices, .setAgentMode, .listAgentTasks, .stopAgentTask,
              .listMemoryProposals, .approveMemoryProposal, .rejectMemoryProposal:
             return teamDetail(for: route)
         case .listBacklog, .backlogItemDetail, .backlogItemDiff,
@@ -355,6 +356,8 @@ package enum ControlAPISpec {
              .workspaceChanges, .workspaceFile, .previewScreenshot: return projectDetail(for: route)
         case .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents: return agentDetail(for: route)
         case .interruptAgent, .answerAgentPlan, .answerAgentQuestion: return agentSteeringDetail(for: route)
+        case .answerAgentPermission, .answerAgentChoices, .setAgentMode, .listAgentTasks, .stopAgentTask:
+            return agentPromptDetail(for: route)
         case .listMemoryProposals, .approveMemoryProposal, .rejectMemoryProposal: return memoryDetail(for: route)
         default:
             preconditionFailure("\(route) is not a team route")
@@ -588,8 +591,8 @@ package enum ControlAPISpec {
             id: "listAgents",
             summary: "List a project's agents",
             description: """
-            Every agent hired into the project — id, name, model and state \
-            (`idle`, `working`, `waitingForHuman`). The id is what the message \
+            Every agent hired into the project — id, name, model, state \
+            (`idle`, `working`, `waitingForHuman`) and permission mode. The id is what the message \
             and transcript endpoints take, though both accept the name too.
             """,
             query: [projectQuery(required: true)],
@@ -657,6 +660,146 @@ package enum ControlAPISpec {
                 errorStatus(400, "Missing ?project= or ?agent=."),
                 errorStatus(404, "No such agent in this project."),
                 errorStatus(409, "Project not open in Kiteloop.")
+            ]
+        )
+    }
+
+    /// What a session stops to ask, its mode, and the tasks it has running.
+    private static func agentPromptDetail(for route: ControlRoute) -> Detail {
+        switch route {
+        case .answerAgentPermission: return answerAgentPermissionDetail()
+        case .answerAgentChoices: return answerAgentChoicesDetail()
+        case .setAgentMode: return setAgentModeDetail()
+        case .listAgentTasks: return listAgentTasksDetail()
+        case .stopAgentTask: return stopAgentTaskDetail()
+        default:
+            preconditionFailure("\(route) is not an agent prompt route")
+        }
+    }
+
+    private static func answerAgentPermissionDetail() -> Detail {
+        return Detail(
+            id: "answerAgentPermission",
+            summary: "Allow or refuse a call an agent's session stopped to ask leave for",
+            description: """
+            A session that would prompt in a terminal — before a command that \
+            changes files, for a subagent's call — stops and waits, with no limit, \
+            on a `permission` card. This answers it as the card's buttons do: \
+            `allow` runs the call this once, `deny` refuses it and the agent stops \
+            to be told how to go on, and `always` allows it and has the session \
+            remember one of the card's `always` offers — named by its position, \
+            `always: 0` unless said otherwise.
+            """,
+            requestBody: agentTargetBody([
+                "request": described(string, "The card's request id, as the transcript gives it."),
+                "answer": described(string, "allow, always or deny."),
+                "always": described(integer, "With always: which of the card's offers to remember; default 0.")
+            ], required: ["request", "answer"]),
+            responses: [
+                Status(code: 200, description: "Answered; the session goes on.", schema: object([
+                    "agent": string, "request": string, "answer": string
+                ], required: ["agent", "request", "answer"])),
+                errorStatus(400, "A missing field, or an answer that is not one of the three."),
+                errorStatus(404, "No such agent in this project."),
+                errorStatus(409, "Project not open, or no such card is open — answered already, taken back, or it offers nothing at that position.")
+            ]
+        )
+    }
+
+    private static func answerAgentChoicesDetail() -> Detail {
+        return Detail(
+            id: "answerAgentChoices",
+            summary: "Answer the questions an agent put with choices",
+            description: """
+            The model's own questions arrive as a `choices` card: each question \
+            with the options it offers. `answers` carries one answer per question, \
+            in order — an option's label, several labels joined with ", " where \
+            the question takes several, or words of your own.
+            """,
+            requestBody: agentTargetBody([
+                "request": described(string, "The card's request id, as the transcript gives it."),
+                "answers": described(array(of: string), "One answer per question, in the card's order; none blank.")
+            ], required: ["request", "answers"]),
+            responses: [
+                Status(code: 200, description: "Answered; the session goes on.", schema: object([
+                    "agent": string, "request": string
+                ], required: ["agent", "request"])),
+                errorStatus(400, "Body is missing a field."),
+                errorStatus(404, "No such agent in this project."),
+                errorStatus(409, "Project not open, or no such card is open, or the answers do not number its questions or one is blank.")
+            ]
+        )
+    }
+
+    private static func setAgentModeDetail() -> Detail {
+        return Detail(
+            id: "setAgentMode",
+            summary: "Move an agent to a permission mode",
+            description: """
+            What `/mode <name>` does in the agent's chat. A running session takes \
+            the change as it works, mid-turn included; an agent whose session \
+            cannot is restarted on the same conversation.
+            """,
+            requestBody: agentTargetBody([
+                "mode": described(string, "auto, acceptEdits, plan, default, dontAsk or bypassPermissions.")
+            ], required: ["mode"]),
+            responses: [
+                Status(code: 200, description: "The agent is in that mode.", schema: object([
+                    "agent": string, "mode": string
+                ], required: ["agent", "mode"])),
+                errorStatus(400, "A missing field, or a mode that is not one of those."),
+                errorStatus(404, "No such agent in this project."),
+                errorStatus(409, "Project not open in Kiteloop.")
+            ]
+        )
+    }
+
+    private static func listAgentTasksDetail() -> Detail {
+        return Detail(
+            id: "listAgentTasks",
+            summary: "The subagents and background shells an agent's session has running",
+            description: """
+            What the session started beside the conversation and has not finished: \
+            each with the id `POST /v1/agents/tasks/stop` takes, its kind \
+            (`subagent`, `shell`, or the CLI's own name for another kind) and the \
+            words it was started with.
+            """,
+            query: [projectQuery(required: true),
+                    QueryParameter(name: "agent", required: true, schema: string, description: "Agent id or name.")],
+            responses: [
+                Status(code: 200, description: "The running tasks, oldest first.", schema: object([
+                    "agent": string,
+                    "tasks": array(of: object([
+                        "id": string, "kind": string, "description": string,
+                        "subagent": described(string, "A subagent's type, when it has one.")
+                    ], required: ["id", "kind", "description"]))
+                ], required: ["agent", "tasks"])),
+                errorStatus(400, "Missing ?project= or ?agent=."),
+                errorStatus(404, "No such agent in this project."),
+                errorStatus(409, "Project not open in Kiteloop.")
+            ]
+        )
+    }
+
+    private static func stopAgentTaskDetail() -> Detail {
+        return Detail(
+            id: "stopAgentTask",
+            summary: "Stop one subagent or background shell of an agent's session",
+            description: """
+            Stops the one task and leaves the session, and its other tasks, \
+            running — unlike `POST /v1/agents/interrupt`, which ends the turn. \
+            The agent is told the task was stopped.
+            """,
+            requestBody: agentTargetBody([
+                "task": described(string, "The task's id, as GET /v1/agents/tasks gives it.")
+            ], required: ["task"]),
+            responses: [
+                Status(code: 200, description: "The session was told to stop it.", schema: object([
+                    "agent": string, "task": string
+                ], required: ["agent", "task"])),
+                errorStatus(400, "Body is missing a field."),
+                errorStatus(404, "No such agent in this project."),
+                errorStatus(409, "Project not open, or no such task is running.")
             ]
         )
     }
@@ -2959,7 +3102,8 @@ package enum ControlAPISpec {
                 "id": string,
                 "name": string,
                 "model": string,
-                "state": described(string, "idle, working or waitingForHuman.")
+                "state": described(string, "idle, working or waitingForHuman."),
+                "mode": described(string, "The agent's permission mode: auto, acceptEdits, plan, default, dontAsk or bypassPermissions.")
             ], required: ["id", "name", "state"]))
         ], required: ["agents"]),
         "AgentMessage": object([
@@ -2974,14 +3118,30 @@ package enum ControlAPISpec {
             "messages": array(of: object([
                 "id": string,
                 "sender": described(string, "you, the agent's name, or system."),
-                "kind": described(string, "text, thinking, tool, error, system, plan or question."),
+                "kind": described(string, "text, thinking, tool, error, system, plan, question, permission or choices."),
                 "text": string,
                 "at": described(string, "ISO-8601."),
                 "path": described(string, "On a file tool's tool message: the whole path it touched."),
                 "plan": described(object(["open": bool, "answer": string], required: ["open"]),
                                   "On a plan: whether it waits, and the answer once chosen."),
                 "question": described(object(["request": string, "open": bool], required: ["request", "open"]),
-                                      "On a question: the request id to answer it with, and whether it waits.")
+                                      "On a question: the request id to answer it with, and whether it waits."),
+                "permission": described(object([
+                    "request": string, "open": bool, "tool": string,
+                    "always": described(array(of: string), "What an always answer can remember, by position."),
+                    "answer": described(string, "Once answered: allowed, allowedAlways, denied or lapsed."),
+                    "subagent": described(string, "The task of the subagent whose call it is; absent for the agent's own.")
+                ], required: ["request", "open", "tool", "always"]),
+                                        "On a permission: the call waiting on leave to run."),
+                "choices": described(object([
+                    "request": string, "open": bool,
+                    "questions": array(of: object([
+                        "question": string, "header": string, "multiSelect": bool,
+                        "options": array(of: object(["label": string, "description": string], required: ["label", "description"]))
+                    ], required: ["question", "header", "multiSelect", "options"])),
+                    "answers": described(array(of: string), "Once answered: one per question.")
+                ], required: ["request", "open", "questions"]),
+                                     "On choices: the model's questions and the options each offers.")
             ], required: ["id", "sender", "kind", "text", "at"]))
         ], required: ["agent", "messages"]),
         "ItemDetail": object([

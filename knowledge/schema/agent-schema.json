@@ -72,7 +72,7 @@
         },
         "permissionMode": {
           "type": "string",
-          "enum": ["auto", "default", "plan", "acceptEdits", "bypassPermissions"],
+          "enum": ["auto", "default", "dontAsk", "plan", "acceptEdits", "bypassPermissions"],
           "default": "auto"
         },
         "effort": {

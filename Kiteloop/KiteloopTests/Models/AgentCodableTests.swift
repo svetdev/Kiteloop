@@ -315,8 +315,8 @@ final class AgentCodableTests: XCTestCase {
 
         XCTAssertEqual(agent.permissionMode, "auto")
         XCTAssertEqual(ClaudeCodeCLIRuntime.permissionArguments(agent: agent, unattended: false),
-                       ["--permission-mode", "auto", "--permission-prompts", "none",
-                        "--disallowedTools", "WebSearch"])
+                       ["--permission-mode", "auto", "--permission-prompts", "host",
+                        "--permission-prompt-tool", "stdio", "--disallowedTools", "WebSearch"])
     }
 
     /// An `agent.json` written before auto mode and the auto-approved list were

@@ -33,6 +33,9 @@ final class AgentsViewModel {
     /// The one-tap replies the Mac keeps; empty until a chat opens, or when
     /// they were cleared there.
     var quickReplies: [String] = []
+    /// The subagents and background shells the open agent's session has
+    /// running, as last read.
+    var tasks: [AgentTaskInfo] = []
     private var pollTask: Task<Void, Never>?
 
     /// How many of the newest messages the chat holds and the stream watches.
@@ -207,6 +210,50 @@ final class AgentsViewModel {
                    ["project": project, "agent": agent.id, "request": requestID, "answer": answer], client)
     }
 
+    /// Answers a permission card as the Mac's would: `allow` this once,
+    /// `deny`, or `always` — allow, and remember the card's offer at `always`.
+    func answerPermission(_ client: ControlClient, requestID: String, answer: String, always: Int? = nil) async {
+        guard let agent = chatAgent else { return }
+        var body: [String: Any] = ["project": project, "agent": agent.id, "request": requestID, "answer": answer]
+        if let always { body["always"] = always }
+        await post("/v1/agents/permission", body, client)
+    }
+
+    /// Answers the model's own questions, one answer each.
+    func answerChoices(_ client: ControlClient, requestID: String, answers: [String]) async {
+        guard let agent = chatAgent else { return }
+        await post("/v1/agents/choices",
+                   ["project": project, "agent": agent.id, "request": requestID, "answers": answers], client)
+    }
+
+    /// Moves the open agent to a permission mode, as `/mode` does on the Mac;
+    /// the list shows the new mode once the Mac has taken it.
+    func setMode(_ client: ControlClient, mode: String) async {
+        guard let agent = chatAgent else { return }
+        do {
+            let reply = try await client.post("/v1/agents/mode", ["project": project, "agent": agent.id, "mode": mode])
+            let stored = reply["mode"] as? String ?? mode
+            if let index = agents.firstIndex(where: { $0.id == agent.id }) { agents[index].mode = stored }
+            chatAgent?.mode = stored
+            sendFailure = nil
+        } catch {
+            sendFailure = NowViewModel.refusalText(error)
+        }
+    }
+
+    /// Stops one running task of the open agent's session and leaves the
+    /// rest of it going; the list is read again either way.
+    func stopTask(_ client: ControlClient, taskID: String) async {
+        guard let agent = chatAgent else { return }
+        do {
+            _ = try await client.post("/v1/agents/tasks/stop", ["project": project, "agent": agent.id, "task": taskID])
+            sendFailure = nil
+        } catch {
+            sendFailure = NowViewModel.refusalText(error)
+        }
+        await loadTasks(client)
+    }
+
     private func post(_ path: String, _ body: [String: Any], _ client: ControlClient) async {
         do {
             _ = try await client.post(path, body)
@@ -244,8 +291,16 @@ final class AgentsViewModel {
     }
 
 
-    // Last in the class: lizard reads `client.get(` as a `get` accessor and
-    // counts every function after this one into it.
+    // Last in the class, with `loadTranscript`: lizard reads `client.get(` as
+    // a `get` accessor and counts every function after one into it.
+    /// Reads what the open agent's session has running. A Mac that predates
+    /// the endpoint answers an error; the list is then empty, not stale.
+    func loadTasks(_ client: ControlClient) async {
+        guard let agent = chatAgent else { return }
+        let path = client.query("/v1/agents/tasks", [("project", project), ("agent", agent.id)])
+        tasks = (try? await client.get(path, as: AgentTasksReply.self).tasks) ?? []
+    }
+
     private func loadTranscript(_ client: ControlClient) async {
         guard let agent = chatAgent else { return }
         do {

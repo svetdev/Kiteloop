@@ -6,6 +6,28 @@ The version here is the app's `MARKETING_VERSION` (what `/health` reports and
 what the About panel shows). Every build that ships a behavioural change gets an
 entry — see the changelog convention in `CLAUDE.md`.
 
+## 0.5.0 — 2026-11-12
+
+### Added
+
+#### Chat
+- An agent you are chatting with now asks before a call that needs permission, the way Claude Code does in a terminal: a card in the chat offers Allow once, Deny, or an "Always allow…" choice that is remembered. It waits for your answer with no time limit, and the agent shows as waiting on you.
+- In Ask, an agent asks before each edit and command; in Accept Edits, before a command that is more than a file operation in the project; in Plan, before leaving the plan. Auto is unchanged: the agent's own tools run without asking, and a card appears only for what Auto would otherwise have refused.
+- A subagent's permission request reaches you too, on a card that names the subagent's task, instead of being refused out of sight.
+- When the agent asks a question with choices, the choices appear as a card you answer by picking — or by typing an answer of your own.
+- Approving a plan lets the same session build it straight away in the mode you choose; the agent is no longer restarted.
+- Project Settings lists the "Always allow…" rules the project's agents were told to remember, each with a Remove button.
+- `/mode <name>` changes a running agent's permission mode without restarting it, mid-turn included — between Ask, Accept Edits and Plan, or between Auto, Don't Ask and Bypass. A change from one group to the other restarts the agent on the same conversation.
+- The strip above the composer has a Stop menu that stops one running subagent or background shell and leaves the rest of the session going.
+- Permission modes: "Default" is now "Ask", since an attended agent asks; the new "Don't Ask" refuses whatever would ask, as "Default" used to.
+
+#### Autopilot
+- A project's Autopilot tab now carries its two fleet switches under the title: Paused, which until now was only on the fleet board, and Autonomous, moved out from behind the gear. A line beside them says what that leaves the project doing.
+
+#### Control API and phone
+- The phone app shows the same permission and choices cards and can answer them, change an agent's mode and stop a subagent. It needs the phone build that ships with this version.
+- `POST /v1/agents/permission`, `/v1/agents/choices`, `/v1/agents/mode` and `/v1/agents/tasks/stop`, and `GET /v1/agents/tasks`: answer a permission or choices card, change an agent's mode, and list or stop its running subagents from outside the app. The transcript carries `permission` and `choices` cards.
+
 ## 0.4.9 — 2026-11-10
 
 ### Added

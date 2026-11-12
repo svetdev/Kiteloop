@@ -234,7 +234,8 @@ struct CatalogTemplateEditor: View {
                         Text("Auto (Claude Code decides)").tag("auto")
                         Text("Accept Edits").tag("acceptEdits")
                         Text("Plan (read-only)").tag("plan")
-                        Text("Default (refuse what would ask)").tag("default")
+                        Text("Ask (before edits and commands)").tag("default")
+                        Text("Don't Ask (refuse what would ask)").tag("dontAsk")
                     }
                 }
 

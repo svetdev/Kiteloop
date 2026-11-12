@@ -666,7 +666,11 @@ final class ProjectSession {
                 onError?("Couldn't start \(agent.name): \(error.localizedDescription)")
                 return
             }
-            chatViewModels[agent.id] = makeChatViewModel(agentID: agent.id, projectURL: project.rootURL)
+            // A message sent the moment the hire answered has already made
+            // this agent's chat and is running a turn in it: that chat stays.
+            if chatViewModels[agent.id] == nil {
+                chatViewModels[agent.id] = makeChatViewModel(agentID: agent.id, projectURL: project.rootURL)
+            }
             // Skipped for API-hired agents so they don't yank the user's view
             // (e.g. off the Autopilot screen) to the new agent's chat.
             if select { selectedAgentID = agent.id }
@@ -781,7 +785,9 @@ final class ProjectSession {
                     onError?("Couldn't start \(agent.name): \(error.localizedDescription)")
                     return
                 }
-                chatViewModels[agent.id] = makeChatViewModel(agentID: agent.id, projectURL: projectURL)
+                if chatViewModels[agent.id] == nil {
+                    chatViewModels[agent.id] = makeChatViewModel(agentID: agent.id, projectURL: projectURL)
+                }
                 // A change on disk is not something the user asked to look at:
                 // select the newcomer only when nothing is selected.
                 if selectedAgentID == nil {

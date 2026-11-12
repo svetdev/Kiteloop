@@ -97,6 +97,25 @@ final class MockAgentRuntime: AgentRuntime, @unchecked Sendable {
         return turns
     }
 
+    /// Every `permissionPrompts(of:)` subscription, oldest first.
+    private(set) var promptListeners: [AsyncStream<PermissionPrompt.Line>.Continuation] = []
+    /// Every control line written to a session, in order — the answers a
+    /// prompt was given, a change of mode, a task stopped.
+    var controlLines: [String] = []
+
+    func permissionPrompts(of session: AgentSession) -> AsyncStream<PermissionPrompt.Line> {
+        let (prompts, continuation) = AsyncStream<PermissionPrompt.Line>.makeStream(bufferingPolicy: .unbounded)
+        promptListeners.append(continuation)
+        return prompts
+    }
+
+    func sendControl(_ line: String, to session: AgentSession) { controlLines.append(line) }
+
+    /// The session asks, or takes a question back, on the newest subscription.
+    func prompt(_ line: PermissionPrompt.Line) {
+        promptListeners.last?.yield(line)
+    }
+
     /// Starts a turn nobody sent — what the CLI does when background work it
     /// launched finishes — on the `listener`th subscription, the newest by
     /// default, replaying `events` at the pace a `send` does.

@@ -93,6 +93,7 @@ struct AutopilotView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            AutopilotFleetControls(autopilot: autopilot)
             Divider()
             gridContent
         }
@@ -231,9 +232,8 @@ struct AutopilotView: View {
         }
     }
 
-    /// The gear: the setup checklist and this project's opt-in, one click from
-    /// the run they govern, with the count of unmet rungs worn as a badge. The
-    /// run switches and the caps used to be here too — a popover holding
+    /// The gear: the setup checklist, one click from the run it governs, with
+    /// the count of unmet rungs worn as a badge. The run switches and the caps used to be here too — a popover holding
     /// fourteen switches, three caps and a five-rung ladder was a settings
     /// window attached to a button — and now live on the project's Autopilot
     /// settings page, which the popover opens in one click.
@@ -276,8 +276,9 @@ struct AutopilotView: View {
         return ladder + ". " + settings
     }
 
-    /// The ladder while the loops are wired to assess it, the opt-in, and the
-    /// way to the page with everything else.
+    /// The ladder while the loops are wired to assess it, and the way to the
+    /// page with everything else. The project's opt-in is a switch under the
+    /// title row now (`AutopilotFleetControls`).
     private func settingsPopover(rungs: [AutonomyLadder.Rung]?) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             if let rungs {
@@ -285,29 +286,10 @@ struct AutopilotView: View {
                     .accessibilityIdentifier("autopilot-autonomy-ladder")
                 Divider()
             }
-            autonomousWorkToggle
             settingsLink
         }
         .frame(width: 340)
         .accessibilityIdentifier("autopilot-settings-popover")
-    }
-
-    /// This project's consent to unattended work, kept here because it is the
-    /// switch a person flips while watching the fleet, not while setting the
-    /// project up. The same switch is on the settings page.
-    private var autonomousWorkToggle: some View {
-        Toggle(isOn: Binding(
-            get: { autopilot.autonomousWorkEnabled },
-            set: { autopilot.autonomousWorkEnabled = $0 }
-        )) {
-            Text("Include in autonomous work").font(.caption)
-        }
-        .toggleStyle(.switch)
-        .controlSize(.mini)
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .accessibilityIdentifier("autopilot-autonomous-work-toggle")
-        .help("Let the fleet pick this project up, and the Planner groom its backlog, when work is run unattended. Off: the project is never picked up autonomously — pressing Run here, or starting an item over the API, still works exactly as before.")
     }
 
     private var settingsLink: some View {

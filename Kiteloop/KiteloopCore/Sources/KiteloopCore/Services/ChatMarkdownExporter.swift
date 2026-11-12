@@ -97,7 +97,7 @@ package enum ChatMarkdownExporter {
         case .toolCall(let call): "- Tool call: `\(call.name)`"
         case .image: "_[image]_"
         case .systemEvent(let event): "_\(event.detail)_"
-        case .thinking, .toolResult, .approval, .mcpAuthRequest, .plan: nil
+        case .thinking, .toolResult, .approval, .mcpAuthRequest, .plan, .permission, .choices: nil
         }
     }
 }

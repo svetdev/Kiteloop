@@ -490,7 +490,7 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
         let auth = ClaudeAuthConfig.loadCurrent()
         process.environment = processEnvironment(agent: agent, auth: auth, cwd: cwd, unattended: options.unattended)
 
-        var args = Self.launchArguments(agent: agent, auth: auth, unattended: options.unattended)
+        var args = Self.launchArguments(agent: agent, auth: auth, options: options)
 
         let toolBridge = setupToolBridge(sessionID: sessionID, agent: agent)
 
@@ -572,18 +572,18 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
 
     /// The agent-derived CLI arguments: protocol, model, limits, permissions,
     /// tuning, tool scope, system prompt and workspace directory.
-    private static func launchArguments(agent: Agent, auth: ClaudeAuthConfig, unattended: Bool) -> [String] {
+    private static func launchArguments(agent: Agent, auth: ClaudeAuthConfig, options: SessionOptions) -> [String] {
         var args = streamProtocolArguments + [
             "--model", ModelCatalog.launchModel(for: agent.model, auth: auth),
             "--max-turns", maxTurnsArgument(for: agent),
         ]
-        args += permissionArguments(agent: agent, unattended: unattended)
+        args += permissionArguments(agent: agent, unattended: options.unattended)
         args += tuningArguments(for: agent)
         args += ["--include-hook-events"]
 
         let profileScope = buildProfileScope(from: agent)
         let resolvedScope = ToolScopeResolver.resolve(profile: profileScope, layers: [])
-        args += buildAllowedToolsArgs(from: resolvedScope)
+        args += buildAllowedToolsArgs(from: resolvedScope, asking: options.asksBeforeListedTools)
 
         args += appendedSystemPromptArguments(for: agent)
 
@@ -671,6 +671,16 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     /// its `result`. See `registerOrDefer`.
     private var deferredSends: [String: [DeferredSend]] = [:]
 
+    /// Per session: whoever answers its permission prompts. They are not part
+    /// of any turn's stream: a subagent still running after its turn's
+    /// `result` asks too, when no turn is listening.
+    private var promptListeners: [String: AsyncStream<PermissionPrompt.Line>.Continuation] = [:]
+
+    /// Per session: prompts that arrived before anyone listened, handed to
+    /// the first listener. The CLI waits on each without limit, so one
+    /// dropped here is a session stopped for good.
+    private var heldPrompts: [String: [PermissionPrompt.Line]] = [:]
+
     /// A send held back until the unprompted turn ends: the stream its turn
     /// will arrive on, and the stdin write that starts that turn.
     private struct DeferredSend {
@@ -716,6 +726,10 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
             lines = buffer.append(chunk)
         }
         for line in lines {
+            if let prompt = PermissionPrompt.line(line) {
+                deliverPrompt(prompt, sessionID: sessionID)
+                continue
+            }
             noteOpeningUsage(inLine: line, sessionID: sessionID)
             if let event = try? StreamEvent.parse(line) { deliver(event, sessionID: sessionID) }
         }
@@ -812,9 +826,12 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
         // A send still waiting on a turn that will now never end gets an
         // ended stream rather than one nothing will ever finish.
         let stranded = deferredSends.removeValue(forKey: sessionID) ?? []
+        let promptListener = promptListeners.removeValue(forKey: sessionID)
+        heldPrompts.removeValue(forKey: sessionID)
         lock.unlock()
         cont?.finish()
         listener?.continuation.finish()
+        promptListener?.finish()
         stranded.forEach { $0.continuation.finish() }
     }
 
@@ -1383,6 +1400,43 @@ extension ClaudeCodeCLIRuntime {
     }
 }
 
+// MARK: - Permission prompts
+
+extension ClaudeCodeCLIRuntime {
+    func permissionPrompts(of session: AgentSession) -> AsyncStream<PermissionPrompt.Line> {
+        let (prompts, continuation) = AsyncStream<PermissionPrompt.Line>.makeStream(bufferingPolicy: .unbounded)
+        let (replaced, held) = lock.withLock {
+            (promptListeners.updateValue(continuation, forKey: session.id),
+             heldPrompts.removeValue(forKey: session.id) ?? [])
+        }
+        replaced?.finish()
+        held.forEach { continuation.yield($0) }
+        return prompts
+    }
+
+    /// A prompt line off stdout goes to the session's listener, or waits for
+    /// one.
+    private func deliverPrompt(_ prompt: PermissionPrompt.Line, sessionID: String) {
+        let listener: AsyncStream<PermissionPrompt.Line>.Continuation? = lock.withLock {
+            if let listener = promptListeners[sessionID] { return listener }
+            heldPrompts[sessionID, default: []].append(prompt)
+            return nil
+        }
+        listener?.yield(prompt)
+    }
+
+    func sendControl(_ line: String, to session: AgentSession) {
+        let managed = lock.withLock { managedProcesses[session.id] }
+        guard let managed, managed.process.isRunning, let data = line.data(using: .utf8) else { return }
+        let stdinHandle = managed.stdinPipe.fileHandleForWriting
+        let sessionID = session.id
+        DispatchQueue.global(qos: .userInitiated).async {
+            Self.writeToChild(data, through: stdinHandle, label: "control", sessionID: sessionID,
+                              detail: "wrote a \(data.count)-byte control line to stdin")
+        }
+    }
+}
+
 // MARK: - Between turns
 
 extension StreamEvent {
@@ -1428,27 +1482,37 @@ extension ClaudeCodeCLIRuntime {
 
     /// The permission mode and the denied tools a session is spawned with.
     ///
-    /// These flags are the whole of it: the CLI decides every tool call from
-    /// the mode and the denied list it was spawned with, and Kiteloop is not
-    /// asked. An attended session runs in the agent's configured mode. An
+    /// An attended session runs in the agent's configured mode and asks
+    /// Kiteloop whatever a terminal would ask its person
+    /// (`--permission-prompts host`, over its own stdin and stdout —
+    /// `--permission-prompt-tool stdio`): see `PermissionPrompt`. An
     /// unattended one — an autopilot run's worker or reviewer, or a one-shot
-    /// helper — runs in `auto` mode, where Claude Code's classifier decides each
-    /// call. Every session carries `--permission-prompts none`: a `--print`
-    /// session has nobody to answer a prompt, so whatever would ask is refused.
-    /// The agent's own `denied` tools are refused in every mode. What bounds a
-    /// run beyond that is the worktree, the gate and a person.
+    /// helper — runs in `auto` mode, where Claude Code's classifier decides
+    /// each call, with `--permission-prompts none`: nobody is there to answer,
+    /// so whatever would ask is refused. The agent's own `denied` tools are
+    /// refused in every mode. What bounds a run beyond that is the worktree,
+    /// the gate and a person.
     static func permissionArguments(agent: Agent, unattended: Bool) -> [String] {
-        var args = ["--permission-mode", unattended ? "auto" : agent.permissionMode,
-                    "--permission-prompts", "none"]
+        var args = ["--permission-mode", unattended ? "auto" : agent.permissionMode]
+        args += unattended ? ["--permission-prompts", "none"]
+                           : ["--permission-prompts", "host", "--permission-prompt-tool", "stdio"]
         if !agent.denied.isEmpty {
             args += ["--disallowedTools", agent.denied.joined(separator: ",")]
         }
         return args
     }
 
-    static func buildAllowedToolsArgs(from scope: ResolvedToolScope) -> [String] {
-        guard !scope.effective.isEmpty else { return [] }
-        return ["--allowedTools", scope.effective.sorted().joined(separator: ",")]
+    /// The tools a session runs without asking: the agent's whole scope —
+    /// or, for a session that is `asking`
+    /// (`SessionOptions.asksBeforeListedTools`), only what in it is not a
+    /// bare built-in tool: an MCP server's tools, and a rule the agent spells
+    /// out, like `Bash(git status)`. A built-in tool is then the CLI's to ask
+    /// about as its mode says — Ask before an edit or a command, Accept Edits
+    /// before a command — and reading the project still needs no leave.
+    static func buildAllowedToolsArgs(from scope: ResolvedToolScope, asking: Bool = false) -> [String] {
+        let approved = asking ? scope.effective.filter { $0.hasPrefix("mcp__") || $0.contains("(") } : scope.effective
+        guard !approved.isEmpty else { return [] }
+        return ["--allowedTools", approved.sorted().joined(separator: ",")]
     }
 
     /// Appends a session's `--mcp-config` flags: the tool bridge's, then the

@@ -245,8 +245,9 @@ struct TranscriptView: NSViewRepresentable {
     }
 
     /// What transcript mode prints for a card: a plan's text, followed once
-    /// answered by what was chosen, or the question an agent asked. Nil for
-    /// every other message, a permission request included.
+    /// answered by what was chosen; the question an agent asked; a call that
+    /// waited on leave to run, and how it was answered; the model's own
+    /// questions, and the answers. Nil for every other message.
     static func cardText(for message: Message) -> String? {
         switch message.content {
         case .plan(let plan):
@@ -254,6 +255,11 @@ struct TranscriptView: NSViewRepresentable {
             return plan.text + "\n\n" + PlanCard.answeredLabel(answer)
         case .approval(let request) where request.tool == "ask_human":
             return request.action
+        case .permission(let request):
+            let asked = PermissionCard.title(for: request) + "\n\n" + request.summary
+            return request.answer.map { asked + "\n\n" + PermissionCard.answeredLabel($0) } ?? asked
+        case .choices(let asked):
+            return asked.answers.map { asked.text + "\n\n" + $0.joined(separator: "\n") } ?? asked.text
         default:
             return nil
         }

@@ -208,13 +208,18 @@ struct ProjectSettingsView: View {
                     Text("Auto (Claude Code decides)").tag("auto")
                     Text("Accept Edits").tag("acceptEdits")
                     Text("Plan (read-only)").tag("plan")
-                    Text("Default (refuse what would ask)").tag("default")
+                    Text("Ask (before edits and commands)").tag("default")
+                    Text("Don't Ask (refuse what would ask)").tag("dontAsk")
                     Text("Bypass All").tag("bypassPermissions")
                 }
                 .accessibilityIdentifier("project-settings-permission-mode-picker")
                 Text("Agents added to this project start in this mode, as do team agents that name none when the project next opens. An agent's own mode, once set, is kept. Chat only — an unattended run always uses auto mode.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+            }
+
+            Section("Remembered permissions") {
+                RememberedPermissionsList(projectRoot: project.rootURL)
             }
 
             Section("Budget") {

@@ -54,6 +54,25 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
         XCTAssertEqual(agent.model, "sonnet")
     }
 
+    /// The hire answers before the agent's process is up, and a driver may
+    /// message the agent at once. The chat that message makes and runs its
+    /// turn in is the agent's chat from then on — the hire finishing does not
+    /// put an empty one in its place, which left the turn in a chat nothing
+    /// read and the transcript blank.
+    func testAChatMadeByAMessageSentAtOnceIsKeptWhenTheHireFinishes() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let (_, body) = try await harness.post("/v1/agents", ["project": "alpha", "name": "Builder", "model": "sonnet"])
+        let agentID = try XCTUnwrap(body["agentId"] as? String)
+
+        let early = projectSession.chatViewModel(for: agentID)
+
+        try await eventually("the hire to finish starting the agent") { projectSession.orchestrator.hasSession(for: agentID) }
+        // One more turn of the main actor, for the hire's own continuation.
+        try await eventually("the hire's task to settle") { projectSession.chatViewModels[agentID] != nil }
+        await Task.yield()
+        XCTAssertTrue(projectSession.chatViewModels[agentID] === early)
+    }
+
     /// A driver that only knows the name it wants gets the app's defaults for
     /// everything else, and the response reports the model it actually got.
     func testHireWithoutModelUsesTheDefaultModelAndPermissionMode() async throws {

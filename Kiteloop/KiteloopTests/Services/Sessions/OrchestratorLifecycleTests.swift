@@ -456,14 +456,36 @@ final class OrchestratorLifecycleTests: XCTestCase {
         orchestrator.addAgent(makeAgent(id: "worker", name: "Worker"))
 
         try await orchestrator.startAgent("worker", cwd: tempDir)
-        XCTAssertEqual(runtime.startCalls.last?.options, SessionOptions(unattended: false),
-                       "A chat agent's spawn must be asked for on unchanged terms")
+        XCTAssertEqual(runtime.startCalls.last?.options, SessionOptions(unattended: false, asksBeforeListedTools: true),
+                       "A chat agent's spawn in the Ask mode must be asked for as attended, and to ask")
 
         orchestrator.setUnattended("worker", true)
         orchestrator.stopAgent("worker")
         try await orchestrator.startAgent("worker", cwd: tempDir)
         XCTAssertEqual(runtime.startCalls.last?.options, SessionOptions(unattended: true),
                        "A session started for a run must be asked for as unattended")
+    }
+
+    /// A chat session in a mode that promises to ask is spawned to ask; the
+    /// same agent taken over by a run is not — nobody is there to answer.
+    func testAChatSessionInAModeThatAsksIsSpawnedToAsk() async throws {
+        let runtime = RecordingRuntime()
+        let orchestrator = Orchestrator(runtime: runtime)
+        orchestrator.addAgent(makeAgent(id: "worker", name: "Worker"))
+        orchestrator.updateAgent(id: "worker") { $0.permissionMode = "acceptEdits" }
+
+        try await orchestrator.startAgent("worker", cwd: tempDir)
+        XCTAssertEqual(runtime.startCalls.last?.options,
+                       SessionOptions(unattended: false, asksBeforeListedTools: true))
+        XCTAssertTrue(orchestrator.liveSessionTakes(mode: "plan", for: "worker"), "another mode that asks, as it runs")
+        XCTAssertFalse(orchestrator.liveSessionTakes(mode: "auto", for: "worker"), "Auto approves the tools: a new process")
+
+        orchestrator.setUnattended("worker", true)
+        orchestrator.stopAgent("worker")
+        XCTAssertFalse(orchestrator.liveSessionTakes(mode: "plan", for: "worker"), "no session")
+        try await orchestrator.startAgent("worker", cwd: tempDir)
+        XCTAssertEqual(runtime.startCalls.last?.options, SessionOptions(unattended: true))
+        XCTAssertFalse(orchestrator.liveSessionTakes(mode: "auto", for: "worker"), "a run's session is not a chat's to move")
     }
 
     /// What a live session was started with, which autopilot reads to find the

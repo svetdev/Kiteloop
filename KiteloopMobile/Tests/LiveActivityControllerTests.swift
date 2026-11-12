@@ -26,6 +26,24 @@ final class LiveActivityControllerTests: XCTestCase {
         XCTAssertEqual(next?.working, false)
     }
 
+    func testAnOpenPermissionSaysTheTurnWaitsOnYouAndAnAnsweredOneSaysNothing() {
+        var asked = message("permission", "make test")
+        asked.message?.permission = PermissionState(request: "r", open: true, tool: "Bash")
+        let next = LiveActivityController.state(after: asked, current: working)
+        XCTAssertEqual(next?.status, "Waiting for your permission")
+        XCTAssertEqual(next?.line, "make test")
+        XCTAssertEqual(next?.working, false)
+
+        asked.message?.permission?.open = false
+        XCTAssertNil(LiveActivityController.state(after: asked, current: working), "the turn goes on; its own lines say so")
+    }
+
+    func testOpenChoicesSayTheTurnWaitsOnYourAnswer() {
+        var asked = message("choices", "Tea or coffee?")
+        asked.message?.choices = ChoicesState(request: "r", open: true)
+        XCTAssertEqual(LiveActivityController.state(after: asked, current: working)?.status, "Waiting for your answer")
+    }
+
     func testTheTurnEndingSaysDone() {
         let next = LiveActivityController.state(
             after: AgentEvent(type: "state", agent: "b1", working: false, message: nil), current: working)

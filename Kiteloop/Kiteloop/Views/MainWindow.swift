@@ -186,11 +186,12 @@ struct MainWindow: View {
                 name: project.rootURL.lastPathComponent,
                 path: project.rootURL.path(percentEncoded: false),
                 gatedItems: session.backlogViewModel.gatedItemsForDrawer,
-                // An agent holding an `ask_human` or an unanswered plan card —
-                // the same flags its chat draws the answer box and the card's
-                // buttons from, so the row goes the moment either is answered.
+                // An agent holding an `ask_human`, an unanswered plan card or
+                // a card its session is stopped on — the same flags its chat
+                // draws the answer box and the cards' buttons from, so the
+                // row goes the moment each is answered.
                 askingAgents: session.chatViewModels
-                    .filter { $0.value.pendingHumanToolCallID != nil || $0.value.hasOpenPlanCard }
+                    .filter { $0.value.pendingHumanToolCallID != nil || $0.value.hasOpenPlanCard || $0.value.openPromptCount > 0 }
                     .map { agentID, _ in
                         .init(id: agentID,
                               name: agents.first { $0.id == agentID }?.name ?? agentID)
@@ -1558,7 +1559,8 @@ struct MainWindow: View {
                     Text("Auto (Claude Code decides)").tag("auto")
                     Text("Accept Edits").tag("acceptEdits")
                     Text("Plan Mode (read-only)").tag("plan")
-                    Text("Default (refuse what would ask)").tag("default")
+                    Text("Ask (before edits and commands)").tag("default")
+                    Text("Don't Ask (refuse what would ask)").tag("dontAsk")
                     Text("Bypass All Permissions").tag("bypassPermissions")
                 }
                 .pickerStyle(.menu)
@@ -2420,6 +2422,7 @@ enum PortfolioSummaryLoader {
         let project = KiteloopProject(rootURL: URL(fileURLWithPath: projectPath))
         do {
             try project.setPaused(paused, goal: goal)
+            await MainActor.run { NotificationCenter.default.post(name: .projectParkingChanged, object: projectPath) }
             return true
         } catch {
             reporter.report(store: KiteloopProject.configStoreName, operation: .write,

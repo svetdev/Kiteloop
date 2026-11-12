@@ -84,6 +84,16 @@ final class AgentActivityDisplayTests: XCTestCase {
         XCTAssertNil(AgentActivityDisplay.backgroundSummary([]))
     }
 
+    func testAForegroundSubagentStillGetsAStripToBeStoppedFrom() {
+        let running = [AgentActivity.TaskState(taskID: "a", kind: .subagent, description: "Review the diff"),
+                       AgentActivity.TaskState(taskID: "b", kind: .subagent, description: "")]
+        XCTAssertEqual(AgentActivityDisplay.runningSummary(background: [], running: running), "Running: 2 · Review the diff")
+        let background = [AgentActivityEvent.BackgroundTask(taskID: "b", kind: .backgroundShell, description: "Run the tests")]
+        XCTAssertEqual(AgentActivityDisplay.runningSummary(background: background, running: running),
+                       "Background: 1 running · Run the tests", "the background line stands when there is one")
+        XCTAssertNil(AgentActivityDisplay.runningSummary(background: [], running: []))
+    }
+
     // MARK: - Thinking
 
     func testEmptyThinkingReadsItsEstimate() {

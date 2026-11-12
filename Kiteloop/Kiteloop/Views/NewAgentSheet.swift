@@ -151,7 +151,8 @@ struct NewAgentSheet: View {
                         Text("Auto (Claude Code decides)").tag("auto")
                         Text("Accept Edits").tag("acceptEdits")
                         Text("Plan").tag("plan")
-                        Text("Default").tag("default")
+                        Text("Ask").tag("default")
+                        Text("Don't Ask").tag("dontAsk")
                         Text("Bypass All").tag("bypassPermissions")
                     }
                     AvatarPickerField(selection: $avatar, projectURL: projectURL)

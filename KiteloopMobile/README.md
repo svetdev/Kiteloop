@@ -56,6 +56,11 @@ new.
 | POST | `/v1/agents/interrupt` | Chat | Stop: ends the agent's turn; what the Mac had queued comes back to the draft |
 | POST | `/v1/agents/plan` | Chat | A plan card's answer: build in Auto or Accept Edits, or keep planning with what should change |
 | POST | `/v1/agents/answer` | Chat | An answer to the question the agent stopped to ask |
+| POST | `/v1/agents/permission` | Chat | A permission card's answer: allow once, deny, or allow and remember one of its offers |
+| POST | `/v1/agents/choices` | Chat | Answers to the questions the agent put with choices, one each |
+| POST | `/v1/agents/mode` | Chat | The agent's permission mode, changed as `/mode` changes it on the Mac |
+| GET | `/v1/agents/tasks?project=&agent=` | Chat | The subagents and background shells the agent's session has running |
+| POST | `/v1/agents/tasks/stop` | Chat | Stop one of them and leave the session going |
 | POST | `/v1/agents` | Projects | Hire an agent into the project |
 | GET | `/v1/workspace/changes?project=` | Chat, Projects | What the agents have changed so far, before any gate |
 | GET | `/v1/workspace/file?project=&path=` | Chat, Projects | A file a tool line names, or a folder of the project, read-only |

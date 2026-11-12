@@ -94,6 +94,52 @@ final class AgentTranscriptTests: XCTestCase {
         XCTAssertEqual((flat["question"] as? [String: Any])?["open"] as? Bool, true)
     }
 
+    func testAPermissionCardFlattensWithItsRequestAndWhatAlwaysWouldRemember() throws {
+        let request = PermissionPrompt.Request(
+            id: "req-1", toolName: "Bash", input: #"{"command":"make test"}"#,
+            suggestions: [.init(label: "Always allow Bash(make test) in this project", json: "{}")])
+        var messages = [PermissionCards.card(for: request, subagent: "Run the tests", agentID: "Builder")]
+
+        let flat = try XCTUnwrap(AgentTranscript.message(messages[0]))
+        XCTAssertEqual(flat["kind"] as? String, "permission")
+        XCTAssertEqual(flat["text"] as? String, "Run the tests — make test")
+        let state = try XCTUnwrap(flat["permission"] as? [String: Any])
+        XCTAssertEqual(state["request"] as? String, "req-1")
+        XCTAssertEqual(state["open"] as? Bool, true)
+        XCTAssertEqual(state["tool"] as? String, "Bash")
+        XCTAssertEqual(state["subagent"] as? String, "Run the tests")
+        XCTAssertEqual(state["always"] as? [String], ["Always allow Bash(make test) in this project"])
+        XCTAssertNil(state["answer"])
+
+        var tracker = AgentTranscript.Tracker(messages: messages, after: nil)
+        XCTAssertNotNil(PermissionCards.deny("req-1", in: &messages))
+        let changed = try XCTUnwrap(tracker.changes(in: messages).first?["permission"] as? [String: Any])
+        XCTAssertEqual(changed["open"] as? Bool, false, "answering a card is a change the stream sends")
+        XCTAssertEqual(changed["answer"] as? String, "denied")
+    }
+
+    func testAChoicesCardFlattensWithItsQuestionsAndTheirOptions() throws {
+        let input = #"{"questions":[{"question":"Tea or coffee?","header":"Drink","multiSelect":false,"options":[{"label":"Tea","description":"Leaves"}]}]}"#
+        var messages = [PermissionCards.card(for: PermissionPrompt.Request(id: "req-2", toolName: "AskUserQuestion", input: input),
+                                             subagent: nil, agentID: "Builder")]
+
+        let flat = try XCTUnwrap(AgentTranscript.message(messages[0]))
+        XCTAssertEqual(flat["kind"] as? String, "choices")
+        XCTAssertEqual(flat["text"] as? String, "Tea or coffee?")
+        let state = try XCTUnwrap(flat["choices"] as? [String: Any])
+        XCTAssertEqual(state["request"] as? String, "req-2")
+        XCTAssertEqual(state["open"] as? Bool, true)
+        let question = try XCTUnwrap((state["questions"] as? [[String: Any]])?.first)
+        XCTAssertEqual(question["header"] as? String, "Drink")
+        XCTAssertEqual(question["multiSelect"] as? Bool, false)
+        XCTAssertEqual((question["options"] as? [[String: String]])?.first, ["label": "Tea", "description": "Leaves"])
+
+        XCTAssertNotNil(PermissionCards.answer("req-2", with: ["Tea"], in: &messages))
+        let answered = try XCTUnwrap(AgentTranscript.message(messages[0])?["choices"] as? [String: Any])
+        XCTAssertEqual(answered["open"] as? Bool, false)
+        XCTAssertEqual(answered["answers"] as? [String], ["Tea"])
+    }
+
     func testAFileToolCarriesItsWholePath() throws {
         let call = Message.ToolCall(id: "t1", name: "Edit", input: #"{"file_path":"/Users/me/project/src/ledger/refund.ts"}"#)
         let msg = Message(id: UUID(), timestamp: .now, sender: .agent("Builder"), content: .toolCall(call))

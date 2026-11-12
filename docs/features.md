@@ -19,6 +19,12 @@ Legend: `[x]` = implemented + tested, `[~]` = implemented, no test, `[ ]` = plan
 | [~] | Agent runtime protocol (spawn/stream/interrupt/stop) | `Runtime/AgentRuntime.swift` | — |
 | [~] | Session resumption (`--resume`) | `Runtime/ClaudeCodeCLIRuntime.swift` | — |
 | [~] | Session forking (`--fork-session`) | `Runtime/ClaudeCodeCLIRuntime.swift` | — |
+| [x] | Permission prompts read and answered on the session's own pipes (`control_request` / `control_response`): a call waiting on leave, a question taken back, mode change, one task stopped | `Runtime/PermissionPrompt.swift` | `Runtime/PermissionPromptTests.swift` |
+| [x] | Prompts routed to the session's listener, not a turn's stream — between turns and before anyone listens included | `Runtime/ClaudeCodeCLIRuntime.swift` | `Runtime/ClaudeCodeCLIRuntimePermissionPromptTests.swift` |
+| [x] | Permission cards: a call (allow once / always / deny), the model's questions with choices, an offered plan — open, answer once, lapse | `Services/PermissionCards.swift` | `Services/PermissionCardsTests.swift` |
+| [x] | A session's prompts become chat cards and the agent waits on you until answered; a subagent's call names its task; live `/mode`; stop one running task | `ViewModels/ChatViewModel.swift` | `ViewModels/ChatViewModelPermissionPromptTests.swift` |
+| [x] | Permission and choices cards in the chat | `Views/Chat/PermissionCard.swift` | `Views/PermissionCardTests.swift` |
+| [x] | Remembered "Always allow…" rules listed in Project Settings, each removable (the CLI's `.claude/settings.local.json`) | `Services/RememberedPermissions.swift` | `Services/RememberedPermissionsTests.swift` |
 | [x] | Context compaction (the CLI's `/compact` sent to the live session) | `ViewModels/ChatViewModel.swift` | `ViewModels/ChatViewModelSlashCommandTests.swift` |
 | [~] | Hook event capture (`--include-hook-events`) | `Runtime/ClaudeCodeCLIRuntime.swift` | — |
 

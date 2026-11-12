@@ -23,6 +23,11 @@ struct SessionOptions: Sendable, Equatable {
     /// whether the spawned CLI keeps its own memory — see
     /// `ClaudeCodeCLIRuntime.sessionEnvironment(_:unattended:)`.
     var unattended: Bool = false
+    /// True for a session whose mode promises to ask
+    /// (`PermissionPrompt.asksBeforeListedTools`) and that a person attends:
+    /// it is spawned without the agent's built-in tools approved ahead of
+    /// time. Fixed at spawn — the flag cannot be taken back from a process.
+    var asksBeforeListedTools: Bool = false
 }
 
 protocol AgentRuntime: Sendable {
@@ -46,6 +51,18 @@ protocol AgentRuntime: Sendable {
     /// Defaulted below to a stream that ends at once: a runtime that only
     /// answers what it is sent never starts a turn by itself.
     func unpromptedTurns(of session: AgentSession) -> AsyncStream<AsyncStream<StreamEvent>>
+    /// What `session` stops to ask — a call waiting on leave to run, the
+    /// model's own question, a plan — and each question it takes back. The
+    /// session waits on every one without limit; the stream ends with the
+    /// session. One listener at a time: a later call takes over.
+    ///
+    /// Defaulted below to a stream that ends at once: a runtime that never
+    /// asks has nothing to say.
+    func permissionPrompts(of session: AgentSession) -> AsyncStream<PermissionPrompt.Line>
+    /// Writes one line of the host's side of the control channel to `session`
+    /// — an answer to a prompt, a change of mode, a task to stop
+    /// (`PermissionPrompt`). Defaulted below to nothing.
+    func sendControl(_ line: String, to session: AgentSession)
 }
 
 extension AgentRuntime {
@@ -56,6 +73,12 @@ extension AgentRuntime {
     func unpromptedTurns(of session: AgentSession) -> AsyncStream<AsyncStream<StreamEvent>> {
         AsyncStream { $0.finish() }
     }
+
+    func permissionPrompts(of session: AgentSession) -> AsyncStream<PermissionPrompt.Line> {
+        AsyncStream { $0.finish() }
+    }
+
+    func sendControl(_ line: String, to session: AgentSession) {}
 
     func startSession(agent: Agent, cwd: URL) async throws -> AgentSession {
         try await startSession(agent: agent, cwd: cwd, strategy: .fresh)

@@ -162,6 +162,11 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/agents/interrupt` | Stop an agent's running turn, as the Mac's Stop button does |
 | POST | `/v1/agents/plan` | Answer a Plan-mode agent's plan card: build in a mode, or keep planning |
 | POST | `/v1/agents/answer` | Answer the question an agent stopped to ask |
+| POST | `/v1/agents/permission` | Allow or refuse a call an agent's session stopped to ask leave for |
+| POST | `/v1/agents/choices` | Answer the questions an agent put with choices |
+| POST | `/v1/agents/mode` | Move an agent to a permission mode, as `/mode` does in its chat |
+| GET | `/v1/agents/tasks?project=&agent=` | The subagents and background shells an agent's session has running |
+| POST | `/v1/agents/tasks/stop` | Stop one of them and leave the session running |
 | POST | `/v1/pair` | Trade the pairing QR's one-time code for a phone's own token (no auth) |
 | GET | `/v1/quick-replies` | The one-tap replies the phone offers above its chat composer |
 | POST | `/v1/devices/push` | Register a phone's push token, so the Mac can tell it when something happens |
@@ -222,7 +227,7 @@ curl -s http://127.0.0.1:4517/health
 {
   "status": "ok",
   "version": "0.1.0",
-  "apiVersion": 1,
+  "apiVersion": 2,
   "uptimeSeconds": 8412,
   "projectsOpen": 2,
   "activeRuns": 1,
@@ -2305,10 +2310,15 @@ curl -s -H "$H" "$B/agents?project=kiteloop"
 ```
 
 ```json
-{"agents": [{"id": "…", "name": "Planner", "model": "opus", "state": "idle"}]}
+{"agents": [{"id": "…", "name": "Planner", "model": "opus", "state": "idle", "mode": "auto"}]}
 ```
 
-`state` is `idle`, `working` or `waitingForHuman` — the agent asked a question (`ask_human`) that has not been answered yet.
+`state` is `idle`, `working` or `waitingForHuman` — the agent is stopped on
+something only you can answer: a question it asked (`ask_human`), a plan
+offered for approval, a call waiting on leave to run, or its own questions
+with choices. `mode` is the agent's permission mode as stored — `auto`,
+`acceptEdits`, `plan`, `default`, `dontAsk` or `bypassPermissions` — which
+[`POST /v1/agents/mode`](#post-v1agentsmode) changes.
 
 **Status:** 200 · 400 (missing `project`) · 409 (project not open)
 
@@ -2379,13 +2389,26 @@ curl -s -H "$H" "$B/agents/transcript?project=kiteloop&agent=Planner&limit=80"
   {"id": "…", "sender": "Planner", "kind": "text", "text": "…", "at": "2026-08-24T09:00:41Z"}]}
 ```
 
-`kind` is `text`, `thinking`, `tool`, `error`, `system`, `plan` or
-`question`. A `plan` is a Plan-mode agent's plan card and carries
+`kind` is `text`, `thinking`, `tool`, `error`, `system`, `plan`, `question`,
+`permission` or `choices`. A `plan` is a Plan-mode agent's plan card and carries
 `"plan": {"open": true}` until answered, then `"answer"` too
 (`approveAuto`, `approveAcceptEdits` or `keepPlanning`); answer it with
 [`POST /v1/agents/plan`](#post-v1agentsplan). A `question` is one an agent
 stopped to ask (`ask_human`) and carries `"question": {"request": "…",
 "open": true}`; answer it with [`POST /v1/agents/answer`](#post-v1agentsanswer).
+A `permission` is a call the session stopped to ask leave for, as a terminal
+would — its `text` is what the call would do, led by the subagent's task when
+the call is a subagent's — and carries `"permission": {"request": "…", "open":
+true, "tool": "Bash", "always": ["Always allow Bash(make test) in this
+project"]}`, with `"subagent"` when it is one's and, once answered, `"answer"`
+(`allowed`, `allowedAlways`, `denied`, or `lapsed` for one the session took
+back); answer it with [`POST /v1/agents/permission`](#post-v1agentspermission).
+A `choices` is the model's own questions, each with the options it offers:
+`"choices": {"request": "…", "open": true, "questions": [{"question": "…",
+"header": "…", "multiSelect": false, "options": [{"label": "…", "description":
+"…"}]}]}`, and `"answers"` once given; answer it with
+[`POST /v1/agents/choices`](#post-v1agentschoices). The session waits on a
+`plan`, `permission` or `choices` card with no limit.
 A file tool's `tool` message (Read, Edit, Write, MultiEdit, NotebookEdit)
 also carries `path`, the whole path it touched — the one-line `text` keeps only
 its last two components — for [`GET /v1/workspace/file`](#get-v1workspacefile).
@@ -2484,6 +2507,99 @@ curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","request":"<request 
 
 **Status:** 200 · 400 (missing field, blank answer) · 404 (no such agent) ·
 409 (project not open, or the agent is not waiting on that question)
+
+### POST /v1/agents/permission
+
+Answers a `permission` card — a call the agent's session stopped to ask leave
+for — the way the card's buttons on the Mac do. `allow` runs the call this
+once. `deny` refuses it, and the agent stops to be told how to go on. `always`
+allows it and has the session remember one of the card's `always` offers, so
+it does not ask again: `always` names the offer by its position in that list,
+`0` when left out. The session waits on the card until it is answered; an
+interrupted turn takes the question back, and the card reads `lapsed`.
+
+```bash
+curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","request":"<request id>","answer":"allow"}' $B/agents/permission
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `project`, `agent` | string | Required |
+| `request` | string | The card's `request` id from the transcript. Required |
+| `answer` | string | `allow`, `always` or `deny`. Required |
+| `always` | integer | With `always`: which offer to remember; default `0` |
+
+**Status:** 200 · 400 (missing field, unknown answer) · 404 (no such agent) ·
+409 (project not open, or no such card is open — answered already, taken
+back, or it offers nothing at that position)
+
+### POST /v1/agents/choices
+
+Answers a `choices` card: `answers` carries one answer per question, in the
+card's order — an option's `label`, several labels joined with `", "` where
+the question is `multiSelect`, or words of your own.
+
+```bash
+curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","request":"<request id>","answers":["Coffee"]}' $B/agents/choices
+```
+
+**Status:** 200 · 400 (missing field) · 404 (no such agent) · 409 (project not
+open, or no such card is open, or the answers do not number its questions or
+one is blank)
+
+### POST /v1/agents/mode
+
+Moves the agent to a permission mode — what `/mode <name>` does in its chat.
+`mode` is `auto`, `acceptEdits`, `plan`, `default`, `dontAsk` or
+`bypassPermissions`, or the name the Mac's picker gives one. A running session
+takes the change as it works, mid-turn included, when both modes ask before
+the agent's tools (`default`, `acceptEdits`, `plan`) or neither does (`auto`,
+`dontAsk`, `bypassPermissions`). A change across those two groups, and an
+agent with no session or one that cannot take it, is restarted on the same
+conversation — a turn in flight is cut short.
+
+```bash
+curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","mode":"acceptEdits"}' $B/agents/mode
+```
+
+```json
+{"agent": "…", "mode": "acceptEdits"}
+```
+
+**Status:** 200 · 400 (missing field, unknown mode) · 404 (no such agent) ·
+409 (project not open)
+
+### GET /v1/agents/tasks
+
+The subagents and background shells the agent's session has running, oldest
+first — what the strip above the Mac's composer names.
+
+```bash
+curl -s -H "$H" "$B/agents/tasks?project=kiteloop&agent=Builder"
+```
+
+```json
+{"agent": "…", "tasks": [
+  {"id": "a14f096d3c9cdb81f", "kind": "subagent", "description": "Run the tests", "subagent": "general-purpose"}]}
+```
+
+`kind` is `subagent`, `shell`, or the CLI's own name for another kind of task.
+
+**Status:** 200 · 400 (missing `project`/`agent`) · 404 (no such agent) ·
+409 (project not open)
+
+### POST /v1/agents/tasks/stop
+
+Stops one running task and leaves the session, and its other tasks, going —
+unlike [`POST /v1/agents/interrupt`](#post-v1agentsinterrupt), which ends the
+turn. The agent is told the task was stopped.
+
+```bash
+curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","task":"a14f096d3c9cdb81f"}' $B/agents/tasks/stop
+```
+
+**Status:** 200 · 400 (missing field) · 404 (no such agent) · 409 (project not
+open, or no such task is running)
 
 ### POST /v1/pair
 

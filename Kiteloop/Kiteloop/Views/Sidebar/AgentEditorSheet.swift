@@ -89,7 +89,8 @@ struct AgentEditorSheet: View {
                         Text("Auto (Claude Code decides)").tag("auto")
                         Text("Accept Edits").tag("acceptEdits")
                         Text("Plan (read-only)").tag("plan")
-                        Text("Default").tag("default")
+                        Text("Ask").tag("default")
+                        Text("Don't Ask").tag("dontAsk")
                         Text("Bypass All").tag("bypassPermissions")
                     }
                     .accessibilityIdentifier("agent-editor-permission-mode-picker")

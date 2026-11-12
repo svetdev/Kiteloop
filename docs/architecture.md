@@ -97,7 +97,7 @@ session be captured and replayed in tests without a model.
 ```
 claude --print --output-format stream-json --input-format stream-json --verbose \
        --model <resolved> --max-turns <derived> --permission-mode <mode> \
-       --permission-prompts none \
+       --permission-prompts host --permission-prompt-tool stdio \
        --allowedTools … [--disallowedTools …] --append-system-prompt <composed> \
        --mcp-config <tool bridge> [--resume <id>]
 ```
@@ -119,14 +119,28 @@ Three things about that command are structural:
 - **`ResumeStrategy`** (`.fresh`, `.resume`, `.fork`, `.compact`) is how an agent
   keeps its history across app restarts — the CLI session ids are persisted in
   the project's `config.json`.
-- **Permissions are flags, not a conversation.** `--permission-mode`,
-  `--permission-prompts none`, and the agent's `--allowedTools` and
-  `--disallowedTools` are the whole of it: the CLI decides every tool call from
-  them and Kiteloop is never asked at run time. An attended session runs in the
-  agent's configured mode — `auto` unless it names another, where Claude Code's
-  classifier decides each call; an unattended one always runs in `auto`, as
-  described below. With prompts off, a call that would have asked is refused.
-  The subprocess's stderr is read only for the CLI's own diagnostics.
+- **An attended session asks; an unattended one is refused.** The CLI decides
+  every tool call from `--permission-mode` and the agent's `--allowedTools`
+  and `--disallowedTools`. Where a terminal would stop and ask its person, an
+  attended session — a chat — asks Kiteloop instead (`--permission-prompts
+  host --permission-prompt-tool stdio`): a `control_request` on its stdout,
+  which `PermissionPrompt` reads, the chat shows as a card (`PermissionCards`)
+  and the answer goes back on its stdin. That covers a call waiting on leave
+  to run — a subagent's included — the model's own questions and a plan
+  offered for approval; the session waits on each without limit, and the same
+  channel changes a running session's mode and stops one of its tasks. In
+  the three modes that promise to ask — `default`, `acceptEdits`, `plan` — an
+  attended session is spawned with none of the agent's built-in tools in
+  `--allowedTools` (`PermissionPrompt.asksBeforeListedTools`), only its MCP
+  servers' tools and any rule it spells out, so the CLI asks as its mode
+  says; in `auto`, `dontAsk` and `bypassPermissions` the whole list stays
+  approved. That is fixed at spawn, so a mode change across the two groups
+  replaces the process on the same conversation. An
+  attended session runs in the agent's configured mode, `auto` unless it
+  names another. An unattended one always runs in `auto` with
+  `--permission-prompts none`, as described below: nobody is there, so a call
+  that would have asked is refused. The subprocess's stderr is read only for
+  the CLI's own diagnostics.
 - **One MCP bridge over named pipes.** The *tool bridge* is a pair of FIFOs
   carrying Kiteloop's own MCP tools (`message_agent`, `publish_event`,
   `ask_human`, `recall_knowledge`, the `web_*` preview tools below, …). It is

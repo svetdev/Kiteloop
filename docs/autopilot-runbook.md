@@ -43,9 +43,10 @@ which rung you are on and names the control that advances you.
    the gear on the tab opens — `Off` / `Propose` / `Land`, off by default; a
    human ▶ Run never asks. *Propose* lets the fleet pick the project up
    unattended and parks a review-passed run at the approval gate for you;
-   *Land* approves it without asking and merges. The gear popover keeps one
-   switch, **Include in autonomous work**, for the person watching the fleet
-   — it is the dial's first rung, not a separate setting.
+   *Land* approves it without asking and merges. The row under the tab's
+   title keeps one switch for it, **Autonomous**, for the person watching the
+   fleet — it is the dial's first rung, not a separate setting — beside
+   **Paused**, the fleet board's switch that parks the project.
 4. **This project's budget**, on the same page, is the project's one ceiling —
    a day's spend that also bounds a sitting — shown under the portfolio
    ceiling it sits beneath; the per-item ceiling is derived from the ledger

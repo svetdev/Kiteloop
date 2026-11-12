@@ -15,6 +15,7 @@ struct ChatView: View {
     /// The answer being typed to an open question.
     @State private var questionAnswer = ""
     @State private var confirmingNewConversation = false
+    @State private var showingSession = false
     @State private var pickedPhoto: PhotosPickerItem?
     @State private var photoProblem: String?
     /// The composer's keyboard, put away so a long reply can be read.
@@ -150,6 +151,14 @@ struct ChatView: View {
                 Button { confirmingNewConversation = true } label: { Image(systemName: "square.and.pencil") }
                     .accessibilityLabel("New conversation")
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showingSession = true } label: { Image(systemName: "slider.horizontal.3") }
+                    .accessibilityLabel("Permission mode and running tasks")
+                    .accessibilityIdentifier("chat-session")
+            }
+        }
+        .sheet(isPresented: $showingSession) {
+            AgentSessionSheet(model: model, client: client)
         }
         .confirmationDialog("Start a new conversation?", isPresented: $confirmingNewConversation,
                             titleVisibility: .visible) {
@@ -185,10 +194,37 @@ struct ChatView: View {
             }
         case .error(let text):
             Text(text).font(.caption).foregroundStyle(.red)
-        case .plan(let messageID, let text, let answer):
+        case .plan, .question, .permission, .choices:
+            card(row)
+        }
+    }
+
+    /// A card the agent's work waits behind: a plan, a question it stopped to
+    /// ask, a call waiting on leave to run, or its own questions with their
+    /// choices.
+    @ViewBuilder
+    private func card(_ row: TranscriptRow) -> some View {
+        if case .plan(let messageID, let text, let answer) = row.kind {
             planCard(messageID: messageID, text: text, answer: answer)
-        case .question(let requestID, let text, let open):
+        } else if case .question(let requestID, let text, let open) = row.kind {
             questionCard(requestID: requestID, text: text, open: open)
+        } else {
+            sessionCard(row)
+        }
+    }
+
+    /// A card the agent's session itself is stopped on.
+    @ViewBuilder
+    private func sessionCard(_ row: TranscriptRow) -> some View {
+        let agentName = model.chatAgent?.name ?? "The agent"
+        if case .permission(let text, let state) = row.kind {
+            PermissionCardView(agentName: agentName, text: text, state: state) { answer, always in
+                Task { await model.answerPermission(client, requestID: state.request ?? "", answer: answer, always: always) }
+            }
+        } else if case .choices(let state) = row.kind {
+            ChoicesCardView(agentName: agentName, state: state) { answers in
+                Task { await model.answerChoices(client, requestID: state.request ?? "", answers: answers) }
+            }
         }
     }
 
@@ -289,10 +325,20 @@ struct TranscriptRow: Identifiable {
         case error(String)
         case plan(messageID: String, text: String, answer: String?)
         case question(requestID: String, text: String, open: Bool)
+        case permission(text: String, state: PermissionState)
+        case choices(ChoicesState)
     }
 
-    /// A plan or a question: a card the phone can answer.
+    /// A card the phone can answer: a plan, a question, a call waiting on
+    /// leave to run, or the model's own questions with their choices.
     static func card(_ message: TranscriptMessage) -> TranscriptRow {
+        if message.kind == "permission" {
+            return TranscriptRow(id: message.listID, kind: .permission(
+                text: message.text ?? "", state: message.permission ?? PermissionState()))
+        }
+        if message.kind == "choices" {
+            return TranscriptRow(id: message.listID, kind: .choices(message.choices ?? ChoicesState()))
+        }
         guard message.kind == "question" else {
             return TranscriptRow(id: message.listID, kind: .plan(
                 messageID: message.listID, text: message.text ?? "", answer: message.plan?.answer))
@@ -334,7 +380,7 @@ struct TranscriptRow: Identifiable {
             case "error":
                 flushTools()
                 rows.append(TranscriptRow(id: message.listID, kind: .error(message.text ?? "")))
-            case "plan", "question":
+            case "plan", "question", "permission", "choices":
                 flushTools()
                 rows.append(card(message))
             default:

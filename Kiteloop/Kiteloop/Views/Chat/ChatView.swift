@@ -63,7 +63,9 @@ struct ChatView: View {
                     .padding(.horizontal, 12)
                     .padding(.bottom, 8)
             }
-            BackgroundTasksStrip(tasks: viewModel.agentActivity.backgroundTasks)
+            BackgroundTasksStrip(tasks: viewModel.agentActivity.backgroundTasks, running: viewModel.runningTasks) {
+                viewModel.stopTask($0)
+            }
             Divider()
             if viewModel.isProcessDead {
                 HStack {
@@ -757,6 +759,33 @@ struct MessageListContainer: View {
         return Self.statusVerbs[index]
     }
 
+    /// Whether the message is a card the agent's work waits behind — a plan
+    /// offered for approval, a call waiting on leave to run, or the model's
+    /// own questions.
+    static func isSessionCard(_ message: Message) -> Bool {
+        switch message.content {
+        case .plan, .permission, .choices: true
+        default: false
+        }
+    }
+
+    @ViewBuilder
+    private func sessionCard(for message: Message) -> some View {
+        if case .plan(let plan) = message.content {
+            PlanCard(plan: plan) { answer, feedback in
+                Task { await viewModel.answerPlan(messageID: message.id, with: answer, feedback: feedback) }
+            }
+        } else if case .permission(let request) = message.content {
+            PermissionCard(request: request) { allow, remembering in
+                viewModel.answerPermission(requestID: request.id, allow: allow, remembering: remembering)
+            }
+        } else if case .choices(let asked) = message.content {
+            ChoicesCard(asked: asked) { answers in
+                viewModel.answerChoices(requestID: asked.id, answers: answers)
+            }
+        }
+    }
+
     /// One message's row. The interactive cards are the same in either look;
     /// everything else is drawn terminal-style or as a bubble.
     @ViewBuilder
@@ -770,11 +799,8 @@ struct MessageListContainer: View {
                 Task { await viewModel.respondToHuman(requestID: req.id, answer: answer) }
             }
             .id(message.id)
-        } else if case .plan(let plan) = message.content {
-            PlanCard(plan: plan) { answer, feedback in
-                Task { await viewModel.answerPlan(messageID: message.id, with: answer, feedback: feedback) }
-            }
-            .id(message.id)
+        } else if Self.isSessionCard(message) {
+            sessionCard(for: message).id(message.id)
         } else if case .mcpAuthRequest(let req) = message.content {
             MCPAuthorizationCard(
                 request: req,

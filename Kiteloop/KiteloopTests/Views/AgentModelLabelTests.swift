@@ -66,7 +66,7 @@ final class AgentModelLabelTests: XCTestCase {
 
     /// A permission mode the app has no name for is shown as stored.
     func testUnknownPermissionModeIsShownVerbatim() {
-        XCTAssertEqual(AgentInfoPopover.permissionTag(for: agent(model: "", permissionMode: "dontAsk")), "dontAsk")
+        XCTAssertEqual(AgentInfoPopover.permissionTag(for: agent(model: "", permissionMode: "something-new")), "something-new")
     }
 
     /// The Effort row names the level as the rest of the app does.
@@ -94,6 +94,7 @@ final class AgentModelLabelTests: XCTestCase {
     func testChatStripModeChipReadsAsItsDisplayName() {
         XCTAssertEqual(ChatView.permissionModeChipLabel("acceptEdits"), "Accept Edits")
         XCTAssertEqual(ChatView.permissionModeChipLabel("plan"), "Plan (read-only)")
-        XCTAssertEqual(ChatView.permissionModeChipLabel("dontAsk"), "dontAsk")
+        XCTAssertEqual(ChatView.permissionModeChipLabel("dontAsk"), "Don't Ask (refuse what would ask)")
+        XCTAssertEqual(ChatView.permissionModeChipLabel("something-new"), "something-new")
     }
 }

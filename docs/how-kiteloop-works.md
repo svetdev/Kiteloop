@@ -71,8 +71,8 @@ runnable — which lifts the moment you engage with that project.
 budget set (arming refuses without one, naming it — the same sentence in
 the app and in the API's 422), the **Run work unattended** switch armed
 (the confirm shows the opted-in projects, their next items in queue order,
-and the ceiling), and each project's own **Include in autonomous work**
-consent. Capability is not consent: a worker/reviewer pair makes a project
+and the ceiling), and each project's own **Autonomous** consent, on its
+Autopilot tab and the fleet board. Capability is not consent: a worker/reviewer pair makes a project
 *startable*; only its opt-in makes it *autonomous*. A human pressing Run,
 or `POST /v1/runs`, is never gated by any of this.
 

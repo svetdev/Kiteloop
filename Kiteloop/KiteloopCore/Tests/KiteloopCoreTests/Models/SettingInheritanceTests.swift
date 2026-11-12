@@ -61,8 +61,9 @@ final class SettingInheritanceTests: XCTestCase {
     func testNamesSpellTheStoredValuesTheWayThePickersDo() {
         XCTAssertEqual(SettingNames.permissionMode("auto"), "Auto")
         XCTAssertEqual(SettingNames.permissionMode("acceptEdits"), "Accept Edits")
-        XCTAssertEqual(SettingNames.permissionMode("default"), "Default (refuse what would ask)",
-                       "nothing can answer a prompt, so the label does not promise one")
+        XCTAssertEqual(SettingNames.permissionMode("default"), "Ask (before edits and commands)",
+                       "an attended session asks, so the label says so")
+        XCTAssertEqual(SettingNames.permissionMode("dontAsk"), "Don't Ask (refuse what would ask)")
         XCTAssertEqual(SettingNames.permissionMode("bypassPermissions"), "Bypass All")
         XCTAssertEqual(SettingNames.permissionMode("something-new"), "something-new",
                        "an unknown raw value is shown as itself rather than hidden")

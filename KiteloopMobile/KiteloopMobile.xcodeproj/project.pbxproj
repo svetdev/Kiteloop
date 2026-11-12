@@ -41,11 +41,13 @@
 		CF4BF0203B8719D03433D34B /* ControlModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C79A54D8AF85913B808E7BA1 /* ControlModelsTests.swift */; };
 		D03332C0A74C35B160477ABB /* PushRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A42FB4DD834D660FB749F2 /* PushRegistrationTests.swift */; };
 		D60FFAC8855631DD2251C53C /* ScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8554181B11E79BB72A1EA8E2 /* ScannerView.swift */; };
+		DCDA77898FAAF6448A0FDC9F /* PromptCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E16CA7B08BC4E3DDC6EA66 /* PromptCards.swift */; };
 		DDDCD475270949FEA5F0CE50 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96B777BB5CF7BBA20B05AB69 /* Keychain.swift */; };
 		E99369AEDDD8B6E837BD5D92 /* ProjectChipRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EB0123964EE2A6DE93404DF /* ProjectChipRow.swift */; };
 		EA5278019845DCB4CE42D9EC /* QueueListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAD8FF2C8DAB714346A69A12 /* QueueListView.swift */; };
 		EC6CAEB3F0260C4CA4F38C3E /* KiteloopMobileWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A448DB2B546B61BD9764A3 /* KiteloopMobileWidgets.swift */; };
 		ED8870DED4F76C4C5A38D858 /* AgentsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A03B3DD063E07F7ADBC78F3E /* AgentsViewModelTests.swift */; };
+		EF35F2624338FFAE502FFDCB /* PromptCardsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E689A553209C932CE2B231 /* PromptCardsTests.swift */; };
 		F05D3185F4E1EB353A6EA67F /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FD6CC29BDC3CFFA7C1428F7 /* LiveActivityController.swift */; };
 		F2A9D95B06253D116D85F647 /* NowViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3331099E9BE7F538250FE4D3 /* NowViewModel.swift */; };
 		F4ACF57DF6F632A4EB50FF5A /* ControlModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0245089751D0632E93676044 /* ControlModels.swift */; };
@@ -105,6 +107,7 @@
 		4991933D36E9BD949EE36E72 /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
 		4A97B40CA92C1C1D1285E7F7 /* ControlClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlClient.swift; sourceTree = "<group>"; };
 		4FD6CC29BDC3CFFA7C1428F7 /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
+		56E16CA7B08BC4E3DDC6EA66 /* PromptCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCards.swift; sourceTree = "<group>"; };
 		5A1C178F68A7A882AA617C9B /* MarkdownTextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownTextTests.swift; sourceTree = "<group>"; };
 		5CA95EB4CD9196ABAEFD1650 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		5EB0123964EE2A6DE93404DF /* ProjectChipRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectChipRow.swift; sourceTree = "<group>"; };
@@ -125,6 +128,7 @@
 		B4327F300EE7CB9A648AF672 /* KiteloopMobileApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopMobileApp.swift; sourceTree = "<group>"; };
 		BE68A9592E2A75BA6153889F /* QueueFilingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueFilingTests.swift; sourceTree = "<group>"; };
 		C79A54D8AF85913B808E7BA1 /* ControlModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlModelsTests.swift; sourceTree = "<group>"; };
+		D0E689A553209C932CE2B231 /* PromptCardsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptCardsTests.swift; sourceTree = "<group>"; };
 		D25893BB95DFD567D300FBC8 /* ConnectionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStoreTests.swift; sourceTree = "<group>"; };
 		D737018CDD01CBA4A8DD7E98 /* GateReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GateReviewView.swift; sourceTree = "<group>"; };
 		D7794C5545DD75A3EAABB43E /* RefreshStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshStateTests.swift; sourceTree = "<group>"; };
@@ -168,6 +172,7 @@
 				4991933D36E9BD949EE36E72 /* MarkdownText.swift */,
 				5EB0123964EE2A6DE93404DF /* ProjectChipRow.swift */,
 				1F33A42F92DCE6D627EF5DD4 /* ProjectView.swift */,
+				56E16CA7B08BC4E3DDC6EA66 /* PromptCards.swift */,
 				FAD8FF2C8DAB714346A69A12 /* QueueListView.swift */,
 				9A4FB8EF548C374C84FC259E /* RefreshStatusBar.swift */,
 				8554181B11E79BB72A1EA8E2 /* ScannerView.swift */,
@@ -225,6 +230,7 @@
 				F85F4C6F7A38D5256688CFB1 /* PairingLinkTests.swift */,
 				7745DA207CBF4CFA11558037 /* PhotoAttachmentTests.swift */,
 				0A86FB510B3BCF38FF6F1F08 /* ProjectStateTests.swift */,
+				D0E689A553209C932CE2B231 /* PromptCardsTests.swift */,
 				65A42FB4DD834D660FB749F2 /* PushRegistrationTests.swift */,
 				BE68A9592E2A75BA6153889F /* QueueFilingTests.swift */,
 				D7794C5545DD75A3EAABB43E /* RefreshStateTests.swift */,
@@ -397,6 +403,7 @@
 				E99369AEDDD8B6E837BD5D92 /* ProjectChipRow.swift in Sources */,
 				171FC582FBAAEE155A46889E /* ProjectView.swift in Sources */,
 				3EB31B255984220237A4012B /* ProjectViewModel.swift in Sources */,
+				DCDA77898FAAF6448A0FDC9F /* PromptCards.swift in Sources */,
 				200F18EC2080CA6620AF40EA /* PushRegistration.swift in Sources */,
 				EA5278019845DCB4CE42D9EC /* QueueListView.swift in Sources */,
 				8F892306130FA8BBEA4137E7 /* QueueViewModel.swift in Sources */,
@@ -431,6 +438,7 @@
 				A5BEDA7714F67CDA5362DEB5 /* PairingLinkTests.swift in Sources */,
 				33B6A5E72DB30701ECAAAF51 /* PhotoAttachmentTests.swift in Sources */,
 				B7B8921836494D48132B013D /* ProjectStateTests.swift in Sources */,
+				EF35F2624338FFAE502FFDCB /* PromptCardsTests.swift in Sources */,
 				D03332C0A74C35B160477ABB /* PushRegistrationTests.swift in Sources */,
 				5673A898D02B502F1DFDB92A /* QueueFilingTests.swift in Sources */,
 				3AFDBE68BB3F95F2D06E3855 /* RefreshStateTests.swift in Sources */,

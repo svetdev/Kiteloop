@@ -115,12 +115,20 @@ final class ChatViewModelPlanCardTests: XCTestCase {
 
     // MARK: - Answers
 
-    func testApproveAndBuildAutoSwitchesToAutoOnTheSameSessionAndSendsTheApproval() async throws {
+    /// A plan written to a file, with no request to answer, is approved the
+    /// older way — by `/mode`. Plan asks and Auto approves the agent's tools,
+    /// so that takes a new process, on the same conversation.
+    func testApproveAndBuildAutoRestartsInAutoOnTheSameConversationAndSendsTheApproval() async throws {
         let (vm, mock, orchestrator, cardID) = try await plannedTurn()
 
         await vm.answerPlan(messageID: cardID, with: .approveAuto)
 
-        assertApproved(vm, mock, orchestrator, mode: "auto", answer: .approveAuto)
+        XCTAssertEqual(permissionMode(in: orchestrator), "auto")
+        XCTAssertEqual(mock.lastStartedAgent?.permissionMode, "auto", "Auto is a spawn on other terms")
+        XCTAssertEqual(mock.lastSessionOptions?.asksBeforeListedTools, false)
+        guard case .resume = mock.lastStrategy else { return XCTFail("The restart should resume the conversation") }
+        XCTAssertEqual(mock.lastSentMessage, ChatViewModel.planApprovalMessage)
+        XCTAssertEqual(planCards(vm).first?.plan.answer, .approveAuto)
     }
 
     func testApproveAndBuildAcceptEditsSwitchesToAcceptEditsOnTheSameSessionAndSendsTheApproval() async throws {
@@ -135,11 +143,9 @@ final class ChatViewModelPlanCardTests: XCTestCase {
                                 mode: String, answer: Message.PlanProposal.Answer,
                                 file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(permissionMode(in: orchestrator), mode, file: file, line: line)
-        XCTAssertNotNil(mock.lastStartedAgent, "Approving should restart the agent", file: file, line: line)
-        guard case .resume(let sessionID) = mock.lastStrategy else {
-            return XCTFail("The restart should resume the session, not start fresh", file: file, line: line)
-        }
-        XCTAssertEqual(sessionID, "s-plan", file: file, line: line)
+        XCTAssertNil(mock.lastStartedAgent, "Approving moves the running session; nothing restarts", file: file, line: line)
+        XCTAssertTrue(mock.controlLines.contains { $0.contains("set_permission_mode") && $0.contains("\"\(mode)\"") },
+                      "The session should be told its new mode", file: file, line: line)
         XCTAssertEqual(mock.lastSentMessage, ChatViewModel.planApprovalMessage, file: file, line: line)
         XCTAssertTrue(vm.messages.contains { message in
             if case .text(let text) = message.content { return message.sender == .human && text == ChatViewModel.planApprovalMessage }

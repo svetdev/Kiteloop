@@ -60,6 +60,9 @@ struct FleetBoard: View {
         }
         .accessibilityIdentifier("fleet-board")
         .task { await loadLastDay() }
+        // A parking saved elsewhere — the project's own Autopilot tab — is a
+        // file changing under the board, the same as one saved here.
+        .onReceive(NotificationCenter.default.publisher(for: .projectParkingChanged)) { _ in configEdits += 1 }
     }
 
     /// What the project's last day produced, and why its rejected runs were
@@ -105,15 +108,13 @@ struct FleetBoard: View {
                     await PortfolioSummaryLoader.save(paused: paused,
                                                       goal: project.goal,
                                                       projectPath: project.path)
-                    configEdits += 1
                 }
             }
         ))
         .toggleStyle(.switch)
         .controlSize(.mini)
         .labelsHidden()
-        .help("Park this project: no run starts for it — unattended, from its Run button or over the control API — "
-              + "until it is unparked. A run already in flight finishes, and items at the approval gate stay there.")
+        .help(AutopilotFleetControls.pausedHelp)
         .accessibilityIdentifier("fleet-board-paused-switch-\(project.name)")
     }
 

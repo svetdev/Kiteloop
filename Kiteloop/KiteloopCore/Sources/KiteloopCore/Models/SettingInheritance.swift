@@ -84,7 +84,8 @@ package enum SettingNames {
         case "auto": return "Auto"
         case "acceptEdits": return "Accept Edits"
         case "plan": return "Plan (read-only)"
-        case "default": return "Default (refuse what would ask)"
+        case "default": return "Ask (before edits and commands)"
+        case "dontAsk": return "Don't Ask (refuse what would ask)"
         case "bypassPermissions": return "Bypass All"
         default: return raw
         }
