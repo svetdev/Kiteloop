@@ -56,6 +56,8 @@ struct QueueHealth: Sendable, Equatable {
         case tooBig = "too big for autopilot"
         /// Marked `flow:qa` in a project with no usable `kiteloop-qa.json`.
         case notOnboardedForQA = "project not onboarded for QA"
+        /// `repos:` names a companion repository the project does not have.
+        case unknownRepository = "names a repository the project has no companion for"
         /// A `needs:` naming an item that isn't `done`.
         case waiting = "waiting on another item"
         /// Recorded by `GroundingCheck` at the last pickup: the item cites a file
@@ -79,8 +81,17 @@ struct QueueHealth: Sendable, Equatable {
             case .verifySeparator, .titleSeparator: self = .malformedLine
             case .size: self = .unsized
             case .sizeTooLarge: self = .tooBig
-            case .qaProfile: self = .notOnboardedForQA
-            case .dependency: self = .waiting
+            case .qaProfile, .repos, .dependency: self = Self.beyondTheItem(requirement)
+            }
+        }
+
+        /// The clauses that are about the project or the queue around the
+        /// item rather than how the item itself is written.
+        private static func beyondTheItem(_ requirement: DefinitionOfReady.Requirement) -> Clause {
+            switch requirement {
+            case .repos: return .unknownRepository
+            case .dependency: return .waiting
+            default: return .notOnboardedForQA
             }
         }
 
@@ -265,11 +276,14 @@ struct QueueHealth: Sendable, Equatable {
     ///   - detail: the item's groomed `backlog/<id>.md`, or nil when it has none.
     ///     Called for ready items only — parsing a file per `done` item to answer
     ///     a question nobody asked about it is pure cost.
+    ///   - companions: the project's companion repositories, which an item's
+    ///     `repos:` is judged against exactly as pickup judges it.
     ///   - refusals: what the pre-run gates recorded, by item id. Empty is a
     ///     legitimate input and means "nothing on record", never "nothing
     ///     refused" — see `recordedRefusals(_:projectPath:)`.
     static func make(items: [BacklogItem],
                      detail: (BacklogItem) -> BacklogItemDetail?,
+                     companions: [CompanionRepo] = [],
                      refusals: [String: Refusal] = [:]) -> QueueHealth {
         let dependencies = DefinitionOfReady.Dependencies(items: items)
         let readyItems = items.filter { $0.status == .ready }
@@ -287,7 +301,7 @@ struct QueueHealth: Sendable, Equatable {
 
         for item in readyItems {
             let verdict = DefinitionOfReady.evaluate(item: item, detail: detail(item),
-                                                     dependencies: dependencies)
+                                                     dependencies: dependencies, companions: companions)
             guard verdict.isReady else {
                 // The first unmet clause only. An ungroomed item usually fails
                 // several, and counting it once per clause would report more

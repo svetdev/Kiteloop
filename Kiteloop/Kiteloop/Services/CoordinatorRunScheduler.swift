@@ -802,6 +802,7 @@ final class CoordinatorRunScheduler {
         return RunScheduling.evidence(
             items: backlog.backlogFile?.sections.flatMap(\.items) ?? [],
             detail: { backlog.loadDetail(for: $0) },
+            companions: backlog.projectCompanions,
             isRetired: { autopilot.retryCeilingVerdict(item: $0, detail: $1).isRetired })
     }
 

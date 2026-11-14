@@ -857,6 +857,7 @@ package struct BacklogParser {
         // Parse frontmatter
         var id = "", title = "", status: String?, epic: String?, priority: String?
         var size: String?, owner: String?, jira: String?, repo: String?
+        let repos = Self.frontmatterRepos(frontmatterLines)
         var verifyCommands: [BacklogItemDetail.VerifyCommand] = []
         var inVerify = false
         var currentVerifyName: String?
@@ -986,7 +987,7 @@ package struct BacklogParser {
             acceptanceCriteria: acceptanceCriteria, outOfScope: outOfScope,
             context: context, notes: notes,
             what: what, approach: approach,
-            premise: premise
+            premise: premise, repos: repos
         )
     }
 
@@ -1034,6 +1035,18 @@ package struct BacklogParser {
             }
         }
         return out
+    }
+
+    /// The companion repositories a detail's frontmatter names in `repos:`
+    /// (ADR-0005); nil when it has no such line, or an empty one.
+    static func frontmatterRepos(_ frontmatterLines: [String]) -> [String]? {
+        for line in frontmatterLines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("repos:") else { continue }
+            let names = CompanionRepo.names(fromFrontmatter: String(trimmed.dropFirst("repos:".count)))
+            return names.isEmpty ? nil : names
+        }
+        return nil
     }
 
     /// The inverse: a string written down as the double-quoted scalar that

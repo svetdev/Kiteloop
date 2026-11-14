@@ -57,6 +57,21 @@ final class BacklogGroomerTests: XCTestCase {
         XCTAssertEqual(proposal.draft.title, "Cache the index")
     }
 
+    /// The model is not asked which repositories the item spans; a groom
+    /// keeps what the item already named, or the rewrite would drop it.
+    @MainActor
+    func testAGroomKeepsTheRepositoriesTheItemAlreadyNamed() async throws {
+        let spanning = BacklogItemDetail(id: "cache-index", title: "Cache the index", verifyCommands: [],
+                                         acceptanceCriteria: [], outOfScope: [], repos: ["library"])
+
+        let proposal = try await BacklogGroomer.propose(
+            item: item(), detail: spanning, backlog: backlog(), sources: groundedSources,
+            runOneShot: { _ in goodReply })
+
+        XCTAssertEqual(proposal.draft.repos, ["library"])
+        XCTAssertTrue(proposal.draft.detailMarkdown().contains("\nrepos: library\n"))
+    }
+
     // MARK: - A reply with nothing usable is refused, not previewed
 
     @MainActor

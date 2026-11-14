@@ -282,6 +282,17 @@ final class RunQualityJudgeTests: XCTestCase {
         XCTAssertTrue(p.contains("+let retries = 3"))
     }
 
+    /// A diff spanning repositories is cut to fit before it gets here, in
+    /// each part; it fits, and is still headed as the keyhole it is.
+    func testADiffItsCallerCutShortIsHeadedAsTruncated() {
+        let p = RunQualityJudge.buildPrompt(
+            item: makeItem(), detail: nil, diff: "+short", diffStat: "",
+            outcome: "approved", reviewerRetries: 0, diffCutShort: true
+        )
+        XCTAssertTrue(p.contains("## Diff (truncated"))
+        XCTAssertTrue(p.contains("+short"))
+    }
+
     func testBuildPromptIncludesDetailSections() {
         let p = RunQualityJudge.buildPrompt(
             item: makeItem(),

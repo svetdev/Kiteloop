@@ -505,4 +505,48 @@ final class DefinitionOfReadyTests: XCTestCase {
         // The summary is one log line, so it must stay on one line.
         XCTAssertFalse(verdict.summary.contains("\n"))
     }
+
+    // MARK: - Companion repositories (ADR-0005)
+
+    private func detail(repos: [String]) -> BacklogItemDetail {
+        var groomed = detail()
+        groomed.repos = repos
+        return groomed
+    }
+
+    func testAnItemNamingACompanionTheProjectHasIsReady() {
+        let companions = [CompanionRepo(name: "library", path: "../library")]
+
+        let verdict = DefinitionOfReady.evaluate(item: item(), detail: detail(repos: ["library"]),
+                                                 companions: companions)
+
+        XCTAssertTrue(verdict.isReady, verdict.summary)
+    }
+
+    func testAnItemNamingACompanionTheProjectLacksIsRefusedByName() {
+        let verdict = DefinitionOfReady.evaluate(item: item(), detail: detail(repos: ["library", "client"]),
+                                                 companions: [CompanionRepo(name: "library", path: "../library")])
+
+        XCTAssertEqual(verdict.unmet, [.repos])
+        XCTAssertTrue(verdict.summary.hasPrefix("repos: names \"client\", which is not one of this project's companions"),
+                      verdict.summary)
+    }
+
+    func testAnItemThatNamesNoRepositoryIsNotJudgedOnTheProjectsList() {
+        let broken = [CompanionRepo(name: "bad name", path: "")]
+
+        XCTAssertTrue(DefinitionOfReady.evaluate(item: item(), detail: detail(), companions: broken).isReady)
+    }
+
+    func testAnUnusableCompanionListRefusesTheItemsThatNeedIt() {
+        let twice = [CompanionRepo(name: "library", path: "a"), CompanionRepo(name: "library", path: "b")]
+
+        let verdict = DefinitionOfReady.evaluate(item: item(), detail: detail(repos: ["library"]), companions: twice)
+
+        XCTAssertEqual(verdict.reasons, ["companion \"library\" is listed twice"])
+    }
+
+    func testTheReposClauseIsUnjudgedWithoutTheProjectsList() {
+        XCTAssertTrue(DefinitionOfReady.evaluate(item: item(), detail: detail(repos: ["anything"])).isReady)
+    }
 }

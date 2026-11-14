@@ -345,6 +345,9 @@ actor WorktreeManager: WorktreeManaging {
         // survived). See `WorktreeBuildOutput`.
         WorktreeBuildOutput.release(for: worktree)
         var deletion = BranchDeletion(recoveredLooseWork: recoverLooseWork(for: key))
+        // Companion repositories checked out inside this tree (ADR-0005) hold
+        // their own loose work, which the project's git never sees.
+        CompanionCheckouts.recoverAndRemoveAll(in: worktree, message: "autopilot (recovered before removal): \(key)")
         _ = runGit(["worktree", "remove", "--force", path])
         activeWorktrees.removeValue(forKey: key)
         guard !keepBranch else { return deletion }
@@ -1085,6 +1088,9 @@ actor WorktreeManager: WorktreeManaging {
         /// durable link from an item to the work that satisfied it. Nil on a
         /// refusal.
         var mergeCommit: String? = nil
+        /// What landed in the item's companion repositories with this merge
+        /// (ADR-0005); empty for an item of the project's repository alone.
+        var companionsLanded: [CompanionMerge.Landed] = []
     }
 
     /// One verify step's failing attempt, kept for the ledger row and the
@@ -1216,6 +1222,7 @@ actor WorktreeManager: WorktreeManaging {
         timeout: TimeInterval = 900,
         base: String? = nil,
         setupCommand: String? = nil,
+        companions: [CompanionRepo] = [],
         onGateWait: (@Sendable (MergeGateWait) async -> Void)? = nil
     ) async -> MergeResult {
         let root = projectRoot.path(percentEncoded: false)
@@ -1225,9 +1232,62 @@ actor WorktreeManager: WorktreeManaging {
             await onGateWait?(.acquired)
         }
         let result = mergeOnceWithRetry(branch: branch, message: message, verify: verify, timeout: timeout,
-                                        base: base, setupCommand: setupCommand, root: root)
+                                        base: base, setup: GateSetup(command: setupCommand, companions: companions),
+                                        root: root)
         await mergeGate.release(root)
         return result
+    }
+
+    /// What one gate's scratch tree is made ready with, beyond the merge
+    /// itself: the project's setup command, and the companion repositories
+    /// of the item being merged. `companions` is empty for an item of the
+    /// project's repository alone, which then takes exactly the path it took
+    /// before companions existed. Passed down, never held: a gate's
+    /// companions are that gate's, whatever else the manager is asked next.
+    private struct GateSetup {
+        var command: String?
+        var companions: [CompanionRepo] = []
+    }
+
+    /// The companions' merged trees, built under the project's scratch
+    /// worktree before anything is set up or verified in it. Nil with no
+    /// companions; otherwise the prepared merge, or the refusal.
+    private func prepareCompanions(_ companions: [CompanionRepo], branch: String, message: String, scratch: URL)
+        -> Result<CompanionMerge, CompanionMerge.Refusal>? {
+        guard !companions.isEmpty else { return nil }
+        let itemID = branch.hasPrefix("kiteloop/") ? String(branch.dropFirst("kiteloop/".count)) : branch
+        return CompanionMerge.prepare(companions, itemID: itemID, message: message,
+                                      projectRoot: projectRoot, scratch: scratch)
+    }
+
+    /// The landing of a gate that spans companions: every companion first,
+    /// the project last, and the companions put back if the project refuses.
+    private func landWithCompanions(
+        _ companions: CompanionMerge, landing: Landing, root: String, scratchPath: String,
+        outcome: VerifyRunOutcome
+    ) -> LandingAttempt {
+        if case .refused(let reason) = companions.land() {
+            return LandingAttempt(
+                result: MergeResult(merged: false, reason: reason, verifyRan: outcome.ran),
+                failedAtLanding: false)
+        }
+        var landed = landMerge(landing, root: root, scratchPath: scratchPath,
+                               ran: outcome.ran, reason: outcome.recoveredReason ?? "merged",
+                               stepOutputs: outcome.stepOutputs)
+        guard landed.merged else {
+            let stuck = companions.rollback()
+            guard !stuck.isEmpty else { return LandingAttempt(result: landed, failedAtLanding: true) }
+            return LandingAttempt(
+                result: MergeResult(
+                    merged: false,
+                    reason: landed.reason + " — and could not put back \(stuck.joined(separator: ", ")), "
+                        + "which now holds the merge on its own",
+                    verifyRan: landed.verifyRan),
+                failedAtLanding: false)
+        }
+        companions.removeLandedBranches()
+        landed.companionsLanded = companions.landed
+        return LandingAttempt(result: landed, failedAtLanding: false)
     }
 
     /// One full gate — merge, verify, land — with the one retry `mergeAndVerify`'s
@@ -1246,19 +1306,19 @@ actor WorktreeManager: WorktreeManaging {
     /// is refused by name, not by relaying git's fast-forward hint text.
     private func mergeOnceWithRetry(
         branch: String, message: String, verify: MergeVerifyPlan, timeout: TimeInterval,
-        base: String?, setupCommand: String?, root: String
+        base: String?, setup: GateSetup, root: String
     ) -> MergeResult {
         let landing = landing(for: base, branch: branch, root: root)
         if let refusal = landing.refusal { return refusal }
 
         let first = runScratchMergeAndLand(branch: branch, message: message, verify: verify, timeout: timeout,
-                                           setupCommand: setupCommand, root: root, landing: landing)
+                                           setup: setup, root: root, landing: landing)
         guard first.failedAtLanding, tipIfMoved(from: landing, root: root) != nil else { return first.result }
 
         let retryLanding = self.landing(for: base, branch: branch, root: root)
         if let refusal = retryLanding.refusal { return refusal }
         let second = runScratchMergeAndLand(branch: branch, message: message, verify: verify, timeout: timeout,
-                                            setupCommand: setupCommand, root: root, landing: retryLanding)
+                                            setup: setup, root: root, landing: retryLanding)
         if second.failedAtLanding {
             return secondLandingRefusal(second, retryLanding: retryLanding, base: base, root: root)
         }
@@ -1337,17 +1397,20 @@ actor WorktreeManager: WorktreeManaging {
     /// twice against two different tips without duplicating any of it.
     private func runScratchMergeAndLand(
         branch: String, message: String, verify: MergeVerifyPlan, timeout: TimeInterval,
-        setupCommand: String?, root: String, landing: Landing
+        setup: GateSetup, root: String, landing: Landing
     ) -> LandingAttempt {
+        let setupCommand = setup.command
         let scratch = Self.scratchWorktreeDirectory(forBranch: branch, projectRoot: projectRoot)
         // Whatever happens below, the scratch worktree must not survive it — a
         // stale one left by an earlier crashed attempt would also make the
         // `worktree add` below refuse, so this doubles as that defensive clear.
-        removeScratchWorktree(at: scratch)
-        defer { removeScratchWorktree(at: scratch) }
+        removeScratchWorktree(at: scratch, companions: setup.companions)
+        defer { removeScratchWorktree(at: scratch, companions: setup.companions) }
         let scratchPath = scratch.path(percentEncoded: false)
 
-        if let failure = createScratchWorktree(at: scratchPath, from: landing.startSHA, root: root) {
+        let opened = openScratch(at: scratch, from: landing.startSHA, root: root, branch: branch, message: message,
+                                 companions: setup.companions)
+        if let failure = opened.failure {
             return LandingAttempt(result: failure, failedAtLanding: false)
         }
         if let failure = Self.runSetupCommand(setupCommand, in: scratch, timeout: timeout,
@@ -1367,16 +1430,51 @@ actor WorktreeManager: WorktreeManaging {
         let outcome = Self.runVerifySteps(verify, workingDirectory: scratch, timeout: timeout,
                                           projectRoot: projectRoot)
         if let failure = outcome.failure {
+            // The base is asked only for an item of the project's repository
+            // alone. A base tree has no companions under it, so a command that
+            // reaches into one fails there whatever the base's state — which
+            // would blame the base for a failure it had no part in.
             let reported = Self.scratchRemovedResult(at: scratchPath, failure: failure)
-                ?? attributingToBase(failure, outcome: outcome, landing: landing, timeout: timeout,
-                                     setupCommand: setupCommand)
+                ?? (setup.companions.isEmpty
+                    ? attributingToBase(failure, outcome: outcome, landing: landing, timeout: timeout,
+                                        setupCommand: setupCommand)
+                    : failure)
             return LandingAttempt(result: reported, failedAtLanding: false)
         }
 
+        return land(landing, companions: opened.companions, root: root, scratchPath: scratchPath, outcome: outcome)
+    }
+
+    /// The verified merge's landing: the project's own, after its companions'
+    /// when the item has any.
+    private func land(
+        _ landing: Landing, companions: CompanionMerge?, root: String, scratchPath: String,
+        outcome: VerifyRunOutcome
+    ) -> LandingAttempt {
+        if let companions {
+            return landWithCompanions(companions, landing: landing, root: root,
+                                      scratchPath: scratchPath, outcome: outcome)
+        }
         let landed = landMerge(landing, root: root, scratchPath: scratchPath,
                                ran: outcome.ran, reason: outcome.recoveredReason ?? "merged",
                                stepOutputs: outcome.stepOutputs)
         return LandingAttempt(result: landed, failedAtLanding: !landed.merged)
+    }
+
+    /// The scratch worktree at the base's tip, with every companion's merged
+    /// tree built under it. `failure` is why either could not be made.
+    private func openScratch(
+        at scratch: URL, from startSHA: String, root: String, branch: String, message: String,
+        companions: [CompanionRepo]
+    ) -> (failure: MergeResult?, companions: CompanionMerge?) {
+        if let failure = createScratchWorktree(at: scratch.path(percentEncoded: false), from: startSHA, root: root) {
+            return (failure, nil)
+        }
+        switch prepareCompanions(companions, branch: branch, message: message, scratch: scratch) {
+        case .success(let prepared)?: return (nil, prepared)
+        case .failure(let refusal)?: return (MergeResult(merged: false, reason: refusal.reason), nil)
+        case nil: return (nil, nil)
+        }
     }
 
     /// `failure`, saying so when the base fails the same command with no diff
@@ -1856,7 +1954,13 @@ actor WorktreeManager: WorktreeManaging {
     /// in it and whether the merge that used it succeeded or not. There is no
     /// branch to keep here — the worktree is checked out detached, so the only
     /// trace of the attempt worth keeping is what `MergeResult` already carries.
-    private func removeScratchWorktree(at path: URL) {
+    ///
+    /// `companions` are the repositories whose merged trees were built under
+    /// this one, unregistered from their own repositories before it goes.
+    private func removeScratchWorktree(at path: URL, companions: [CompanionRepo] = []) {
+        if !companions.isEmpty {
+            CompanionMerge.removeScratch(companions, projectRoot: projectRoot, scratch: path)
+        }
         WorktreeBuildOutput.release(for: path)
         _ = runGit(["worktree", "remove", "--force", path.path(percentEncoded: false)])
         if FileManager.default.fileExists(atPath: path.path(percentEncoded: false)) {

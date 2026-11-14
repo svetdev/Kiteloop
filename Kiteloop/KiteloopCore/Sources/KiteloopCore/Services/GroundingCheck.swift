@@ -400,10 +400,10 @@ package enum GroundingCheck {
         /// for — the app's one search policy for this project unless a test
         /// hands in a list of its own. `baseBranch`: see `BaseTree.read`.
         package static func repository(root: URL, vault: URL? = nil, baseBranch: String? = nil,
-                                       searchDirectories: [String]? = nil) -> Sources {
+                                       searchDirectories: [String]? = nil, companions: [CompanionRepo] = []) -> Sources {
             let directories = searchDirectories ?? ExecutableSearchPath.resolved(projectRoot: root).directories
             let reading = BaseTree.read(root: root, baseBranch: baseBranch)
-            var corpora = reading.corpora
+            var corpora = reading.corpora + companionCorpora(companions, root: root)
 
             if let vault {
                 // Paths only: a symbol that appears in a note rather than in
@@ -502,7 +502,7 @@ package enum GroundingCheck {
         // Which corpora this draft put in scope, decided once from the whole
         // draft: a sibling project answers for the item that names it, anywhere
         // in it, not only for the sentence the citation sits in.
-        let named = words(in: text)
+        let named = scopeWords(in: text, detail: detail)
         let corpora = sources.corpora.filter { $0.isNamed(by: named) }
         // The files this draft says it will create, read once from the whole
         // draft for the same reason: a `verify:` is written to run against the
@@ -818,6 +818,15 @@ package enum GroundingCheck {
         guard let last = names.last else { return "any corpus in scope" }
         guard names.count > 1 else { return last }
         return names.dropLast().joined(separator: ", ") + " or " + last
+    }
+
+    /// The words that decide which corpora answer for a draft: its own, and
+    /// one marker per companion repository its `repos:` names — an item that
+    /// changes a companion cites that repository's files, and saying so in
+    /// the frontmatter is what brings them into scope (ADR-0005).
+    static func scopeWords(in text: String, detail: BacklogItemDetail?) -> Set<String> {
+        let companions = detail?.repos ?? []
+        return words(in: text).union(companions.map(Sources.companionMarker))
     }
 
     /// The prose the check reads. Notes are left out on purpose: they carry past

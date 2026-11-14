@@ -424,6 +424,49 @@ create `bar.json`" nothing excuses `foo.json`. A sentence ends at the first
 nothing. A refusal names the reference, how it was read (a path or a symbol)
 and the cue that would have excused it.
 
+### Items across repositories
+
+An item that has to change a second repository with the project's own — a
+library and the app that uses it — names it in the detail's frontmatter:
+
+```markdown
+---
+id: sync-api-v2
+title: Move the client to the v2 sync API
+repos: library
+---
+```
+
+`repos:` is a comma list of the project's **companions**, which
+`.kiteloop/config.json` names:
+
+```json
+{"companions": [{"name": "library", "path": "../library", "baseBranch": "main"}]}
+```
+
+`path` is absolute, `~`-relative or relative to the project's root, and must be
+a git repository on this Mac. `baseBranch` is the branch the companion's runs
+fork from and land on; without it, whatever its checkout is on. A name takes
+letters, digits, `-`, `_` and `.`.
+
+During the run each named companion is a worktree at
+`.kiteloop/repos/<name>` inside the item's own, on its own
+`kiteloop/<item-id>` branch, so the item's `verify:` — which still runs once,
+from the project's tree — reaches it at that relative path. Approving lands
+every repository or none. The whole model is
+[worktree-isolation.md](worktree-isolation.md#items-across-repositories).
+
+An item that names a companion may cite that repository's files, from its own
+root (`Sources/Shelf.swift`) or by the path the run reaches them at
+(`.kiteloop/repos/library/Sources/Shelf.swift`); the grounding check reads the
+companion for that item and for no other. Symbols are still looked for in the
+project alone.
+
+An item naming a companion the project does not have is refused at pickup. The
+project must ignore `.kiteloop/` (the app adds that line to `.gitignore` when
+it opens a project), or the run is refused rather than commit a repository
+into another.
+
 ## Definition-of-Ready
 
 The gate an item passes before autopilot will run it unattended

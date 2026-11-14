@@ -1,6 +1,7 @@
 # ADR-0005: Multi-repository items — one item, matching branches in several repositories, one gate
 
-- **Status:** Proposed — decision only, no code shipped
+- **Status:** Accepted — built in 0.7.0 (`CompanionRepo`, `CompanionCheckouts`,
+  `CompanionMerge`), with the two departures listed under *As built*
 - **Deciders:** the maintainer
 - **Related:** [ADR-0001](0001-autonomous-run-model.md) (the sandbox → review →
   human-gate model this stays inside), [ADR-0004](0004-parallel-disjoint-runs.md)
@@ -58,6 +59,22 @@ together, and approved or rejected together.
 7. **Stray work keeps meaning what it means.** A change in a companion the
    item named is the item's work. A change in one it did not name, or anywhere
    else, is still stray.
+
+## As built
+
+- **A companion whose own checkout is on its base is fast-forwarded**, as the
+  project's checkout is. Point 6 has refs moving only by compare-and-swap, but
+  moving a ref under a checkout that has it checked out leaves that checkout's
+  index describing a commit it no longer points at. The fast-forward is
+  refused up front when the checkout holds uncommitted changes to a file the
+  merge touches, and undone with `reset --keep` if a later repository refuses.
+- **The phone reads the one diff.** Rather than a section per repository in
+  the phone's own code, `GET /v1/backlog/diff` carries each companion's diff
+  in `stat` and `patch` under a heading, so every reader of those fields —
+  the phone included — shows all of it; `repos` lists them separately.
+- **Pull requests, rescue rounds and CI fix rounds are the project's branch
+  only.** A project that publishes pull requests gets one for the project's
+  part of a multi-repository item, and nothing for its companions.
 
 ## What this deliberately leaves out
 

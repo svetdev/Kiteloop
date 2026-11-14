@@ -283,7 +283,8 @@ final class BacklogItemDetailViewModel: Identifiable {
         let groomed = backlog.loadDetail(for: item)
         let dependencies = backlog.backlogFile.map { DefinitionOfReady.Dependencies(file: $0) }
         let readiness = DefinitionOfReady.evaluate(item: item, detail: groomed,
-                                                   dependencies: dependencies)
+                                                   dependencies: dependencies,
+                                                   companions: backlog.projectCompanions)
         self.readiness = readiness
         // The same verdict, laid out for the person grooming the item. Mapped
         // rather than re-derived: a second reading of the gate is how the
@@ -411,13 +412,14 @@ final class BacklogItemDetailViewModel: Identifiable {
         guard action(.groom)?.isAvailable == true, let aiEditor,
               let root = autopilot.projectRoot, let backlogFile = backlog.backlogFile else { return }
         groomPhase = .thinking
-        let (vaultURL, base) = (backlog.vaultURL, autopilot.baseBranch)
+        let (vaultURL, base, companions) = (backlog.vaultURL, autopilot.baseBranch, backlog.projectCompanions)
         let grant = RepoRead.Grant(projectName: projectName, projectPath: projectPath)
         do {
             // Walks the tree, so it happens off this actor rather than
             // blocking it for however long a large repo takes to index.
             let sources = await Task.detached {
-                GroundingCheck.Sources.repository(root: root, vault: vaultURL, baseBranch: base)
+                GroundingCheck.Sources.repository(root: root, vault: vaultURL, baseBranch: base,
+                                                  companions: companions)
             }.value
             let proposal = try await BacklogGroomer.propose(
                 item: item, detail: detail, backlog: backlogFile, sources: sources,

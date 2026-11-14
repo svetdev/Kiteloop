@@ -318,6 +318,7 @@
 		9A8998870076E8A39A9BCC60 /* MetricAggregate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AE66567DD42E0C701B1B25 /* MetricAggregate.swift */; };
 		9AF3935A50244416E18F1654 /* CoordinatorAdvisorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 517E9C41509A70F5C6F10B80 /* CoordinatorAdvisorTests.swift */; };
 		9B9638D7F18BC67EE5023D70 /* WorktreeSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F68908398D21F32FD3DBA5 /* WorktreeSessionTests.swift */; };
+		C0A9A10000000000000000B6 /* WorktreeSessionCompanionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A9A10000000000000000F6 /* WorktreeSessionCompanionTests.swift */; };
 		9C01C292CDB6331B3FF4A994 /* TokenUsage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2809C123622E7A423B341EA /* TokenUsage.swift */; };
 		9E7AD405C61924CD70573957 /* WebPreviewLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C1D88446DF824DE19FE7CB /* WebPreviewLoading.swift */; };
 		9E8EFF9A9B8E87BB26C73D79 /* WorkflowEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBF687BE62F2E90E75A5C425 /* WorkflowEngine.swift */; };
@@ -1211,6 +1212,7 @@
 		E7A89CAED3DB9870FB7D30DB /* ProjectTabIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectTabIndicator.swift; sourceTree = "<group>"; };
 		2461F427A006A02657AB9761 /* PhaseRailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhaseRailView.swift; sourceTree = "<group>"; };
 		E7F68908398D21F32FD3DBA5 /* WorktreeSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeSessionTests.swift; sourceTree = "<group>"; };
+		C0A9A10000000000000000F6 /* WorktreeSessionCompanionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeSessionCompanionTests.swift; sourceTree = "<group>"; };
 		E89649594A7978722453B517 /* RecordingAgentRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingAgentRuntime.swift; sourceTree = "<group>"; };
 		EA676A6022056C5D6080BC6C /* BacklogAutopilotCircuitBreakerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotCircuitBreakerTests.swift; sourceTree = "<group>"; };
 		EAD56902A473866D2ED8D266 /* ProjectInspectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectInspectionTests.swift; sourceTree = "<group>"; };
@@ -2241,6 +2243,7 @@
 				7E871E363C41224081ED4890 /* StaleActiveItemsTests.swift */,
 				6C8502565D9B3A7EA4C49B28 /* StrandedWorkSweepTests.swift */,
 				E7F68908398D21F32FD3DBA5 /* WorktreeSessionTests.swift */,
+				C0A9A10000000000000000F6 /* WorktreeSessionCompanionTests.swift */,
 			);
 			path = Autopilot;
 			sourceTree = "<group>";
@@ -3182,6 +3185,7 @@
 				B2DDC60DBA0336F833867A40 /* WorkflowTerminalNodeTests.swift in Sources */,
 				3CC29D342168B74DA98C2EE6 /* WorkspaceGeneratorTests.swift in Sources */,
 				9B9638D7F18BC67EE5023D70 /* WorktreeSessionTests.swift in Sources */,
+				C0A9A10000000000000000B6 /* WorktreeSessionCompanionTests.swift in Sources */,
 				33CAD9FEF80B13E14D1E72FC /* GateRefreshTests.swift in Sources */,
 				65BEE569661A1BAA157E266C /* KiteloopControlServerBacklogRefreshTests.swift in Sources */,
 			);
@@ -3224,7 +3228,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "ai.kasatkin.kiteloop$(KITELOOP_QA_SUFFIX)";
 				SDKROOT = macosx;
 			};
@@ -3360,7 +3364,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.6.0;
+				MARKETING_VERSION = 0.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "ai.kasatkin.kiteloop$(KITELOOP_QA_SUFFIX)";
 				SDKROOT = macosx;
 			};

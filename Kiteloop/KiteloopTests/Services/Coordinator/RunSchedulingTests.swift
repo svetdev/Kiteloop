@@ -619,6 +619,20 @@ final class RunSchedulingTests: XCTestCase {
         XCTAssertNotEqual(before, after)
     }
 
+    /// An item naming a companion the project lacks is one pickup refuses,
+    /// so the scheduler must not count it as work a start would find.
+    func testEvidenceCountsAnItemNamingAnUnknownRepositoryAsNotRunnable() {
+        var spanning = detail()
+        spanning.repos = ["library"]
+
+        let without = RunScheduling.evidence(items: [readyItem("one")], detail: { _ in spanning })
+        let with = RunScheduling.evidence(items: [readyItem("one")], detail: { _ in spanning },
+                                          companions: [CompanionRepo(name: "library", path: "../library")])
+
+        XCTAssertEqual(without.rows["one"]?.runnable, false)
+        XCTAssertEqual(with.rows["one"]?.runnable, true)
+    }
+
     /// And it records whether autopilot would take it, so a `needs:` clearing
     /// shows up even though nothing about the waiting item changed.
     func testEvidenceNoticesADependencyReachingDone() {

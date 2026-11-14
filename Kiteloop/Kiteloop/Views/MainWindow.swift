@@ -2477,6 +2477,8 @@ enum PortfolioSummaryLoader {
                 queue: QueueHealth.make(
                     items: items,
                     detail: { detail(for: $0, backlogURL: backlogURL) },
+                    companions: KiteloopProject(rootURL: URL(fileURLWithPath: recent.path, isDirectory: true))
+                        .loadConfig().companions ?? [],
                     refusals: QueueHealth.recordedRefusals(
                         grooming, projectPath: recent.path,
                         detailModified: { itemID in

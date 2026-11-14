@@ -77,6 +77,9 @@ enum BacklogGroomer {
         // nothing for a caller to compare against and get wrong.
         draft.id = item.id
         draft.title = item.title
+        // And the repositories it spans: the model is not asked for them, and
+        // a rewrite that dropped the line would make the item single-repository.
+        draft.repos = detail?.repos
 
         var groomedItem = item
         groomedItem.verify = draft.verify

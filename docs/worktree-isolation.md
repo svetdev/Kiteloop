@@ -389,6 +389,42 @@ orphan is named in the log — being told it is there is the point of leaving it
   one, and the SSE log stream carries the *"Isolated run in worktree …"* line.
 - **On disk** — `git worktree list` and `git branch --list 'kiteloop/*'`.
 
+## Items across repositories
+
+An item whose detail names companion repositories in `repos:`
+([backlog format](backlog-format.md#items-across-repositories),
+[ADR-0005](adr/0005-multi-repository-items.md)) runs the same lifecycle with
+each companion beside the project:
+
+- **`begin`** makes `kiteloop/<item-id>` in every named companion, forked from
+  its base, as a worktree at `.kiteloop/repos/<name>` under the item's own —
+  before the setup command, so that can see them. A companion that is not a
+  repository, lacks its base branch, or will not give up a previous run's
+  branch refuses the start, and whatever was made is taken away again. A
+  previous run's unmerged tip is kept under `refs/kiteloop/backup/` first.
+- **`end`** commits each companion's loose changes to its own branch and
+  removes its worktree before the project's goes. A commit the companion
+  refuses — a failing pre-commit hook, signing with no key, no identity — is
+  made again without them, since the worktree is removed straight after. A
+  companion the run did not change loses its empty branch. A run whose only commits are in a companion
+  keeps the project's branch too: it is the name the gate finds the item by.
+- **The merge gate** checks each companion's base out under the scratch
+  worktree and merges its branch there, so the one `verify:` runs against
+  every repository as merged. A companion that conflicts refuses the gate by
+  name. Then every companion lands, and the project last: a base nothing has
+  checked out moves by compare-and-swap, and a companion whose own checkout is
+  on its base is fast-forwarded — refused up front when that checkout holds
+  uncommitted changes to a file the merge touches. If any repository refuses,
+  the ones already moved are put back — only where they are still exactly as
+  the landing left them; one someone has moved since is named instead.
+- **Anything that deletes a run's tree** — a restart of the item, the
+  open-time sweep — first commits what the companion worktrees inside it hold
+  and unregisters them, so the directory takes no work with it.
+
+Not covered: pull requests are opened for the project's branch only, and a
+rescue or CI fix round reopens only the project's branch. Nothing fetches or
+pushes a companion.
+
 ## Gotchas
 
 - **Re-running an item destroys its previous branch.** `begin` clears

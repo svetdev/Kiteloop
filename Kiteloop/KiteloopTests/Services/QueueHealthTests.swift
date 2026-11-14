@@ -204,19 +204,44 @@ final class QueueHealthTests: XCTestCase {
         XCTAssertEqual(held, health.ready - health.runnable)
     }
 
+    /// An item whose `repos:` names a companion the project lacks is refused
+    /// at every pickup; the panel has to say so before a run finds out.
+    func testAnItemNamingAnUnknownRepositoryIsWithheldByName() {
+        var spanning = detail("a")
+        spanning.repos = ["libary"]
+        let library = CompanionRepo(name: "library", path: "../library")
+
+        let health = QueueHealth.make(items: [item("a"), item("b")],
+                                      detail: { $0.id == "a" ? spanning : self.detail($0.id) },
+                                      companions: [library])
+
+        XCTAssertEqual(health.runnable, 1)
+        XCTAssertEqual(health.withheld.map(\.clause), [.unknownRepository])
+    }
+
+    func testAnItemNamingAConfiguredRepositoryIsRunnable() {
+        var spanning = detail("a")
+        spanning.repos = ["library"]
+
+        let health = QueueHealth.make(items: [item("a")], detail: { _ in spanning },
+                                      companions: [CompanionRepo(name: "library", path: "../library")])
+
+        XCTAssertEqual(health.runnable, 1)
+    }
+
     func testEachUnmetRequirementIsGroupedUnderTheClauseAHumanActsOn() {
         let cases: [(DefinitionOfReady.Requirement, QueueHealth.Clause)] = [
             (.detail, .notGroomed), (.what, .notGroomed), (.how, .notGroomed),
             (.validation, .notGroomed), (.verify, .noVerify),
             (.verifySeparator, .malformedLine), (.titleSeparator, .malformedLine),
             (.size, .unsized), (.sizeTooLarge, .tooBig), (.qaProfile, .notOnboardedForQA),
-            (.dependency, .waiting)
+            (.dependency, .waiting), (.repos, .unknownRepository)
         ]
         for (requirement, clause) in cases {
             XCTAssertEqual(QueueHealth.Clause(requirement), clause, "\(requirement)")
         }
         XCTAssertEqual(Set(DefinitionOfReady.Requirement.allCases.map(QueueHealth.Clause.init)).count,
-                       7, "every requirement maps somewhere, and several share a clause")
+                       8, "every requirement maps somewhere, and several share a clause")
     }
 
     /// A clause carries one verdict verbatim, so the reader has something to go

@@ -227,6 +227,10 @@ package struct BacklogItemDetail: Codable, Sendable {
     /// was the better run, and nothing in the item had asked either worker to
     /// check. A premise written down is a premise a worker can refute.
     package var premise: [String]
+    /// The project's companion repositories this item also changes, by name —
+    /// `repos:` in the frontmatter (ADR-0005). Nil for an item of the
+    /// project's repository alone, which is nearly all of them.
+    package var repos: [String]?
 
     package struct VerifyCommand: Codable, Sendable {
         package var name: String
@@ -244,7 +248,7 @@ package struct BacklogItemDetail: Codable, Sendable {
 
     /// The memberwise init, spelled out: a `package` type's synthesised one is
     /// internal to the package, and the app constructs this.
-    package init(id: String, title: String, status: String? = nil, epic: String? = nil, priority: String? = nil, size: String? = nil, owner: String? = nil, jira: String? = nil, repo: String? = nil, verifyCommands: [VerifyCommand], why: String? = nil, acceptanceCriteria: [String], outOfScope: [String], context: String? = nil, notes: String? = nil, what: String? = nil, approach: String? = nil, premise: [String] = []) {
+    package init(id: String, title: String, status: String? = nil, epic: String? = nil, priority: String? = nil, size: String? = nil, owner: String? = nil, jira: String? = nil, repo: String? = nil, verifyCommands: [VerifyCommand], why: String? = nil, acceptanceCriteria: [String], outOfScope: [String], context: String? = nil, notes: String? = nil, what: String? = nil, approach: String? = nil, premise: [String] = [], repos: [String]? = nil) {
         self.id = id
         self.title = title
         self.status = status
@@ -263,6 +267,7 @@ package struct BacklogItemDetail: Codable, Sendable {
         self.what = what
         self.approach = approach
         self.premise = premise
+        self.repos = repos
     }
 }
 

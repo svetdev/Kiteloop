@@ -269,3 +269,31 @@ Entry format:
 **Why:** Every test of the question drove a `.toolUse`, which the real CLI never sends for this tool, so the suite stayed green while the feature did nothing.
 **Evidence:** A live agent on CLI 2.1.322 asked to use `ask_human`: two calls, both "Error: unhandled tool"; after the change the question was open over `GET /v1/agents/transcript`, the agent read `waitingForHuman`, and its reply followed the answer. `ChatViewModel.handleMCPToolCall`.
 **Status:** holds
+
+## [2026-11-14] A companion's checkout on its base is fast-forwarded, not moved under
+**Kind:** decision
+**What:** Landing a multi-repository item moves a companion's base by compare-and-swap only when nothing has that branch checked out. When the companion's own checkout is on it — the usual case — the checkout is fast-forwarded, refused beforehand if it holds uncommitted changes to a file the merge touches, and undone with `reset --keep` if a later repository refuses. ADR-0005 as proposed had every ref move by `update-ref`.
+**Why:** `update-ref` under a checked-out branch leaves the checkout's index and files at the old commit while `HEAD` names the new one, so the next `git status` there shows the merge as uncommitted reversals. The project's own landing already makes this distinction.
+**Evidence:** `CompanionMerge.landing(for:root:)`, `CompanionMergeTests.testLandFastForwardsACheckoutOnItsBase`, `testRollbackUndoesAFastForwardAndARefMove`.
+**Status:** holds
+
+## [2026-11-14] A rollback never overwrites a repository someone has moved since
+**Kind:** rule
+**What:** When one repository of a multi-repository landing refuses, each repository already landed is put back only if it is still exactly where the landing left it. One that has moved is left alone and named in the refusal as holding the merge on its own.
+**Why:** The alternative is discarding a commit a person made in the seconds between two landings to keep a guarantee they never asked for. A named half-landing is recoverable by hand; a silently discarded commit is not.
+**Evidence:** `CompanionMerge.isPutBack`, `CompanionMergeTests.testRollbackNamesARepositorySomeoneMovedSince`.
+**Status:** holds
+
+## [2026-11-14] A recovery commit in a companion bypasses its hooks, signing and identity
+**Kind:** rule
+**What:** When teardown commits a companion worktree's loose changes and the repository refuses the commit, the commit is made again with `--no-verify`, signing off and a fixed `Kiteloop` identity. Only on the run's own `kiteloop/<item-id>` branch, and only after the ordinary commit failed.
+**Why:** The worktree is force-removed straight after, so a refused commit took the only copy of the worker's changes with it and the log read "nothing changed". Hooks and signing guard what reaches a base; this commit is how the work survives long enough to be reviewed at all.
+**Evidence:** `CompanionCheckouts.commitLooseWork`, `CompanionCheckoutsTests.testLooseWorkIsCommittedEvenWhenTheRepositorysHookRefusesTheCommit`.
+**Status:** holds
+
+## [2026-11-14] A red base is not looked for when the item spans companions
+**Kind:** decision
+**What:** A failed project-wide verify step is normally re-run on the base alone, to say when the base fails it too. That is skipped for an item with companions.
+**Why:** The base-only tree has no companions under `.kiteloop/repos/`, so a command that reaches into one fails there whatever the base's state, and the refusal would blame a base that had no part in it — an answer then remembered for as long as the app runs.
+**Evidence:** `WorktreeManager.runScratchMergeAndLand`, `WorktreeSessionCompanionTests.testARedProjectWideVerifyIsNotBlamedOnABaseThatHasNoCompanions`.
+**Status:** holds

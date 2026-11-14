@@ -379,6 +379,7 @@ class BacklogViewModel {
         queueHealth = QueueHealth.make(
             items: file.sections.flatMap(\.items),
             detail: { self.loadDetail(for: $0) },
+            companions: projectCompanions,
             refusals: QueueHealth.recordedRefusals(groomingLedger?.records ?? [],
                                                    projectPath: repoPath ?? "",
                                                    detailModified: { self.detailModified(itemID: $0) }))
@@ -1216,7 +1217,10 @@ class BacklogViewModel {
         let manager = WorktreeManager(projectRoot: projectRoot)
         let branch = WorktreeSession.branchName(for: itemID)
 
-        if await !manager.hasUnmergedCommits(for: itemID, base: base) {
+        // An item whose only work is in a companion repository (ADR-0005) has
+        // an empty branch here and everything to land there.
+        let companionWork = await companionsWithWork(itemID: itemID, projectRoot: projectRoot)
+        if await !manager.hasUnmergedCommits(for: itemID, base: base), companionWork.isEmpty {
             // "Nothing to merge" covers two opposite states, and one of them is
             // not done: a branch that was merged, and an item whose work never
             // reached a branch at all. Told apart before anything is approved.
@@ -1252,11 +1256,31 @@ class BacklogViewModel {
             setupCommand: setupCommand, timeout: timeout, closure: closure)
     }
 
-    /// The last leg of `resolveGate`: attempts the merge, files a `## Notes`
-    /// entry for whatever a retried step printed (a refusal or a recovered
-    /// merge, either one — a clean pass writes nothing), and records the
-    /// outcome. Split out on its own so that note-writing does not count
-    /// against `resolveGate`'s own complexity.
+    /// The project's companion repositories, as its config names them now.
+    var projectCompanions: [CompanionRepo] {
+        guard let repoPath else { return [] }
+        return KiteloopProject(rootURL: URL(fileURLWithPath: repoPath, isDirectory: true)).loadConfig().companions ?? []
+    }
+
+    /// The companion repositories an item names in its detail's `repos:`, as
+    /// the project's config has them now (ADR-0005). Empty for an item of the
+    /// project's repository alone.
+    func companions(forItemID itemID: String, projectRoot: URL) -> [CompanionRepo] {
+        guard let item = item(withID: itemID), let names = loadDetail(for: item)?.repos, !names.isEmpty
+        else { return [] }
+        let configured = KiteloopProject(rootURL: projectRoot).loadConfig().companions ?? []
+        return CompanionRepo.resolve(names, among: configured).found
+    }
+
+    /// Those of an item's companions whose branch is ahead of its base.
+    func companionsWithWork(itemID: String, projectRoot: URL) async -> [CompanionRepo] {
+        let companions = companions(forItemID: itemID, projectRoot: projectRoot)
+        guard !companions.isEmpty else { return [] }
+        return await Task.detached(priority: .userInitiated) {
+            CompanionCheckouts.withWork(companions, itemID: itemID, projectRoot: projectRoot)
+        }.value
+    }
+
     /// What a done item's Notes say when landing its branch was refused.
     nonisolated static func landRefusedNote(branch: String, reason: String) -> String {
         "Land refused: \(reason). The item is Done but its work is still on branch \(branch), not merged."
@@ -1286,7 +1310,8 @@ class BacklogViewModel {
         guard await manager.branchExists(for: itemID) else {
             return .nothingToLand("no branch — the item has no work on a branch to land")
         }
-        guard await manager.hasUnmergedCommits(for: itemID, base: base) else {
+        let companionWork = await companionsWithWork(itemID: itemID, projectRoot: projectRoot)
+        guard await manager.hasUnmergedCommits(for: itemID, base: base) || !companionWork.isEmpty else {
             return .nothingToLand("nothing to land — the branch is already in \(base ?? "the checkout's branch")")
         }
         let outcome = await mergeAndRecordOutcome(
@@ -1305,6 +1330,12 @@ class BacklogViewModel {
         }
     }
 
+    /// The last leg of `resolveGate`: attempts the merge, files a `## Notes`
+    /// entry for whatever a retried step printed (a refusal or a recovered
+    /// merge, either one — a clean pass writes nothing), and records the
+    /// outcome. Split out on its own so that note-writing does not count
+    /// against `resolveGate`'s own complexity.
+    ///
     /// `closure` nil is a merge that is not an approval — `landDoneItem`'s,
     /// on an item already done — so the status and the approval notices are
     /// left alone; the merge itself is recorded the same way either way.
@@ -1316,7 +1347,8 @@ class BacklogViewModel {
     ) async -> GateOutcome {
         beginGateVerify(itemID: itemID)
         let result = await manager.mergeAndVerify(branch: branch, message: message, verify: verify,
-                                                   timeout: timeout, base: base, setupCommand: setupCommand)
+                                                   timeout: timeout, base: base, setupCommand: setupCommand,
+                                                   companions: companions(forItemID: itemID, projectRoot: projectRoot))
         endGateVerify(itemID: itemID)
         let stepOutputNote = WorktreeManager.verifyStepOutputsNote(result.stepOutputs)
         if let stepOutputNote {
@@ -1332,6 +1364,9 @@ class BacklogViewModel {
         }
         if let commit = result.mergeCommit {
             appendNote(itemID: itemID, WorktreeManager.landedNote(commit: commit, base: base))
+        }
+        for landed in result.companionsLanded {
+            appendNote(itemID: itemID, BacklogAutopilot.companionLandedNote(landed))
         }
         if let closure { approveAndRecordOverride(itemID: itemID, closure: closure) }
         recordMergeOutcome(itemID: itemID, merged: true, reason: verify.summary,

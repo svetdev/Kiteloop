@@ -288,6 +288,10 @@ package struct ProjectConfig: Codable {
     /// phone shows first when the project is opened — the brief an agent
     /// writes each morning. Nil pins nothing.
     package var pinnedDocument: String?
+    /// Other git repositories on this Mac an item of this project may change
+    /// alongside it, when its detail names them in `repos:` (ADR-0005). Nil
+    /// means every item is the project's repository alone.
+    package var companions: [CompanionRepo]?
 
     /// What a pinned-document field holds: the path trimmed, or nil for one
     /// left empty.
@@ -333,7 +337,7 @@ package struct ProjectConfig: Codable {
     private enum CodingKeys: String, CodingKey {
         case model, permissionMode, deniedTools, agentSessionIDs
         case claudeCodeVersion, effort, maxBudgetUSD, observability, bedrock
-        case paused, goal, extraExecutablePaths, buildEnvironment, pinnedDocument
+        case paused, goal, extraExecutablePaths, buildEnvironment, pinnedDocument, companions
     }
 
     /// The key this config used to carry, kept only so `init(from:)` can read a
@@ -362,6 +366,7 @@ package struct ProjectConfig: Codable {
         extraExecutablePaths = try c.decodeIfPresent([String].self, forKey: .extraExecutablePaths)
         buildEnvironment = try c.decodeIfPresent([String: String].self, forKey: .buildEnvironment)
         pinnedDocument = try c.decodeIfPresent(String.self, forKey: .pinnedDocument)
+        companions = try c.decodeIfPresent([CompanionRepo].self, forKey: .companions)
         paused = try c.decodeIfPresent(Bool.self, forKey: .paused)
             ?? Self.pausedFromLegacyPriority(in: decoder)
     }

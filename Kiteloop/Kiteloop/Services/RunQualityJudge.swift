@@ -129,11 +129,13 @@ struct RunQualityJudge {
         reviewerRetries: Int,
         projectPath: String,
         premiseReport: String? = nil,
-        investigation: Bool = false
+        investigation: Bool = false,
+        diffCutShort: Bool = false
     ) async -> Judgement {
         let prompt = Self.buildPrompt(item: item, detail: detail, diff: diff, diffStat: diffStat,
                                       outcome: outcome, reviewerRetries: reviewerRetries,
-                                      premiseReport: premiseReport, investigation: investigation)
+                                      premiseReport: premiseReport, investigation: investigation,
+                                      diffCutShort: diffCutShort)
         // A session that dies mid-judgement throws here, or returns the empty
         // string the runtime accumulated before it went. Both are "the judge
         // never answered" — not a verdict of zero on every dimension.
@@ -170,10 +172,13 @@ struct RunQualityJudge {
     /// `investigation` is the ending where that report *is* the result: the
     /// premise was refuted and no code changed, and the run is scored on
     /// whether the measurement answered the premise, not on the diff it
-    /// rightly did not produce.
+    /// rightly did not produce. `diffCutShort` says `diff` was already cut to
+    /// fit by its caller — a diff spanning repositories is cut in each part,
+    /// not at the end — so it is headed as truncated though it fits.
     nonisolated static func buildPrompt(item: BacklogItem, detail: BacklogItemDetail?, diff: String,
                                         diffStat: String, outcome: String, reviewerRetries: Int,
-                                        premiseReport: String? = nil, investigation: Bool = false) -> String {
+                                        premiseReport: String? = nil, investigation: Bool = false,
+                                        diffCutShort: Bool = false) -> String {
         var p = taskSection(item: item, detail: detail)
         p += "\n## Run outcome\n\(outcome), reviewer retries: \(reviewerRetries)\n"
         if let premiseReport, !premiseReport.isEmpty {
@@ -188,7 +193,7 @@ struct RunQualityJudge {
         if !diffStat.isEmpty {
             p += "\n## Changed files (full diff --stat)\n```\n\(diffStat)\n```\n"
         }
-        let truncated = isDiffTruncated(diff)
+        let truncated = diffCutShort || isDiffTruncated(diff)
         let capped = diff.isEmpty ? "(no isolated diff available)" : String(diff.prefix(diffCharacterLimit))
         let heading = truncated
             ? "## Diff (truncated — see Changed files above for the full file list)"

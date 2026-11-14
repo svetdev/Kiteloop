@@ -517,6 +517,11 @@ or a send-back drains it under.
 the project's root, or `null` — set with
 [`POST /v1/projects/pin`](#post-v1projectspin).
 
+**`companions`** is the project's companion repositories — `name`, `path` and,
+when set, `baseBranch` — as `.kiteloop/config.json` names them; empty for a
+project with none. An item changes one by naming it in `repos:`
+([backlog format](backlog-format.md#items-across-repositories)).
+
 To find the projects that are busy, or the ones that only think they are:
 
 ```bash
@@ -941,6 +946,21 @@ curl -s -H "$H" "$B/backlog/diff?project=kiteloop&item=<id>"
 `patch` is capped at 200000 characters; `truncated: true` says the cap bit —
 read the rest on the Mac. **404** when the item has no branch: it ran in the
 live tree, or the branch was already merged and deleted.
+
+An item that spans companion repositories
+([ADR-0005](adr/0005-multi-repository-items.md)) carries each companion's diff
+in the same two fields, after the project's own, under a heading naming the
+repository — `=== library (.kiteloop/repos/library, branch kiteloop/<id>) ===` —
+so a reader of `stat` and `patch` sees all of what approving lands. `repos`
+then lists them, each against its own base:
+
+```json
+{"repos": [{"name": "library", "path": ".kiteloop/repos/library",
+            "branch": "kiteloop/…", "stat": " lib.txt | 2 +-\n…", "files": ["lib.txt"]}]}
+```
+
+`repos` is absent for an item of the project's repository alone. An item whose
+only changes are in a companion answers 200 with the project's part empty.
 
 **Status:** 200 · 400 (missing `project`/`item`) · 404 (no such item, or no
 branch) · 409 (project not open)

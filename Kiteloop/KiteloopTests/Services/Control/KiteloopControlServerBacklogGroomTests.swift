@@ -403,6 +403,54 @@ final class KiteloopControlServerBacklogGroomTests: XCTestCase {
         XCTAssertNotNil(diffCall, "three-dot against HEAD: only the branch's own work shows")
     }
 
+    /// An item that spans companion repositories carries each one's diff in
+    /// the same `stat` and `patch`, after the project's own and under a
+    /// heading naming it — so a reader of those two fields sees everything
+    /// approving lands — and again per repository under `repos`.
+    func testDiffBodyCarriesEachCompanionAfterTheProjectsOwn() {
+        let library = CompanionCheckouts.RepoDiff(
+            name: "library", branch: "kiteloop/item-1", stat: " lib.txt | 2 +-\n",
+            patch: "diff --git a/lib.txt b/lib.txt\n+two\n", files: ["lib.txt"])
+
+        let body = KiteloopControlServer.diffBody(
+            itemId: "item-1", branch: "kiteloop/item-1", stat: " a.swift | 2 +-\n",
+            patch: "diff --git a/a.swift b/a.swift\n+new\n", companions: [library])
+
+        let heading = "=== library (.kiteloop/repos/library, branch kiteloop/item-1) ==="
+        XCTAssertEqual(body["patch"] as? String,
+                       "diff --git a/a.swift b/a.swift\n+new\n\n\(heading)\ndiff --git a/lib.txt b/lib.txt\n+two\n")
+        XCTAssertEqual(body["stat"] as? String, " a.swift | 2 +-\n\n\(heading)\n lib.txt | 2 +-\n")
+        let first: [String: Any] = (body["repos"] as? [[String: Any]])?.first ?? [:]
+        XCTAssertEqual(first["name"] as? String, "library")
+        XCTAssertEqual(first["path"] as? String, ".kiteloop/repos/library")
+        XCTAssertEqual(first["files"] as? [String], ["lib.txt"])
+    }
+
+    /// A project diff longer than the cap is cut to leave the companion's in
+    /// view: the person approving must see every repository they land.
+    func testALongProjectDiffDoesNotPushTheCompanionOffTheEnd() {
+        let library = CompanionCheckouts.RepoDiff(
+            name: "library", branch: "kiteloop/item-1", stat: " lib.txt | 2 +-\n",
+            patch: "diff --git a/lib.txt b/lib.txt\n+two\n", files: ["lib.txt"])
+
+        let body = KiteloopControlServer.diffBody(
+            itemId: "item-1", branch: "kiteloop/item-1", stat: "s",
+            patch: String(repeating: "+line\n", count: 60_000), companions: [library])
+
+        let patch = body["patch"] as? String ?? ""
+        XCTAssertEqual(body["truncated"] as? Bool, true)
+        XCTAssertEqual(patch.count, 200_000)
+        XCTAssertTrue(patch.hasSuffix("diff --git a/lib.txt b/lib.txt\n+two\n"), String(patch.suffix(120)))
+    }
+
+    /// An item of the project's repository alone has no `repos` at all.
+    func testDiffBodyForOneRepositoryHasNoRepos() {
+        let body = KiteloopControlServer.diffBody(itemId: "item-1", branch: "kiteloop/item-1", stat: "s", patch: "p")
+
+        XCTAssertNil(body["repos"])
+        XCTAssertEqual(body["patch"] as? String, "p")
+    }
+
     /// No branch is an honest 404, not an empty diff — an empty diff would read
     /// as "nothing to review" over work that simply never had a branch.
     func testDiffWithoutABranchIs404() async throws {

@@ -856,6 +856,20 @@ final class QueueRefillTests: XCTestCase {
         return try XCTUnwrap(detail.verifyCommands.first?.cmd)
     }
 
+    /// A groom rewrites the whole detail file. The repositories the item
+    /// spans are not the model's to restate, so the draft carries them and
+    /// the file it writes says them again.
+    func testADraftCarryingReposWritesThemBackIntoTheDetailFile() throws {
+        var spanning = draft(verify: "make")
+        spanning.repos = ["library", "client"]
+
+        let detail = try XCTUnwrap(BacklogParser.parseDetail(spanning.detailMarkdown()))
+
+        XCTAssertEqual(detail.repos, ["library", "client"])
+        XCTAssertEqual(spanning.detail.repos, ["library", "client"])
+        XCTAssertNil(try XCTUnwrap(BacklogParser.parseDetail(draft(verify: "make").detailMarkdown())).repos)
+    }
+
     /// Every escape the reader resolves has to be one the writer produces, or
     /// the file says something the groomer didn't. Writing escaped only `"`,
     /// so a backslash was eaten and a literal `\n` came back as a real newline.

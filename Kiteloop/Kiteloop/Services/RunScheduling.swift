@@ -260,6 +260,7 @@ enum RunScheduling {
     /// autopilot, which judges it from exactly what pickup judges it from.
     static func evidence(items: [BacklogItem],
                          detail: (BacklogItem) -> BacklogItemDetail?,
+                         companions: [CompanionRepo] = [],
                          isRetired: (BacklogItem, BacklogItemDetail?) -> Bool = { _, _ in false })
         -> QueueEvidence {
         // Resolved across every epic, the way `DefinitionOfReady` is asked
@@ -270,7 +271,7 @@ enum RunScheduling {
             let detail = detail(item)
             let runnable = !isRetired(item, detail)
                 && DefinitionOfReady.evaluate(item: item, detail: detail,
-                                              dependencies: dependencies).isReady
+                                              dependencies: dependencies, companions: companions).isReady
             rows[item.id] = QueueEvidence.Row(
                 spec: RetryCeiling.specFingerprint(item: item, detail: detail),
                 runnable: runnable)

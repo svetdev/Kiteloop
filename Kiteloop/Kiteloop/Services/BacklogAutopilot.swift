@@ -993,6 +993,10 @@ class BacklogAutopilot {
     /// complexity `check-complexity.sh` then fails the baseline on — the
     /// spelling is a workaround for that false reading, not a real branch.
     private var lastReviewedChangedFiles: Set<String>?
+    /// What the current item's branches change in its companion repositories
+    /// (ADR-0005), read before a merge can land and remove them — the part of
+    /// the run's diff the quality judge would otherwise never see.
+    private var judgeCompanionDiffs: [CompanionCheckouts.RepoDiff] = []
     /// The approval-gate summons for the item in flight, held while its pull
     /// request's checks are followed (see `accept` and `flushGateNotification`).
     /// Nil the rest of the time — every item that sets it also flushes it.
@@ -2279,6 +2283,7 @@ class BacklogAutopilot {
             VerifyMapFile.load(for: KiteloopProject(rootURL: $0)).rules.contains(where: Self.matchesEveryPath)
         } ?? false
         let qaProfile = projectRoot.map { QAProfile.load(projectRoot: $0) }
+        let companions = projectCompanions
         var notReady: [(item: BacklogItem, verdict: DefinitionOfReady.Verdict)] = []
         runQueue = runQueue.filter { item in
             let verdict = DefinitionOfReady.evaluate(
@@ -2286,7 +2291,8 @@ class BacklogAutopilot {
                 detail: context.backlogViewModel.loadDetail(for: item),
                 dependencies: dependencies,
                 verifyMapCoversEveryPath: mapCoversEveryPath,
-                qaProfile: qaProfile)
+                qaProfile: qaProfile,
+                companions: companions)
             guard verdict.isReady else {
                 notReady.append((item, verdict))
                 return false
@@ -2419,9 +2425,9 @@ class BacklogAutopilot {
     /// project. The index reads the project's own `extraExecutablePaths` for the
     /// executables its verify commands run.
     private func groundingSources(root: URL) async -> GroundingCheck.Sources {
-        let (vault, base) = (globalConfigStore?.vaultURL, baseBranch)
+        let (vault, base, companions) = (globalConfigStore?.vaultURL, baseBranch, projectCompanions)
         return await Task.detached {
-            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base)
+            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base, companions: companions)
         }.value
     }
 
@@ -3043,6 +3049,7 @@ class BacklogAutopilot {
                 agentIDs: [worker, reviewer].compactMap { $0 },
                 orchestrator: orchestrator,
                 setupCommand: effectiveWorktreeSetup.command,
+                companions: companions(for: backlogViewModel.loadDetail(for: item)),
                 log: { [weak self] in self?.appendLog($0) }
             ) {
             case .isolated(let started):
@@ -3099,6 +3106,7 @@ class BacklogAutopilot {
             if let tree = session?.path ?? projectRoot {
                 initialState["_cwd"] = .string(tree.path(percentEncoded: false))
             }
+            Self.addCompanionNote(session?.companions ?? [], itemID: item.id, to: &initialState)
 
             let baseGraph = Self.buildWorkflowGraph(
                 workerAgentID: worker,
@@ -3309,6 +3317,7 @@ class BacklogAutopilot {
                 case .done, .cancelled, .alreadyImplemented, .investigation, .usageLimitParked:
                     break
                 }
+                workEvidence = workEvidence.counting(companionWork: teardown?.companionsWithWork.isEmpty == false)
                 // Did this run's own session write into the project's checkout
                 // rather than its worktree? Asked of an isolated run only, and
                 // asked *before* the auto-merge below, which writes to that
@@ -3479,14 +3488,17 @@ class BacklogAutopilot {
                 // counts against the item's retry ceiling. The kept worktree is
                 // part of the question: a run that stalled or was capped holds
                 // whatever teardown couldn't commit in there.
-                let changedFileCount = await runChangedFileCount(
-                    branch: itemResult.branch, worktree: worktreePath, isolated: session != nil)
+                let changedFileCount = Self.countingCompanionFiles(
+                    await runChangedFileCount(
+                        branch: itemResult.branch, worktree: worktreePath, isolated: session != nil),
+                    companions: session == nil ? nil : await companionChangedFiles(for: item))
 
                 // Where the quality judge's diff starts — read here, before the
                 // merge below folds the branch into `HEAD` and leaves `git
                 // merge-base` answering the branch tip itself.
                 let judgeDiffBase = await runDiffBase(
                     branch: itemResult.branch, isolated: session != nil)
+                judgeCompanionDiffs = await companionDiffs(session?.companions ?? [], itemID: item.id)
 
                 // The judge, asked here — before the merge folds the branch
                 // in — scores the run and notes any scope deviation it names
@@ -3984,7 +3996,7 @@ class BacklogAutopilot {
             branch: session.branch,
             worktree: session.path,
             isolated: true
-        )
+        ).counting(companionWork: await companionWorkInFlight(session))
         guard let missing = verdict.missingSignal else {
             return await verifyThenOpenReviewGate(executionID: executionID, session: session)
         }
@@ -4120,7 +4132,8 @@ class BacklogAutopilot {
     /// reviewer's prompt template already tolerates the key being absent.
     private func openReviewGate(executionID: String, session: WorktreeSession?) async -> Bool {
         reviewGate = .open
-        if let block = await reviewerDiffFactsBlock(directory: session?.path) {
+        if let block = await reviewerDiffFactsBlock(directory: session?.path,
+                                                    companions: session?.companions ?? []) {
             await orchestrator?.workflowEngine.mergeState(executionID: executionID,
                                                           updates: ["reviewerDiffFacts": .string(block)])
         }
@@ -4147,8 +4160,26 @@ class BacklogAutopilot {
     /// the way `runDiffStat` and `runDiffBase` already are.
     ///
     /// Nil when there is no directory to read.
-    func reviewerDiffFactsBlock(directory: URL?) async -> String? {
+    func reviewerDiffFactsBlock(directory: URL?, companions: [CompanionRepo] = []) async -> String? {
         guard let directory = directory ?? projectRoot else { return nil }
+        var changedFiles = await Self.looseChangedFiles(in: directory)
+        // Each companion's changes, by the path the reviewer reaches them at.
+        for companion in companions {
+            let prefix = companion.relativePath + "/"
+            changedFiles += await Self.looseChangedFiles(in: companion.checkout(in: directory)).map {
+                ReviewerDiffFacts.ChangedFile(path: prefix + $0.path, added: $0.added, deleted: $0.deleted)
+            }
+        }
+        // The same list, kept for the drift check a rejecting round's findings
+        // are read against (`ReviewFindings.markDrift`) — one `git diff` this
+        // round, not a second one just for that.
+        lastReviewedChangedFiles = Set(changedFiles.map { GroundingCheck.SourceIndex.normalize($0.path) })
+        return ReviewerDiffFacts.block(changedFiles: changedFiles)
+    }
+
+    /// What one checkout holds changed against its `HEAD`: tracked changes by
+    /// `git diff --numstat`, and the untracked files that never lists.
+    private static func looseChangedFiles(in directory: URL) async -> [ReviewerDiffFacts.ChangedFile] {
         let root = directory.path(percentEncoded: false)
         let (tracked, untrackedPaths): ([ReviewerDiffFacts.ChangedFile], [String]) =
             await Task.detached(priority: .userInitiated) {
@@ -4163,13 +4194,7 @@ class BacklogAutopilot {
                     } : []
                 return (tracked, untracked)
             }.value
-        let newFiles = Self.newFileLineCounts(directory: root, paths: untrackedPaths)
-        let changedFiles = tracked + newFiles
-        // The same list, kept for the drift check a rejecting round's findings
-        // are read against (`ReviewFindings.markDrift`) — one `git diff` this
-        // round, not a second one just for that.
-        lastReviewedChangedFiles = Set(changedFiles.map { GroundingCheck.SourceIndex.normalize($0.path) })
-        return ReviewerDiffFacts.block(changedFiles: changedFiles)
+        return tracked + newFileLineCounts(directory: root, paths: untrackedPaths)
     }
 
     /// Untracked new files `git diff --numstat` never lists — they are in
@@ -4773,20 +4798,27 @@ class BacklogAutopilot {
         case .unavailable(let reason): return (.unavailable(reason), nil)
         case .ask(let ready): judge = ready
         }
-        let diff = await runDiff(base: diffBase, branch: itemResult.branch)
+        // Fitted to the judge's own limit here, so a long project diff is cut
+        // to leave the companions' in view instead of pushing them off the end.
+        let (diff, diffTruncated) = CompanionCheckouts.fitted(
+            own: await runDiff(base: diffBase, branch: itemResult.branch),
+            companions: CompanionCheckouts.combined(judgeCompanionDiffs, \.patch),
+            limit: RunQualityJudge.diffCharacterLimit)
         let premise = await premiseFraming(itemResult: itemResult, executionID: executionID)
         let judgement = await judge.judge(
             item: item,
             detail: backlogViewModel?.loadDetail(for: item),
             diff: diff,
-            diffStat: await runDiffStat(base: diffBase, branch: itemResult.branch),
+            diffStat: Self.joining(await runDiffStat(base: diffBase, branch: itemResult.branch),
+                                   CompanionCheckouts.combined(judgeCompanionDiffs, \.stat)),
             outcome: Self.outcomeString(itemResult.outcome),
             reviewerRetries: reviewerRetries,
             projectPath: projectPath,
             premiseReport: premise.report,
-            investigation: premise.investigation
+            investigation: premise.investigation,
+            diffCutShort: diffTruncated
         )
-        return (judgement, RunQualityJudge.isDiffTruncated(diff))
+        return (judgement, diffTruncated)
     }
 
     /// The judge to ask about this run, or the reason nobody is asking it —
@@ -7008,7 +7040,7 @@ class BacklogAutopilot {
             branch: session.branch,
             worktree: session.path,
             isolated: true
-        )
+        ).counting(companionWork: await companionWorkInFlight(session))
         guard EmptyDiffHandoff.shouldTell(verdict: verdict, alreadyTold: toldWorkerDiffWasEmpty)
         else { return nil }
 
@@ -8146,6 +8178,7 @@ class BacklogAutopilot {
             setupCommand: effectiveWorktreeSetup.command,
             onGateWait: { [weak self] wait in await self?.noteMergeGateWait(wait, itemID: item.id, branch: branch) }
         )
+        noteCompanionsLanded(result.companionsLanded, item: item)
         return (result.merged, result.reason, plan,
                WorktreeManager.verifyStepOutputsNote(result.stepOutputs), result.mergeCommit)
     }
@@ -8187,8 +8220,12 @@ extension BacklogAutopilot {
         if let stored { appendLog(Self.storedMergeVerifyNotice(stored)) }
         let rules = map.isEmpty ? effectiveMergeVerify.command.map { [MergeVerifyPlan.catchAll($0)] } ?? []
                                 : (stored.map { [MergeVerifyPlan.catchAll($0)] } ?? []) + map.rules
-        let paths = await RunWorkEvidence.changedFiles(
+        let own = await RunWorkEvidence.changedFiles(
             projectRoot: projectRoot, branch: WorktreeSession.branchName(for: item.id))
+        // A companion's changed files reach the verify map by the path the
+        // merged tree holds them at, so a rule can name `.kiteloop/repos/<name>/**`.
+        // A diff git could not read in either stays unread — every rule runs.
+        let paths = CompanionCheckouts.verifyPaths(project: own, companions: await companionChangedFiles(for: item))
         return MergeVerifyPlan.resolve(rules: rules, paths: paths, itemVerify: item.verify)
     }
 
@@ -8999,3 +9036,93 @@ extension BacklogAutopilot {
     }
 }
 #endif
+
+// MARK: - Companion repositories (ADR-0005)
+//
+// An extension for the reason the two above are: it leaves the class's own
+// span where it was.
+extension BacklogAutopilot {
+    /// The project's companion repositories, as its config names them now.
+    var projectCompanions: [CompanionRepo] {
+        guard let projectRoot else { return [] }
+        return KiteloopProject(rootURL: projectRoot).loadConfig().companions ?? []
+    }
+
+    /// The companions an item's detail names in `repos:`. A name the project
+    /// lacks is not here — pickup has already refused that item for it.
+    func companions(for detail: BacklogItemDetail?) -> [CompanionRepo] {
+        guard let names = detail?.repos, !names.isEmpty else { return [] }
+        return CompanionRepo.resolve(names, among: projectCompanions).found
+    }
+
+    /// The worker's and the reviewer's prompt both carry the run's note; an
+    /// item that spans repositories says where they are in it.
+    nonisolated static func addCompanionNote(
+        _ companions: [CompanionRepo], itemID: String, to state: inout [String: AnyCodable]
+    ) {
+        guard let note = CompanionCheckouts.promptNote(companions, itemID: itemID) else { return }
+        guard case .string(let existing)? = state["buildOutputNote"] else {
+            state["buildOutputNote"] = .string(note)
+            return
+        }
+        state["buildOutputNote"] = .string(existing + "\n\n" + note)
+    }
+
+    /// Whether the run in `session` has changed anything in a companion yet.
+    func companionWorkInFlight(_ session: WorktreeSession) async -> Bool {
+        let companions = session.companions
+        guard !companions.isEmpty, let projectRoot else { return false }
+        let itemID = RunWorkEvidence.itemID(fromBranch: session.branch) ?? ""
+        let tree = session.path
+        return await Task.detached(priority: .userInitiated) {
+            CompanionCheckouts.inFlightWork(companions, itemID: itemID, projectRoot: projectRoot, in: tree)
+        }.value
+    }
+
+    /// The files an item's branches change in its companions, as paths under
+    /// the project's tree; nil when git could not say.
+    func companionChangedFiles(for item: BacklogItem) async -> [String]? {
+        let companions = companions(for: backlogViewModel?.loadDetail(for: item))
+        guard !companions.isEmpty, let projectRoot else { return [] }
+        let itemID = item.id
+        return await Task.detached(priority: .userInitiated) {
+            CompanionCheckouts.changedFiles(companions, itemID: itemID, projectRoot: projectRoot)
+        }.value
+    }
+
+    /// Each companion's diff for an item, against its own base.
+    func companionDiffs(_ companions: [CompanionRepo], itemID: String) async -> [CompanionCheckouts.RepoDiff] {
+        guard !companions.isEmpty, let projectRoot else { return [] }
+        return await Task.detached(priority: .userInitiated) {
+            CompanionCheckouts.diffs(companions, itemID: itemID, projectRoot: projectRoot)
+        }.value
+    }
+
+    /// The project's part of a diff with its companions' after it.
+    nonisolated static func joining(_ own: String, _ companions: String) -> String {
+        [own, companions].filter { !$0.isEmpty }.joined(separator: "\n")
+    }
+
+    /// A run's changed-file count with what it changed in its companions. A
+    /// run that changed only a companion changed something: read as zero it
+    /// would count against the item's retry ceiling as a run that did nothing.
+    nonisolated static func countingCompanionFiles(_ own: Int?, companions: [String]?) -> Int? {
+        guard let companions, !companions.isEmpty else { return own }
+        return (own ?? 0) + companions.count
+    }
+
+    /// One `## Notes` line per companion a merge landed in, the same record
+    /// the project's own landing leaves.
+    func noteCompanionsLanded(_ landed: [CompanionMerge.Landed], item: BacklogItem) {
+        for entry in landed {
+            let note = Self.companionLandedNote(entry)
+            appendLog("\(item.id): \(note)")
+            backlogViewModel?.appendNote(itemID: item.id, note)
+        }
+    }
+
+    nonisolated static func companionLandedNote(_ landed: CompanionMerge.Landed) -> String {
+        "Landed in \(landed.name): merged as \(landed.commit.prefix(12)) into "
+            + (landed.base ?? "its checkout's branch")
+    }
+}

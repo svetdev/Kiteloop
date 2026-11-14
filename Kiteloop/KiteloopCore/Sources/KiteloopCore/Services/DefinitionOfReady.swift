@@ -70,6 +70,10 @@ package enum DefinitionOfReady {
         /// Marked `flow:qa` in a project with no usable `kiteloop-qa.json`: the
         /// QA stages would have nothing to run the app with.
         case qaProfile
+        /// `repos:` in the detail names a companion repository the project
+        /// does not have, or the project's list of them is unusable: the run
+        /// would have nowhere to make that repository's branch (ADR-0005).
+        case repos
         /// A `needs:<id>` on the line naming an item that isn't `done`. The only
         /// clause that isn't about how the item is written, so it is reported
         /// last — and the only one that can fail more than once, once per unmet
@@ -243,6 +247,37 @@ package enum DefinitionOfReady {
         }
 
         return Verdict(unmet: unmet, reasons: reasons)
+    }
+
+    /// The same judgement with the `repos:` clause judged too (ADR-0005):
+    /// `companions` is the project's companion repositories, and an item
+    /// naming one the list lacks fails. Read before the sequencing clause,
+    /// which stays last. The form above leaves `repos:` unjudged.
+    package static func evaluate(item: BacklogItem, detail: BacklogItemDetail?,
+                                 dependencies: Dependencies? = nil, verifyMapCoversEveryPath: Bool = false,
+                                 qaProfile: QAProfile.Load? = nil, companions: [CompanionRepo]) -> Verdict {
+        let verdict = evaluate(item: item, detail: detail, dependencies: dependencies,
+                               verifyMapCoversEveryPath: verifyMapCoversEveryPath, qaProfile: qaProfile)
+        let reasons = reposReasons(detail, companions: companions)
+        guard !reasons.isEmpty else { return verdict }
+        let at = verdict.unmet.firstIndex(of: .dependency) ?? verdict.unmet.count
+        var unmet = verdict.unmet
+        var said = verdict.reasons
+        unmet.insert(contentsOf: reasons.map { _ in .repos }, at: at)
+        said.insert(contentsOf: reasons, at: at)
+        return Verdict(unmet: unmet, reasons: said)
+    }
+
+    /// Why an item's `repos:` cannot be honoured: a name the project has no
+    /// companion for, or — for an item that names any — a companion list that
+    /// is itself unusable. Empty for an item that names none.
+    static func reposReasons(_ detail: BacklogItemDetail?, companions: [CompanionRepo]) -> [String] {
+        guard let names = detail?.repos, !names.isEmpty else { return [] }
+        let unknown = CompanionRepo.resolve(names, among: companions).unknown.map {
+            "repos: names \"\($0)\", which is not one of this project's companions — "
+                + "add it to \"companions\" in .kiteloop/config.json"
+        }
+        return unknown + CompanionRepo.problems(in: companions)
     }
 
     /// The fields on the item's line that hold the line's own separator, each

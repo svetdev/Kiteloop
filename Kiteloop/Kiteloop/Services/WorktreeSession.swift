@@ -34,11 +34,16 @@ final class WorktreeSession {
     /// The agents pinned into the worktree by `begin`, to be restored by `end`.
     private let agentIDs: [String]
     private let log: @MainActor (String) -> Void
+    /// The companion repositories this item also changes (ADR-0005), each
+    /// checked out under `path` at `.kiteloop/repos/<name>` on the same branch
+    /// name. Empty for an item of the project's repository alone.
+    let companions: [CompanionRepo]
 
     private init(
         path: URL,
         itemID: String,
         projectRoot: URL,
+        companions: [CompanionRepo],
         baseBranch: String?,
         manager: WorktreeManager,
         orchestrator: Orchestrator,
@@ -49,6 +54,7 @@ final class WorktreeSession {
         self.branch = Self.branchName(for: itemID)
         self.itemID = itemID
         self.projectRoot = projectRoot
+        self.companions = companions
         self.baseBranch = baseBranch
         self.manager = manager
         self.orchestrator = orchestrator
@@ -139,7 +145,7 @@ final class WorktreeSession {
         projectRoot: URL?,
         agentIDs: [String],
         orchestrator: Orchestrator?, setupCommand: String? = nil, setupTimeout: TimeInterval = defaultSetupTimeout,
-        log: @escaping @MainActor (String) -> Void
+        companions: [CompanionRepo] = [], log: @escaping @MainActor (String) -> Void
     ) async -> Setup {
         switch decide(projectRoot: projectRoot) {
         case .liveTree(let reason):
@@ -164,8 +170,8 @@ final class WorktreeSession {
                 log("Worktree setup failed (\(reason)) — the item is not run")
                 return .failed(reason)
             }
-            let path = try await Self.createIsolatedWorktree(itemID: itemID, baseBranch: baseBranch, setupCommand: setupCommand, setupTimeout: setupTimeout, projectRoot: projectRoot, manager: manager)
-            log("Isolated run in worktree \(branchName(for: itemID))")
+            let path = try await Self.createIsolatedWorktree(itemID: itemID, baseBranch: baseBranch, setupCommand: setupCommand, setupTimeout: setupTimeout, projectRoot: projectRoot, manager: manager, companions: companions)
+            log("Isolated run in worktree \(branchName(for: itemID))" + companionSuffix(companions))
             for agentID in agentIDs {
                 orchestrator.stopAgent(agentID)
                 orchestrator.pinWorkingDirectory(path, for: agentID)
@@ -174,7 +180,7 @@ final class WorktreeSession {
             return .isolated(WorktreeSession(
                 path: path,
                 itemID: itemID,
-                projectRoot: projectRoot,
+                projectRoot: projectRoot, companions: companions,
                 baseBranch: baseBranch,
                 manager: manager,
                 orchestrator: orchestrator,
@@ -211,14 +217,45 @@ final class WorktreeSession {
     /// existing `catch`, the same recovery a creation failure already gets.
     private static func createIsolatedWorktree(
         itemID: String, baseBranch: String?, setupCommand: String?, setupTimeout: TimeInterval,
-        projectRoot: URL, manager: WorktreeManager
+        projectRoot: URL, manager: WorktreeManager, companions: [CompanionRepo] = []
     ) async throws -> URL {
         let path = try await manager.create(for: itemID, baseBranch: baseBranch)
+        // Before the setup command, so what it installs or generates can
+        // already see every repository the item spans.
+        if let refusal = await Self.createCompanions(companions, itemID: itemID, projectRoot: projectRoot, in: path) {
+            throw WorktreeError.setupFailed(refusal)
+        }
         if let reason = await Self.runSetupCommand(setupCommand, in: path, timeout: setupTimeout,
                                                     projectRoot: projectRoot) {
             throw WorktreeError.setupFailed(reason)
         }
         return path
+    }
+
+    /// What the start line adds for an item that spans companions.
+    nonisolated static func companionSuffix(_ companions: [CompanionRepo]) -> String {
+        guard !companions.isEmpty else { return "" }
+        return ", with " + companions.map { "companion \($0.name) at \($0.relativePath)" }.joined(separator: ", ")
+    }
+
+    /// Each companion's branch and worktree, made under the run's own. Off the
+    /// main actor: it is git against as many repositories as the item names.
+    nonisolated private static func createCompanions(
+        _ companions: [CompanionRepo], itemID: String, projectRoot: URL, in path: URL
+    ) async -> String? {
+        guard !companions.isEmpty else { return nil }
+        return CompanionCheckouts.create(companions, itemID: itemID, projectRoot: projectRoot, in: path)
+    }
+
+    /// Commits and — unless the tree is kept for inspection — removes each
+    /// companion's worktree, before the project's own goes.
+    nonisolated private static func finishCompanions(
+        _ companions: [CompanionRepo], itemID: String, projectRoot: URL, in path: URL,
+        message: String, keepCheckouts: Bool
+    ) async -> CompanionCheckouts.Finished {
+        guard !companions.isEmpty else { return CompanionCheckouts.Finished() }
+        return CompanionCheckouts.finish(companions, itemID: itemID, projectRoot: projectRoot, in: path,
+                                         message: message, keepCheckouts: keepCheckouts)
     }
 
     /// Runs the project's `worktreeSetupCommand` in the worker's fresh
@@ -385,6 +422,10 @@ final class WorktreeSession {
         /// `autopilot: <item-id>` for exactly this reason, and it read as the
         /// worker's commit convention slipping.
         var committedByTeardown: Int? = nil
+        /// The companion repositories the run left commits in (ADR-0005).
+        /// Work here is the run's work even when the project's own branch
+        /// carries none.
+        var companionsWithWork: [String] = []
     }
 
     /// Commits the run's changes to the branch — for a passing run, a
@@ -403,10 +444,12 @@ final class WorktreeSession {
         var survivingBranch: String?
         var keptWorktree: URL?
         var teardownCommitted: Int?
-        switch Self.teardownAction(for: outcome) {
+        let action = Self.teardownAction(for: outcome)
+        let companionWork = await finishCompanions(for: action)
+        switch action {
         case .commit:
             let loose = await RunWorkEvidence.uncommittedFileCount(worktree: path)
-            let disposition = await commitWork(message: "autopilot: \(itemID)")
+            let disposition = await commitWork(message: "autopilot: \(itemID)", companionWork: !companionWork.isEmpty)
             teardownCommitted = disposition == .committedByTeardown ? (loose ?? 0) : nil
             await manager.removeWorktree(for: itemID, keepBranch: disposition.keepsBranch)
             switch disposition {
@@ -416,7 +459,7 @@ final class WorktreeSession {
             }
             survivingBranch = disposition.keepsBranch ? branch : nil
         case .keepForInspection:
-            let disposition = await commitWork(message: "autopilot (blocked): \(itemID)")
+            let disposition = await commitWork(message: "autopilot (blocked): \(itemID)", companionWork: false)
             // The worktree is kept for a human to look at — the checkout, branch
             // and diff stay exactly as they are. Its disposable Xcode build
             // output does not: left behind, it is dead weight that never gets
@@ -439,6 +482,13 @@ final class WorktreeSession {
             survivingBranch = branch
             keptWorktree = path
         }
+        await restoreAgents()
+        return Teardown(branch: survivingBranch, worktreePath: keptWorktree, committedByTeardown: teardownCommitted,
+                        companionsWithWork: companionWork)
+    }
+
+    /// Puts every agent the run held back on the project root.
+    private func restoreAgents() async {
         for agentID in agentIDs {
             // Released before the restart, not after: the pin is what would
             // otherwise send the agent straight back into a worktree this
@@ -447,18 +497,43 @@ final class WorktreeSession {
             orchestrator.stopAgent(agentID)
             try? await orchestrator.startAgent(agentID, cwd: projectRoot)
         }
-        return Teardown(branch: survivingBranch, worktreePath: keptWorktree, committedByTeardown: teardownCommitted)
+    }
+
+    /// Commits each companion's loose work and — unless the tree is kept for
+    /// inspection — removes its worktree, before the project's own goes.
+    /// Returns the companions the run left commits in.
+    private func finishCompanions(for action: TeardownAction) async -> [String] {
+        guard !companions.isEmpty else { return [] }
+        let kept = action == .keepForInspection
+        let finished = await Self.finishCompanions(
+            companions, itemID: itemID, projectRoot: projectRoot, in: path,
+            message: kept ? "autopilot (blocked): \(itemID)" : "autopilot: \(itemID)", keepCheckouts: kept)
+        logCompanions(finished)
+        return finished.withWork
+    }
+
+    private func logCompanions(_ finished: CompanionCheckouts.Finished) {
+        for name in finished.committedByTeardown {
+            log("Committed changes in companion \(name) to branch \(branch)")
+        }
+        for companion in companions where !finished.withWork.contains(companion.name) {
+            log("Nothing changed in companion \(companion.name)")
+        }
     }
 
     /// Commits whatever the worker left uncommitted, then asks git which of the
     /// three cases the branch is actually in. The second question is the one
     /// that decides the branch's fate — `commitAll`'s answer only tells the log
     /// line who did the committing.
-    private func commitWork(message: String) async -> CommitOutcome {
+    ///
+    /// `companionWork` is a run whose commits are in a companion repository
+    /// (ADR-0005): it keeps the project's branch too, empty or not, because
+    /// that is the name the gate and the merge find the item by.
+    private func commitWork(message: String, companionWork: Bool) async -> CommitOutcome {
         let teardownCommitted = await manager.commitAll(for: itemID, message: message)
         let branchHasCommits = await manager.hasUnmergedCommits(for: itemID, base: baseBranch)
         return Self.commitOutcome(teardownCommitted: teardownCommitted,
-                                  branchHasCommits: branchHasCommits)
+                                  branchHasCommits: branchHasCommits || companionWork)
     }
 
     // MARK: - Merge
@@ -478,6 +553,7 @@ final class WorktreeSession {
         onGateWait: (@Sendable (WorktreeManager.MergeGateWait) async -> Void)? = nil
     ) async -> WorktreeManager.MergeResult {
         await manager.mergeAndVerify(branch: branch, message: message, verify: verify, timeout: timeout,
-                                     base: base, setupCommand: setupCommand, onGateWait: onGateWait)
+                                     base: base, setupCommand: setupCommand, companions: companions,
+                                     onGateWait: onGateWait)
     }
 }

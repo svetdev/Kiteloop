@@ -38,6 +38,7 @@
 		B7B8921836494D48132B013D /* ProjectStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A86FB510B3BCF38FF6F1F08 /* ProjectStateTests.swift */; };
 		C0CFC4A5619D8710EA76C966 /* MarkdownText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4991933D36E9BD949EE36E72 /* MarkdownText.swift */; };
 		CC82D88E205F8FEEFDD4A381 /* WorkspaceViewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2535653E38701DADD7146F1 /* WorkspaceViewsTests.swift */; };
+		CF4200D07785028FAFBB546D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E27E00BB5173EC787875944A /* Assets.xcassets */; };
 		CF4BF0203B8719D03433D34B /* ControlModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C79A54D8AF85913B808E7BA1 /* ControlModelsTests.swift */; };
 		D03332C0A74C35B160477ABB /* PushRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65A42FB4DD834D660FB749F2 /* PushRegistrationTests.swift */; };
 		D60FFAC8855631DD2251C53C /* ScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8554181B11E79BB72A1EA8E2 /* ScannerView.swift */; };
@@ -134,6 +135,7 @@
 		D7794C5545DD75A3EAABB43E /* RefreshStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshStateTests.swift; sourceTree = "<group>"; };
 		DD72B72982D565A57C4FA345 /* KiteloopMobile.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = KiteloopMobile.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E0A02BA82A19F31D37AAE80E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E27E00BB5173EC787875944A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E560BDE232EDCFB82C98D6C4 /* ConnectionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionStore.swift; sourceTree = "<group>"; };
 		E67EB542C1EE0955ED2E481B /* StatusCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusCard.swift; sourceTree = "<group>"; };
 		F49192DC9AD41DC09762EE6F /* AgentsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsViewModel.swift; sourceTree = "<group>"; };
@@ -206,6 +208,7 @@
 		90207EFDBE2AA0BD83A5A15F /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				E27E00BB5173EC787875944A /* Assets.xcassets */,
 				2F14806F4A39A8A739B28DE9 /* Info.plist */,
 				01476A3735C68CFAC00D047F /* KiteloopMobile.entitlements */,
 				B4327F300EE7CB9A648AF672 /* KiteloopMobileApp.swift */,
@@ -307,6 +310,7 @@
 			buildConfigurationList = 203C8112002A790E1BEDA70A /* Build configuration list for PBXNativeTarget "KiteloopMobile" */;
 			buildPhases = (
 				2C4DB1E852F329E8CA6D891F /* Sources */,
+				E31C36BB8182A14829ECEC05 /* Resources */,
 				96AFACFD3B3A353E4F20F207 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -378,6 +382,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		E31C36BB8182A14829ECEC05 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CF4200D07785028FAFBB546D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		2C4DB1E852F329E8CA6D891F /* Sources */ = {

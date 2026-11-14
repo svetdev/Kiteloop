@@ -923,6 +923,18 @@ final class CoordinatorQueueRefill {
         return bounded.drafts
     }
 
+    /// What a pass's drafts are grounded against: the repository at its base,
+    /// the vault, and the project's companion repositories. Built off the
+    /// main actor — it walks the tree.
+    private func groundingSources(for entry: ControlSessionRegistry.Entry, root: URL,
+                                  vault: URL?) async -> GroundingCheck.Sources {
+        let base = entry.autopilot.baseBranch
+        let companions = entry.session.backlogViewModel.projectCompanions
+        return await Task.detached {
+            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base, companions: companions)
+        }.value
+    }
+
     /// The grooming a pass actually does. Returns what happened rather than
     /// recording it: `perform` decides whether this pass is still the one
     /// entitled to record anything.
@@ -982,10 +994,7 @@ final class CoordinatorQueueRefill {
         // The vault too: a draft cites its own detail file and the backlog it
         // will be filed in, and both live there rather than in the repo.
         stage(.gating, of: pass)
-        let (vault, base) = (globalConfigStore.vaultURL, entry.autopilot.baseBranch)
-        let sources = await Task.detached {
-            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base)
-        }.value
+        let sources = await groundingSources(for: entry, root: root, vault: globalConfigStore.vaultURL)
         let drafted = drafts.map { gate($0, sources: sources, mapCoversEveryPath: SignalDrafting.hasCatchAll(verifyMap)) }.map {
             Proposal(project: target.project, draft: $0.draft, status: $0.status,
                      notes: $0.notes, refusals: $0.refusals)

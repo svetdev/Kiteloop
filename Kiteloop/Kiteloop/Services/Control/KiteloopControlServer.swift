@@ -1103,6 +1103,7 @@ final class KiteloopControlServer {
                 "unattendedPermissions": "auto",
                 "paused": Self.isPaused(entry),
                 "pinned": entry.session.project.loadConfig().pinnedDocument as Any,
+                "companions": (entry.session.project.loadConfig().companions ?? []).map(\.json),
                 "run": await Self.runState(entry.autopilot, clearingInconsistencyVia: "GET /v1/projects"),
                 "queue": queue,
                 // Null while the gate isn't full — the same reading `/health`'s
@@ -1215,6 +1216,7 @@ final class KiteloopControlServer {
         let sections = backlogViewModel.backlogFile?.sections ?? []
         // Resolved across every epic, since sequencing routinely crosses them.
         let dependencies = DefinitionOfReady.Dependencies(items: sections.flatMap(\.items))
+        let companions = backlogViewModel.projectCompanions
         return sections.flatMap { section in
             section.items.map { item in
                 guard item.status == .ready else {
@@ -1224,7 +1226,7 @@ final class KiteloopControlServer {
                 return JudgedItem(
                     epic: section.name, item: item,
                     verdict: DefinitionOfReady.evaluate(
-                        item: item, detail: detail, dependencies: dependencies),
+                        item: item, detail: detail, dependencies: dependencies, companions: companions),
                     detail: detail)
             }
         }
@@ -5037,7 +5039,8 @@ final class KiteloopControlServer {
     /// half of a split until the first half had landed.
     private static func promotionRefusal(item: BacklogItem, backlogViewModel: BacklogViewModel) -> HTTPServer.Response? {
         let verdict = DefinitionOfReady.evaluate(
-            item: item, detail: backlogViewModel.loadDetail(for: item), dependencies: nil)
+            item: item, detail: backlogViewModel.loadDetail(for: item), dependencies: nil,
+            companions: backlogViewModel.projectCompanions)
         guard !verdict.isReady else { return nil }
         return .json([
             "error": "Item is not ready — \(verdict.summary); pass \"force\": true to promote it anyway",
@@ -5442,18 +5445,22 @@ final class KiteloopControlServer {
         guard itemFor(entry: entry, itemId: itemId) != nil else {
             return .error("No backlog item '\(itemId)' in this project", status: 404)
         }
-        let root = entry.session.project.rootURL.path(percentEncoded: false)
+        let rootURL = entry.session.project.rootURL
+        let root = rootURL.path(percentEncoded: false)
         let branch = WorktreeSession.branchName(for: itemId)
-        let result = await Task.detached(priority: .userInitiated) {
-            Self.runDiffGit(branch: branch, root: root)
+        let companions = entry.session.backlogViewModel.companions(forItemID: itemId, projectRoot: rootURL)
+        let (result, companionDiffs) = await Task.detached(priority: .userInitiated) {
+            (Self.runDiffGit(branch: branch, root: root),
+             CompanionCheckouts.diffs(companions, itemID: itemId, projectRoot: rootURL))
         }.value
         guard !result.timedOut else {
             return .error("git timed out reading the diff for '\(branch)'", status: 504)
         }
-        guard result.branchExists else {
+        guard result.branchExists || !companionDiffs.isEmpty else {
             return .error("No branch '\(branch)' — the item ran in the live tree, or its branch is already merged and gone", status: 404)
         }
-        return .json(Self.diffBody(itemId: itemId, branch: branch, stat: result.stat, patch: result.patch))
+        return .json(Self.diffBody(itemId: itemId, branch: branch, stat: result.stat, patch: result.patch,
+                                   companions: companionDiffs))
     }
 
     /// Each of the three gits the gate diff needs is killed rather than
@@ -5503,11 +5510,29 @@ final class KiteloopControlServer {
         return DiffGitResult(branchExists: true, stat: stat.output, patch: patch.output)
     }
 
-    private static func diffBody(itemId: String, branch: String, stat: String, patch: String) -> [String: Any] {
-        var patch = patch
-        let truncated = patch.count > diffPatchCap
-        if truncated { patch = String(patch.prefix(diffPatchCap)) }
-        return ["item": itemId, "branch": branch, "stat": stat, "patch": patch, "truncated": truncated]
+    /// One diff for the person at the gate. An item that spans companion
+    /// repositories (ADR-0005) carries each one's diff after the project's
+    /// own, under a heading naming the repository, in the same `stat` and
+    /// `patch` a single-repository item fills — so a reader of those two
+    /// fields sees all of it — and again per repository under `repos`.
+    static func diffBody(itemId: String, branch: String, stat: String, patch: String,
+                         companions: [CompanionCheckouts.RepoDiff] = []) -> [String: Any] {
+        var stat = stat
+        if !companions.isEmpty {
+            stat = [stat, CompanionCheckouts.combined(companions, \.stat)].filter { !$0.isEmpty }.joined(separator: "\n")
+        }
+        // Cut in both parts when it is too long, never only at the end where
+        // the companions are — the person approving sees every repository.
+        let (patch, truncated) = CompanionCheckouts.fitted(
+            own: patch, companions: CompanionCheckouts.combined(companions, \.patch), limit: diffPatchCap)
+        var body: [String: Any] = ["item": itemId, "branch": branch, "stat": stat, "patch": patch, "truncated": truncated]
+        if !companions.isEmpty {
+            body["repos"] = companions.map {
+                ["name": $0.name, "path": "\(CompanionRepo.directory)/\($0.name)", "branch": $0.branch,
+                 "stat": $0.stat, "files": $0.files] as [String: Any]
+            }
+        }
+        return body
     }
 
     private func moveBacklogItem(body: Data) -> HTTPServer.Response {
@@ -5848,9 +5873,9 @@ final class KiteloopControlServer {
 
         // The same index the coordinator's drafts are grounded against, built off
         // the main actor — it walks the repo, and the orchestrator must not block.
-        let (vault, base) = (backlog.vaultURL, entry.autopilot.baseBranch)
+        let (vault, base, companions) = (backlog.vaultURL, entry.autopilot.baseBranch, backlog.projectCompanions)
         let sources = await Task.detached {
-            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base)
+            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base, companions: companions)
         }.value
         let gated = kind?.gate(stamped, sources: sources) ?? BacklogTemplate.gate(stamped, sources: sources)
         let epic = template.section(in: backlog.backlogFile)
@@ -5986,9 +6011,9 @@ final class KiteloopControlServer {
         let vault = backlog.vaultURL
         let grant = RepoRead.Grant(projectName: root.lastPathComponent, projectPath: root.path(percentEncoded: false))
         let system = BacklogGroomer.personaPrompt + "\n\n" + RepoRead.contract(for: grant)
-        let base = entry.autopilot.baseBranch
+        let (base, companions) = (entry.autopilot.baseBranch, backlog.projectCompanions)
         let sources = await Task.detached {
-            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base)
+            GroundingCheck.Sources.repository(root: root, vault: vault, baseBranch: base, companions: companions)
         }.value
         do {
             let proposal = try await BacklogGroomer.propose(

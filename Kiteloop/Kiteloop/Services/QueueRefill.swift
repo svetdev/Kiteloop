@@ -810,6 +810,11 @@ enum QueueRefill {
         /// Optional on the wire so a proposal persisted before the field
         /// existed still decodes; nil and empty both mean the item states none.
         var premise: [String]? = nil
+        /// The project's companion repositories the item also changes —
+        /// `repos:` in its detail (ADR-0005). No drafter writes it: a groom
+        /// carries over what the item it rewrites already named, so the
+        /// rewrite does not turn the item back into a single-repository one.
+        var repos: [String]? = nil
 
         /// The `verify:` the backlog line carries — none for an empty one, the
         /// draft of a project whose verify map has a catch-all rule.
@@ -831,8 +836,16 @@ enum QueueRefill {
                 verifyCommands: verify.isEmpty ? [] : [.init(name: "verify", cmd: verify, expect: nil)],
                 why: nil, acceptanceCriteria: validation, outOfScope: outOfScope,
                 context: nil, notes: nil, what: what, approach: how,
-                premise: premise ?? []
+                premise: premise ?? [],
+                repos: repos?.isEmpty == false ? repos : nil
             )
+        }
+
+        /// The `repos:` line of the frontmatter, or nothing for an item of
+        /// the project's repository alone.
+        var reposFrontmatter: String {
+            guard let repos, !repos.isEmpty else { return "" }
+            return "repos: \(repos.joined(separator: ", "))\n"
         }
 
         /// `backlog/<id>.md`, in the shape `BacklogViewModel.createDetail`
@@ -848,6 +861,7 @@ enum QueueRefill {
             // it.
             var out = "---\nid: \(id)\ntitle: \(title)\nsize: \(size.uppercased())\n"
             if let epic, !epic.isEmpty { out += "epic: \(epic)\n" }
+            out += reposFrontmatter
             // The `cmd` is quoted and escaped together by the writer paired with
             // the reader that resolves it: escaping only `"` here left a
             // backslashed command — `-exec … {} \;` — to come back short of the

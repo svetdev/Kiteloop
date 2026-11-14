@@ -6,6 +6,17 @@ The version here is the app's `MARKETING_VERSION` (what `/health` reports and
 what the About panel shows). Every build that ships a behavioural change gets an
 entry — see the changelog convention in `CLAUDE.md`.
 
+## 0.7.0 — 2026-11-14
+
+### Added
+
+#### Items across repositories
+- An item can change more than one repository. The project names its companion repositories in `.kiteloop/config.json` (`companions`: a name, a path, optionally a base branch), and an item opts in with `repos:` in its detail file. The run then gets the same `kiteloop/<item-id>` branch in each, checked out under its own worktree at `.kiteloop/repos/<name>`, and the worker and the reviewer are told where they are.
+- The item's `verify:` runs once and sees every repository as merged. Approving lands all of them or none: each companion first, the project last, and a companion already moved is put back if a later one refuses. The item's Notes record the commit each repository landed as.
+- The gate's diff (`GET /v1/backlog/diff`, and the phone's review) carries each companion's changes after the project's own, under a heading naming the repository.
+- An item naming a companion the project does not have is refused at pickup, by name.
+- The phone app has an icon.
+
 ## 0.6.0 — 2026-11-14
 
 ### Added

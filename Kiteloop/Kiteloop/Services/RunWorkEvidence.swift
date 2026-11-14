@@ -85,6 +85,13 @@ enum RunWorkEvidence {
         /// only on evidence this strong; a run it cannot read keeps paying the
         /// stand-in, because assuming free is the direction that fails open.
         var producedNothing: Bool { missingSignal != nil }
+
+        /// This verdict, read for an item that spans companion repositories
+        /// (ADR-0005): the project's own branch being empty is not "no work"
+        /// when a companion's branch carries the change.
+        func counting(companionWork: Bool) -> Verdict {
+            producedNothing && companionWork ? .produced : self
+        }
     }
 
     // MARK: - Reading git
