@@ -11,6 +11,8 @@ package enum ControlRoute: Equatable {
     case openProject
     case reorderProjects
     case askAboutProject
+    /// `POST /v1/projects/pin` — the file the phone shows first for a project.
+    case pinProjectDocument
     case hireAgent
 
     // Backlog + history
@@ -98,6 +100,18 @@ package enum ControlRoute: Equatable {
     case approveProposal
     case dismissProposal
 
+    // Routines
+    /// `GET /v1/routines` — every routine, when it next falls and how it last went.
+    case listRoutines
+    /// `GET /v1/routines/runs` — the ledger of firings.
+    case listRoutineRuns
+    /// `PUT /v1/routines/{id}` — add a routine, or replace the one with this id.
+    case putRoutine(id: String)
+    /// `DELETE /v1/routines/{id}`.
+    case deleteRoutine(id: String)
+    /// `POST /v1/routines/{id}/run` — send its prompt now.
+    case runRoutine(id: String)
+
     // Description
     case openAPIDocument
 
@@ -151,7 +165,7 @@ package enum ControlRouter {
     /// whenever an endpoint the phone calls is added or changes shape — the
     /// same change that adds or edits a row in `KiteloopMobile/README.md` —
     /// and the phone's `APICompatibility.phoneVersion` raised with it.
-    package static let apiVersion = 2
+    package static let apiVersion = 3
 
     /// The route for a request, or `nil` when nothing matches (the server answers
     /// 404). A path that exists under another method is a miss like any other:
@@ -224,6 +238,7 @@ package enum ControlRouter {
         Row("POST", "/v1/projects/open")        { _ in .openProject },
         Row("POST", "/v1/projects/reorder")     { _ in .reorderProjects },
         Row("POST", "/v1/projects/ask")         { _ in .askAboutProject },
+        Row("POST", "/v1/projects/pin")         { _ in .pinProjectDocument },
         Row("POST", "/v1/agents")               { _ in .hireAgent },
         Row("GET", "/v1/agents")                { _ in .listAgents },
         Row("POST", "/v1/agents/message")       { _ in .messageAgent },
@@ -285,6 +300,12 @@ package enum ControlRouter {
         Row("GET",  "/v1/coordinator/proposals")         { _ in .listProposals },
         Row("POST", "/v1/coordinator/proposals/approve") { _ in .approveProposal },
         Row("POST", "/v1/coordinator/proposals/dismiss") { _ in .dismissProposal },
+
+        Row("GET",  "/v1/routines")             { _ in .listRoutines },
+        Row("GET",  "/v1/routines/runs")        { _ in .listRoutineRuns },
+        Row("PUT",  "/v1/routines/:id")         { .putRoutine(id: $0[0]) },
+        Row("DELETE", "/v1/routines/:id")       { .deleteRoutine(id: $0[0]) },
+        Row("POST", "/v1/routines/:id/run")     { .runRoutine(id: $0[0]) },
 
         Row("GET",  "/v1/openapi.json")         { _ in .openAPIDocument },
 

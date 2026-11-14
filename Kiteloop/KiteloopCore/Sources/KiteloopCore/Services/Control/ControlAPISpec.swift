@@ -181,7 +181,7 @@ package enum ControlAPISpec {
         case .health, .openAPIDocument, .claimPairingCode, .listQuickReplies,
              .registerPushDevice, .registerLiveActivity:
             return metaDetail(for: route)
-        case .listProjects, .openProject, .reorderProjects, .askAboutProject,
+        case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot,
              .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents,
              .interruptAgent, .answerAgentPlan, .answerAgentQuestion,
@@ -199,12 +199,173 @@ package enum ControlAPISpec {
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
-             .listProposals, .approveProposal, .dismissProposal:
-            return coordinatorDetail(for: route)
+             .listProposals, .approveProposal, .dismissProposal,
+             .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine:
+            return loopDetail(for: route)
         case .startRun, .approveRun, .cancelRun, .steerRun,
              .listRuns, .runStatus, .runResult, .runEvents, .runLog:
             return runDetail(for: route)
         }
+    }
+
+    /// What runs on its own clock: the Planner's two loops, and routines.
+    private static func loopDetail(for route: ControlRoute) -> Detail {
+        switch route {
+        case .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine:
+            return routineDetail(for: route)
+        default:
+            return coordinatorDetail(for: route)
+        }
+    }
+
+    // MARK: - Routines
+
+    /// The `/v1/routines…` family — prompts sent to an agent on a schedule.
+    private static func routineDetail(for route: ControlRoute) -> Detail {
+        switch route {
+        case .listRoutines: return listRoutinesDetail()
+        case .listRoutineRuns: return listRoutineRunsDetail()
+        case .putRoutine: return putRoutineDetail()
+        case .deleteRoutine: return deleteRoutineDetail()
+        case .runRoutine: return runRoutineDetail()
+        default:
+            preconditionFailure("\(route) is not a routine route")
+        }
+    }
+
+    private static var routineTrigger: [String: Any] {
+        object([
+            "at": described(string, "A time of day, HH:mm, in the Mac's time zone. Either this or `every`."),
+            "every": described(integer, "Minutes between occurrences. Either this or `at`."),
+            "from": described(string, "With `every`: the day's first occurrence, HH:mm. Midnight when absent."),
+            "until": described(string, "With `every`: the last moment of the day one may fall on, HH:mm."),
+            "days": described(array(of: string), "mon … sun; every day when absent.")
+        ], required: [])
+    }
+
+    private static var routineFields: [String: Any] {
+        [
+            "name": described(string, "What a person calls it. The id when absent."),
+            "project": described(string, "The project the agent is in."),
+            "agent": described(string, "The agent the prompt goes to, by name or id."),
+            "prompt": described(string, "What the agent is sent."),
+            "trigger": routineTrigger,
+            "precheck": described(string, "A shell command run in the project's folder first. Failing or printing nothing skips the turn; what it prints goes to the agent under the prompt."),
+            "armed": described(bool, "Whether it fires on its schedule. Off unless set; kept as it was when a replacement does not say.")
+        ]
+    }
+
+    private static var routineRun: [String: Any] {
+        object([
+            "id": string,
+            "routine": string,
+            "at": described(string, "When it was handled, ISO 8601."),
+            "scheduledFor": described(string, "The occurrence it answers; absent for a run started by hand."),
+            "outcome": described(string, "started, queued (behind the agent's running turn), skipped (the check found nothing), refused, or waiting (the agent could not be reached; the occurrence runs when it can)."),
+            "reason": described(string, "Why it was skipped or refused."),
+            "finishedAt": described(string, "When a started turn ended."),
+            "reply": described(string, "The first line of what the agent said."),
+            "costUSD": number
+        ], required: ["id", "routine", "at", "outcome"])
+    }
+
+    private static var routineListed: [String: Any] {
+        var fields = routineFields
+        fields["id"] = string
+        fields["when"] = described(string, "The trigger in words.")
+        fields["next"] = described(nullable(string), "When it next falls, ISO 8601 — armed or not.")
+        fields["lastRun"] = described(nullable(routineRun), "Its newest firing.")
+        return object(fields, required: ["id", "name", "project", "agent", "prompt", "trigger", "armed", "when"])
+    }
+
+    private static func listRoutinesDetail() -> Detail {
+        Detail(
+            id: "listRoutines",
+            summary: "Every routine, when it next falls and how it last went",
+            description: """
+            A routine sends one prompt to one agent on a schedule — the same turn typing \
+            the prompt into that agent's chat starts. They live in ~/.kiteloop/routines.json, \
+            outside every project.
+            """,
+            query: [QueryParameter(name: "project", required: false, schema: string,
+                                   description: "Only the routines naming this project.")],
+            responses: [
+                Status(code: 200, description: "The routines, in the order they were added.",
+                       schema: object(["routines": array(of: routineListed)], required: ["routines"])),
+                errorStatus(503, "This Kiteloop keeps no routines.")
+            ]
+        )
+    }
+
+    private static func listRoutineRunsDetail() -> Detail {
+        Detail(
+            id: "listRoutineRuns",
+            summary: "The ledger of firings, newest first",
+            description: """
+            Every firing is on record — a turn that started, a prompt queued behind a \
+            running turn, a check that found nothing, a refusal with its reason.
+            """,
+            query: [
+                QueryParameter(name: "routine", required: false, schema: string, description: "Only this routine's."),
+                QueryParameter(name: "limit", required: false, schema: integer, description: "Newest to return; default 50.")
+            ],
+            responses: [
+                Status(code: 200, description: "The runs.",
+                       schema: object(["runs": array(of: routineRun)], required: ["runs"])),
+                errorStatus(503, "This Kiteloop keeps no routines.")
+            ]
+        )
+    }
+
+    private static func putRoutineDetail() -> Detail {
+        Detail(
+            id: "putRoutine",
+            summary: "Add a routine, or replace the one with this id",
+            description: """
+            The id is lowercase letters, digits and hyphens. A new routine is off until \
+            `armed` is true. Arming one, or changing when an armed one falls, starts what \
+            it owes from that moment: nothing earlier is made up for.
+            """,
+            requestBody: object(routineFields, required: ["project", "agent", "prompt", "trigger"]),
+            responses: [
+                Status(code: 200, description: "The routine as kept.",
+                       schema: object(["routine": routineListed], required: ["routine"])),
+                errorStatus(400, "The body cannot be a routine — every problem is named."),
+                errorStatus(500, "The routines file could not be written."),
+                errorStatus(503, "This Kiteloop keeps no routines.")
+            ]
+        )
+    }
+
+    private static func deleteRoutineDetail() -> Detail {
+        Detail(
+            id: "deleteRoutine",
+            summary: "Remove a routine",
+            description: "Its past runs stay in the ledger.",
+            responses: [
+                Status(code: 200, description: "Removed.", schema: object(["removed": string], required: ["removed"])),
+                errorStatus(404, "No routine with this id."),
+                errorStatus(500, "The routines file could not be written."),
+                errorStatus(503, "This Kiteloop keeps no routines.")
+            ]
+        )
+    }
+
+    private static func runRoutineDetail() -> Detail {
+        Detail(
+            id: "runRoutine",
+            summary: "Send a routine's prompt now",
+            description: """
+            A person's own start: it needs no arming, the daily budget does not refuse it, \
+            and a check that finds nothing does not stop it. Answered at once; how the turn \
+            went is in GET /v1/routines/runs.
+            """,
+            responses: [
+                Status(code: 202, description: "The firing has begun.", schema: object(["routine": string], required: ["routine"])),
+                errorStatus(404, "No routine with this id."),
+                errorStatus(503, "This Kiteloop keeps no routines.")
+            ]
+        )
     }
 
     // MARK: - Meta: the liveness probe and this document
@@ -352,7 +513,7 @@ package enum ControlAPISpec {
     /// one arm per family, each family a switch of its own.
     private static func teamDetail(for route: ControlRoute) -> Detail {
         switch route {
-        case .listProjects, .openProject, .reorderProjects, .askAboutProject,
+        case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot: return projectDetail(for: route)
         case .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents: return agentDetail(for: route)
         case .interruptAgent, .answerAgentPlan, .answerAgentQuestion: return agentSteeringDetail(for: route)
@@ -372,10 +533,36 @@ package enum ControlAPISpec {
         case .openProject: return openProjectDetail()
         case .reorderProjects: return reorderProjectsDetail()
         case .askAboutProject: return askAboutProjectDetail()
+        case .pinProjectDocument: return pinProjectDocumentDetail()
         case .workspaceChanges, .workspaceFile, .previewScreenshot: return workspaceDetail(for: route)
         default:
             preconditionFailure("\(route) is not a project route")
         }
+    }
+
+    private static func pinProjectDocumentDetail() -> Detail {
+        Detail(
+            id: "pinProjectDocument",
+            summary: "Pin one file of a project for the phone to show first",
+            description: """
+            The file is named by its path from the project's root and need not exist \
+            yet — a brief an agent writes each morning is pinned once. GET /v1/projects \
+            carries it as `pinned`, and the phone reads it through GET /v1/workspace/file. \
+            A null or empty path unpins.
+            """,
+            requestBody: object([
+                "project": described(string, "Project identifier."),
+                "path": described(nullable(string), "The file's path from the project's root; null or empty to unpin.")
+            ], required: ["project"]),
+            responses: [
+                Status(code: 200, description: "Pinned, or unpinned.", schema: object([
+                    "project": string, "pinned": nullable(string)
+                ], required: ["project", "pinned"])),
+                errorStatus(400, "No project, or a path that leaves the project."),
+                errorStatus(409, "Project not open in Kiteloop."),
+                errorStatus(500, "The project's settings could not be written.")
+            ]
+        )
     }
 
     /// The project's working tree and web preview, read from a phone.
@@ -576,6 +763,8 @@ package enum ControlAPISpec {
                 "systemPrompt": string,
                 "avatar": string,
                 "tools": array(of: string),
+                "askFirst": described(array(of: string), "Calls the agent always stops to ask a person about, in every permission mode — rules as Claude Code spells them, like Bash(gh pr comment:*) or an MCP tool's name."),
+                "mcpServers": described(array(of: string), "The configured MCP servers the agent's sessions are given, by name."),
                 "select": described(bool, "Select the new agent in the UI. Defaults to false so a headless call doesn't steal the user's view.")
             ], required: ["project", "name"]),
             responses: [
@@ -688,20 +877,25 @@ package enum ControlAPISpec {
             `allow` runs the call this once, `deny` refuses it and the agent stops \
             to be told how to go on, and `always` allows it and has the session \
             remember one of the card's `always` offers — named by its position, \
-            `always: 0` unless said otherwise.
+            `always: 0` unless said otherwise. An allow may carry `input`: the \
+            call's text fields, by name, as the person reworded them — the card's \
+            `fields` in the transcript — and the call then runs as reworded.
             """,
             requestBody: agentTargetBody([
                 "request": described(string, "The card's request id, as the transcript gives it."),
                 "answer": described(string, "allow, always or deny."),
-                "always": described(integer, "With always: which of the card's offers to remember; default 0.")
+                "always": described(integer, "With always: which of the card's offers to remember; default 0."),
+                "input": described(["type": "object", "additionalProperties": string],
+                                   "With allow or always: text fields of the call to reword, by name.")
             ], required: ["request", "answer"]),
             responses: [
                 Status(code: 200, description: "Answered; the session goes on.", schema: object([
-                    "agent": string, "request": string, "answer": string
-                ], required: ["agent", "request", "answer"])),
-                errorStatus(400, "A missing field, or an answer that is not one of the three."),
+                    "agent": string, "request": string, "answer": string,
+                    "edited": described(bool, "Whether the call was allowed reworded.")
+                ], required: ["agent", "request", "answer", "edited"])),
+                errorStatus(400, "A missing field, an answer that is not one of the three, or an input that is not text by field or came with a deny."),
                 errorStatus(404, "No such agent in this project."),
-                errorStatus(409, "Project not open, or no such card is open — answered already, taken back, or it offers nothing at that position.")
+                errorStatus(409, "Project not open, or no such card is open — answered already, taken back, it offers nothing at that position, or input names something that is not one of its text fields.")
             ]
         )
     }
@@ -1299,11 +1493,14 @@ package enum ControlAPISpec {
             With `"groom": true` the same grooming pass the Mac's Groom button runs then \
             writes the detail, `verify:` and size it proposes; the item stays at `draft`, \
             so promoting it is still a person's step. `grooming` says whether that pass \
-            started, or why it could not.
+            started, or why it could not. A filing that carries a `key` is filed once: the \
+            key, slugged, is the item's id, and filing it again answers 200 with the item \
+            already there — or `closed` once it has left the backlog — and writes nothing.
             """,
             requestBody: object([
                 "project": described(string, "Project identifier."),
                 "title": described(string, "The item's title."),
+                "key": described(string, "What makes a second sighting the same item — the id is slugged from it."),
                 "note": described(string, "What the item is about, written as its What."),
                 "epic": described(string, "The epic to file under. Defaults to Inbox."),
                 "groom": described(bool, "Groom the item after filing it. Defaults to false.")
@@ -1315,7 +1512,12 @@ package enum ControlAPISpec {
                     "status": described(string, "Always draft."),
                     "grooming": described(string, "started, not asked, or why grooming could not start.")
                 ], required: ["item", "epic", "status", "grooming"])),
-                errorStatus(400, "No project or title, a title holding the line's field separator, or a non-boolean groom."),
+                Status(code: 200, description: "An item with this key was already filed; nothing was written.", schema: object([
+                    "item": string,
+                    "existing": bool,
+                    "status": described(string, "The item's status, or closed for one no longer in the backlog.")
+                ], required: ["item", "existing", "status"])),
+                errorStatus(400, "No project or title, a title holding the line's field separator, a key with no letter or digit, or a non-boolean groom."),
                 errorStatus(409, "Project not open, or it has no backlog."),
                 errorStatus(500, "The backlog or the detail file could not be written.")
             ]

@@ -284,6 +284,17 @@ package struct ProjectConfig: Codable {
     /// carry `~` and `$PROJECT_ROOT`; `PATH` is ignored — it is
     /// `extraExecutablePaths`'s. Nil means the project adds nothing.
     package var buildEnvironment: [String: String]?
+    /// One file of the project, by its path from the project's root, that the
+    /// phone shows first when the project is opened — the brief an agent
+    /// writes each morning. Nil pins nothing.
+    package var pinnedDocument: String?
+
+    /// What a pinned-document field holds: the path trimmed, or nil for one
+    /// left empty.
+    package static func pinnedPath(_ text: String?) -> String? {
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
 
     package static let `default` = ProjectConfig(
         model: nil,
@@ -322,7 +333,7 @@ package struct ProjectConfig: Codable {
     private enum CodingKeys: String, CodingKey {
         case model, permissionMode, deniedTools, agentSessionIDs
         case claudeCodeVersion, effort, maxBudgetUSD, observability, bedrock
-        case paused, goal, extraExecutablePaths, buildEnvironment
+        case paused, goal, extraExecutablePaths, buildEnvironment, pinnedDocument
     }
 
     /// The key this config used to carry, kept only so `init(from:)` can read a
@@ -350,6 +361,7 @@ package struct ProjectConfig: Codable {
         goal = try c.decodeIfPresent(String.self, forKey: .goal)
         extraExecutablePaths = try c.decodeIfPresent([String].self, forKey: .extraExecutablePaths)
         buildEnvironment = try c.decodeIfPresent([String: String].self, forKey: .buildEnvironment)
+        pinnedDocument = try c.decodeIfPresent(String.self, forKey: .pinnedDocument)
         paused = try c.decodeIfPresent(Bool.self, forKey: .paused)
             ?? Self.pausedFromLegacyPriority(in: decoder)
     }

@@ -39,6 +39,15 @@ final class ControlModelsTests: XCTestCase {
 
     /// A gate still verifying is not waiting on a person; a refused one is,
     /// and carries its reason.
+    func testAProjectNamesItsPinnedFileAndOneWithoutNamesNone() throws {
+        let pinned = try JSONDecoder().decode(Project.self, from: Data(#"{"id":"/p","name":"vault","pinned":"Briefs/today.md"}"#.utf8))
+        XCTAssertEqual(pinned.pinned, "Briefs/today.md")
+        XCTAssertEqual(pinned.pinnedName, "today.md")
+        let none = try JSONDecoder().decode(Project.self, from: Data(#"{"id":"/p","name":"vault","pinned":null}"#.utf8))
+        XCTAssertNil(none.pinnedName)
+        XCTAssertNil(try JSONDecoder().decode(Project.self, from: Data(#"{"id":"/p","name":"vault"}"#.utf8)).pinnedName)
+    }
+
     func testAGateVerifyingIsNotWaitingOnAPerson() throws {
         let verifying = #"{"id": "a", "status": "awaiting-approval", "gate": {"state": "verifying", "since": "2026-09-07T14:26:41Z"}}"#
         let item = try JSONDecoder().decode(BacklogItem.self, from: Data(verifying.utf8))

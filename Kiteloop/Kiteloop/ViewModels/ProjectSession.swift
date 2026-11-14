@@ -633,6 +633,7 @@ final class ProjectSession {
         systemPrompt: String? = nil,
         tools: [String]? = nil,
         denied: [String]? = nil,
+        askFirst: [String] = [],
         mcpServers: [String]? = nil,
         skills: [String]? = nil,
         select: Bool = true
@@ -657,6 +658,7 @@ final class ProjectSession {
         )
         agent.effort = tuning.effort
         agent.maxBudgetUSD = tuning.maxBudgetUSD
+        agent.askFirst = askFirst
         orchestrator.addAgent(agent)
         persistTeamConfig()
         Task {

@@ -1499,7 +1499,18 @@ extension ClaudeCodeCLIRuntime {
         if !agent.denied.isEmpty {
             args += ["--disallowedTools", agent.denied.joined(separator: ",")]
         }
-        return args
+        return args + askFirstArguments(agent.askFirst)
+    }
+
+    /// The agent's always-ask rules, as settings the CLI reads for this
+    /// session alone. An `ask` rule outranks every approval — the tool list,
+    /// the mode, a remembered yes — so the call stops on a card in Auto as it
+    /// does in Ask, and the CLI offers nothing to remember with the answer.
+    /// With nobody attending, the same rule refuses the call.
+    static func askFirstArguments(_ rules: [String]) -> [String] {
+        let rules = rules.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        guard !rules.isEmpty else { return [] }
+        return ["--settings", PermissionPrompt.askRulesSettings(rules)]
     }
 
     /// The tools a session runs without asking: the agent's whole scope —

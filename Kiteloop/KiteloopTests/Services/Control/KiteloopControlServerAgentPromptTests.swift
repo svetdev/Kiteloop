@@ -118,6 +118,48 @@ final class KiteloopControlServerAgentPromptTests: XCTestCase {
         XCTAssertEqual(vm.openPromptCount, 0)
     }
 
+    func testAnAllowWithTheCommandRewordedRunsTheRewordingAndTheCardSaysSo() async throws {
+        let vm = try await liveAgent()
+        try await ask(vm, bash)
+
+        let (status, answer) = try await harness.post("/v1/agents/permission",
+                                                      body(["request": "req-1", "answer": "allow", "input": ["command": "make test"]]))
+
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(answer["edited"] as? Bool, true)
+        XCTAssertEqual((answered("req-1")?["updatedInput"] as? [String: Any])?["command"] as? String, "make test")
+        let (_, transcript) = try await harness.get("/v1/agents/transcript?project=alpha&agent=Builder")
+        let card = try XCTUnwrap((transcript["messages"] as? [[String: Any]])?.first { $0["kind"] as? String == "permission" })
+        let state = try XCTUnwrap(card["permission"] as? [String: Any])
+        XCTAssertEqual(state["edited"] as? Bool, true)
+        XCTAssertEqual(state["fields"] as? [[String: String]], [["name": "command", "value": "make test"]])
+        try await eventually("the agent is told how its call ran") {
+            self.runtime.sentMessages.contains { $0.message == "I changed your Bash call before allowing it. It ran with:\n\ncommand: make test" }
+                || vm.messages.contains { message in
+                    if case .text(let text) = message.content { return text.hasPrefix("I changed your Bash call") }
+                    return false
+                }
+        }
+    }
+
+    func testAnInputThatIsNotTextOrComesWithADenyIs400AndOneNamingNoFieldIs409() async throws {
+        let vm = try await liveAgent()
+        try await ask(vm, bash)
+
+        let (notText, _) = try await harness.post("/v1/agents/permission",
+                                                  body(["request": "req-1", "answer": "allow", "input": ["command": 3]]))
+        let (withDeny, _) = try await harness.post("/v1/agents/permission",
+                                                   body(["request": "req-1", "answer": "deny", "input": ["command": "x"]]))
+        let (noField, _) = try await harness.post("/v1/agents/permission",
+                                                  body(["request": "req-1", "answer": "allow", "input": ["nothing": "x"]]))
+
+        XCTAssertEqual(notText, 400)
+        XCTAssertEqual(withDeny, 400)
+        XCTAssertEqual(noField, 409)
+        XCTAssertEqual(vm.openPromptCount, 1, "the card still waits")
+        XCTAssertTrue(runtime.controlLines.isEmpty, "and the session heard nothing")
+    }
+
     func testAlwaysRemembersTheFirstOfferUnlessAnotherIsNamed() async throws {
         let vm = try await liveAgent()
         try await ask(vm, bash)

@@ -54,6 +54,10 @@ package struct Message: Identifiable, Codable {
         /// What the CLI offers to remember so it need not ask again.
         package let suggestions: [PermissionSuggestion]
         package var answer: Answer?
+        /// The input the call was allowed with, when the person reworded it
+        /// before allowing — what actually ran or was sent. Nil for a call
+        /// allowed as asked.
+        package var sent: String?
 
         /// The request as one line: whose call it is, and what it would do.
         package var question: String { subagent.map { "\($0) — \(summary)" } ?? summary }
@@ -66,7 +70,8 @@ package struct Message: Identifiable, Codable {
         }
 
         package init(id: String, toolName: String, input: String, summary: String, subagent: String? = nil,
-                     suggestions: [PermissionSuggestion] = [], answer: Answer? = nil) {
+                     suggestions: [PermissionSuggestion] = [], answer: Answer? = nil, sent: String? = nil) {
+            self.sent = sent
             self.id = id
             self.toolName = toolName
             self.input = input

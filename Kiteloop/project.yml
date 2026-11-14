@@ -64,7 +64,7 @@ targets:
         # a different app from the Kiteloop running the autopilot (docs/qa-flow.md).
         PRODUCT_BUNDLE_IDENTIFIER: "ai.kasatkin.kiteloop$(KITELOOP_QA_SUFFIX)"
         INFOPLIST_GENERATION_MODE: GeneratedFile
-        MARKETING_VERSION: "0.5.0"
+        MARKETING_VERSION: "0.6.0"
         # Sparkle orders releases by CFBundleVersion, so the build number is
         # the version: one number to bump, and a newer release always compares
         # newer.

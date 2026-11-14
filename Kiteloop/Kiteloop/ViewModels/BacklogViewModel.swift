@@ -1671,6 +1671,12 @@ class BacklogViewModel {
     }
 
     /// Detail files under `backlog/` and this project's task-metric records.
+    /// Whether the project has used `id` for an item that is no longer in
+    /// the backlog file: one with a detail file or a merge on record.
+    func hasUsedID(_ id: String) -> Bool {
+        idsTakenOutsideTheFile().contains(id)
+    }
+
     private func idsTakenOutsideTheFile() -> Set<String> {
         var ids = Set<String>()
         if let backlogURL {

@@ -8,6 +8,12 @@ struct Agent: Identifiable, Codable, Equatable {
     var systemPrompt: String
     var tools: [String]
     var denied: [String]
+    /// Calls this agent always stops to ask a person about, in every
+    /// permission mode — rules in the CLI's own spelling, `Bash(gh pr comment:*)`
+    /// or an MCP tool's name. This is how an agent drafts a message and a
+    /// person sends it: the call opens a card, and nothing remembers a yes.
+    /// A session nobody attends has the call refused instead.
+    var askFirst: [String] = []
     var permissionMode: String
     var subscriptions: [String]
     var mcpServers: [String]
@@ -145,7 +151,7 @@ struct Agent: Identifiable, Codable, Equatable {
     )
 
     enum CodingKeys: String, CodingKey {
-        case id, name, model, systemPrompt, tools, denied
+        case id, name, model, systemPrompt, tools, denied, askFirst
         case permissionMode, subscriptions, mcpServers, skills, avatar, group
         case effort, maxBudgetUSD, thinkingEnabled, thinkingBudget
         case crossAgentAccess, canAcceptDelegation, runtimeKind, workspacePath, mcpConfigPath
@@ -160,6 +166,7 @@ struct Agent: Identifiable, Codable, Equatable {
         systemPrompt = try container.decodeIfPresent(String.self, forKey: .systemPrompt) ?? ""
         tools = try container.decodeIfPresent([String].self, forKey: .tools) ?? []
         denied = try container.decodeIfPresent([String].self, forKey: .denied) ?? []
+        askFirst = try container.decodeIfPresent([String].self, forKey: .askFirst) ?? []
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? Self.defaultPermissionMode
         subscriptions = try container.decodeIfPresent([String].self, forKey: .subscriptions) ?? []
         mcpServers = try container.decodeIfPresent([String].self, forKey: .mcpServers) ?? []

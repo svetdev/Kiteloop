@@ -128,6 +128,7 @@ final class KiteloopProjectConfigStoreTests: XCTestCase {
         config.maxBudgetUSD = 42.5
         config.paused = true
         config.goal = "keep the lights on"
+        config.pinnedDocument = "Briefs/today.md"
 
         try project.saveConfig(config)
         let loaded = project.loadConfig(reporter: reporter)
@@ -138,6 +139,10 @@ final class KiteloopProjectConfigStoreTests: XCTestCase {
         XCTAssertEqual(loaded.deniedTools, config.deniedTools)
         XCTAssertEqual(loaded.agentSessionIDs, config.agentSessionIDs)
         XCTAssertEqual(loaded.maxBudgetUSD, config.maxBudgetUSD)
+        XCTAssertEqual(loaded.pinnedDocument, "Briefs/today.md")
+        XCTAssertEqual(ProjectConfig.pinnedPath("  Briefs/today.md\n"), "Briefs/today.md")
+        XCTAssertNil(ProjectConfig.pinnedPath("   "))
+        XCTAssertNil(ProjectConfig.pinnedPath(nil))
         XCTAssertEqual(loaded.paused, config.paused)
         XCTAssertEqual(loaded.goal, config.goal)
         XCTAssertEqual(try quarantined(besides: project.configURL).count, 0)

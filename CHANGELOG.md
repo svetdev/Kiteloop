@@ -6,6 +6,37 @@ The version here is the app's `MARKETING_VERSION` (what `/health` reports and
 what the About panel shows). Every build that ships a behavioural change gets an
 entry — see the changelog convention in `CLAUDE.md`.
 
+## 0.6.0 — 2026-11-14
+
+### Added
+
+#### Routines
+- A routine sends one prompt to one agent on a schedule — a morning brief at 07:00 on weekdays, a poll every 30 minutes in working hours — and starts the same turn typing it into that agent's chat would. Routines are set up over the control API (`PUT /v1/routines/{id}`) or in `~/.kiteloop/routines.json`, and each is off until armed.
+- A routine can carry a check: a shell command run first, whose output goes to the agent under the prompt. A check that fails or prints nothing skips the turn, so a poll with nothing new costs no model usage.
+- A daily routine missed while the Mac slept runs when it wakes and says when it was due; a missed poll is dropped once the next one would have come. One whose project is not open waits, and runs when the project opens.
+- A project's routines are listed on its Autopilot tab, under the fleet switches: each with its arming switch, who it goes to and when, how it last went, and **Run now**.
+- A scheduled turn is refused on a day whose budget is spent and its cost is charged to that day; **Run now** (`POST /v1/routines/{id}/run`) is your own start and is not refused. Every firing — started, queued behind a running turn, skipped, refused, waiting — is on record in `GET /v1/routines/runs`, and a finished turn tells a paired phone.
+
+#### Draft, approve, send
+- A permission card has **Edit…**: reword the command or the message the agent drafted, then **Allow as edited**, and that is what runs. The card keeps what was asked beside what was sent. Over the API, `POST /v1/agents/permission` takes the rewording as `input`.
+- When you allow a call reworded, the agent is told what you changed, so its report matches what ran.
+- An agent can be given calls it **always asks first** about — a rule like `Bash(gh pr comment:*)` or an MCP tool's name, in the agent's settings or `askFirst` when hiring over the API. Such a call stops on a card in every permission mode, Auto included, nothing offers to remember the answer, and a run nobody attends has the call refused. This is how an agent drafts a comment or a message and you send it.
+- `POST /v1/agents` also takes `mcpServers`.
+
+#### Questions that outlive a restart
+- A question an agent was waiting on when Kiteloop quit — its own `ask_human`, or the model's questions with choices — is still open when the app comes back: the agent reads as waiting on you, the row is in Waiting on you and on the phone, and answering it tells the agent what it asked and what you said, on the same conversation. Before, the question was dropped with the session.
+
+#### Phone
+- A project can pin one file — **Pinned document** in its settings, or `POST /v1/projects/pin` — and the phone shows it first when the project is opened: the brief an agent writes each morning, one tap away.
+- A permission card on the phone has **Edit**, as the Mac's does. The phone app needs the matching build: the control API is now version 3.
+
+#### Backlog
+- `POST /v1/backlog/items` takes a `key`: an item filed with one is filed once, and filing it again answers with the item already there instead of adding a second. A routine that polls can file what it finds every time.
+
+### Fixes
+
+- An agent's `ask_human` question reaches you again. The call arrives over Kiteloop's tool bridge, where it was answered "unhandled tool" at once, so the agent carried on without ever asking. It now waits on you — in the chat, in Waiting on you and on the phone — and your answer is the call's reply.
+
 ## 0.5.0 — 2026-11-12
 
 ### Added

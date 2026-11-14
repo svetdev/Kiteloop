@@ -93,17 +93,30 @@ package enum PermissionPrompt {
         ["default", "acceptEdits", "plan"].contains(mode)
     }
 
+    /// The settings, as the JSON `--settings` takes, under which a session
+    /// asks before every call matching one of `rules`.
+    package static func askRulesSettings(_ rules: [String]) -> String {
+        text(of: ["permissions": ["ask": rules]])
+    }
+
     // MARK: - Reading
 
     /// What the call would do, as the thing a person decides on: the command
     /// itself rather than the model's description of it, the file, the
     /// address — else the CLI's line about it, else the tool's name.
     package static func summary(of request: Request) -> String {
-        let fields = object(from: request.input)
-        for key in ["command", "file_path", "notebook_path", "url", "query", "pattern"] {
-            if let value = fields[key] as? String, !value.isEmpty { return value }
-        }
+        if let subject = subject(ofInput: request.input) { return subject.value }
         return request.description.isEmpty ? request.toolName : request.description
+    }
+
+    /// The field of a call's input that says what it would do, and its value;
+    /// nil for an input with none of the fields that do.
+    package static func subject(ofInput input: String) -> (field: String, value: String)? {
+        let fields = object(from: input)
+        for key in ["command", "file_path", "notebook_path", "url", "query", "pattern"] {
+            if let value = fields[key] as? String, !value.isEmpty { return (key, value) }
+        }
+        return nil
     }
 
     /// The prompt line `jsonLine` is, or nil for every other line a session

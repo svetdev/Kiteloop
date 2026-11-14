@@ -82,7 +82,13 @@ final class ControlRouterTests: XCTestCase {
             ("GET",  "/v1/runs/exec-1/log",     .runLog(runID: "exec-1")),
             ("POST", "/v1/runs/exec-1/approve", .approveRun(runID: "exec-1")),
             ("POST", "/v1/runs/exec-1/cancel",  .cancelRun(runID: "exec-1")),
-            ("POST", "/v1/runs/exec-1/note",    .steerRun(runID: "exec-1"))
+            ("POST", "/v1/runs/exec-1/note",    .steerRun(runID: "exec-1")),
+            ("POST", "/v1/projects/pin",        .pinProjectDocument),
+            ("GET",  "/v1/routines",            .listRoutines),
+            ("GET",  "/v1/routines/runs",       .listRoutineRuns),
+            ("PUT",  "/v1/routines/brief",      .putRoutine(id: "brief")),
+            ("DELETE", "/v1/routines/brief",    .deleteRoutine(id: "brief")),
+            ("POST", "/v1/routines/brief/run",  .runRoutine(id: "brief"))
         ]
         for (method, path, route) in expected {
             XCTAssertEqual(ControlRouter.match(method: method, path: path), route,

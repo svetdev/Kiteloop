@@ -48,6 +48,39 @@ final class PromptCardsTests: XCTestCase {
         XCTAssertEqual(PermissionCardView.answerLabel("something-new"), "Answered")
     }
 
+    func testACardCarriesTheCallsTextFieldsAndOnlyWhatChangedIsSent() throws {
+        let line = #"{"id":"m1","kind":"permission","text":"make","permission":{"request":"r","open":true,"tool":"Bash","always":[],"fields":[{"name":"command","value":"make"},{"name":"description","value":"Build"}],"edited":false}}"#
+        guard case .permission(let text, let state) = try XCTUnwrap(TranscriptRow.rows(from: [try message(line)]).first).kind else {
+            return XCTFail("a permission row")
+        }
+        let fields = try XCTUnwrap(state.fields)
+        XCTAssertEqual(fields.map(\.name), ["command", "description"])
+        XCTAssertEqual(PermissionCardView.edits(from: ["command": "make", "description": "Build"], over: fields), [:])
+        XCTAssertEqual(PermissionCardView.edits(from: ["command": "make test", "other": "x"], over: fields), ["command": "make test"])
+        XCTAssertEqual(PermissionCardView.shown(text: text, state: state), "make")
+    }
+
+    func testACardAllowedRewordedReadsAsItWasSent() throws {
+        let one = PermissionState(request: "r", open: false, answer: "allowed",
+                                  fields: [PermissionField(name: "command", value: "make test")], edited: true)
+        XCTAssertEqual(PermissionCardView.shown(text: "make", state: one), "make test")
+        XCTAssertEqual(PermissionCardView.answerLabel(one.answer, edited: true), "Allowed once, as edited")
+        XCTAssertEqual(PermissionCardView.answerLabel(one.answer, edited: false), "Allowed once")
+
+        let two = PermissionState(open: false, fields: [PermissionField(name: "channel", value: "C1"),
+                                                        PermissionField(name: "text", value: "hello there")], edited: true)
+        XCTAssertEqual(PermissionCardView.shown(text: "post", state: two), "channel: C1\ntext: hello there")
+    }
+
+    func testAnOlderMacsCardHasNoFieldsToReword() throws {
+        let line = #"{"id":"m1","kind":"permission","text":"make","permission":{"request":"r","open":true,"tool":"Bash","always":[]}}"#
+        guard case .permission(let text, let state) = try XCTUnwrap(TranscriptRow.rows(from: [try message(line)]).first).kind else {
+            return XCTFail("a permission row")
+        }
+        XCTAssertNil(state.fields)
+        XCTAssertEqual(PermissionCardView.shown(text: text, state: state), "make")
+    }
+
     func testACardEndsARunOfToolLinesAsOtherCardsDo() throws {
         let tool = try message(#"{"id":"t1","kind":"tool","text":"Bash — make"}"#)
         let card = try message(#"{"id":"m1","kind":"permission","text":"make","permission":{"request":"r","open":true,"tool":"Bash","always":[]}}"#)

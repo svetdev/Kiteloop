@@ -118,6 +118,20 @@ final class AgentTranscriptTests: XCTestCase {
         XCTAssertEqual(changed["answer"] as? String, "denied")
     }
 
+    func testAPermissionCardCarriesItsTextFieldsAndReadsAsSentOnceReworded() throws {
+        let request = PermissionPrompt.Request(id: "req-1", toolName: "Bash", input: #"{"command":"make"}"#)
+        var messages = [PermissionCards.card(for: request, subagent: nil, agentID: "Builder")]
+
+        let open = try XCTUnwrap(AgentTranscript.message(messages[0])?["permission"] as? [String: Any])
+        XCTAssertEqual(open["fields"] as? [[String: String]], [["name": "command", "value": "make"]])
+        XCTAssertEqual(open["edited"] as? Bool, false)
+
+        _ = PermissionCards.allow("req-1", edits: ["command": "make test"], in: &messages)
+        let sent = try XCTUnwrap(AgentTranscript.message(messages[0])?["permission"] as? [String: Any])
+        XCTAssertEqual(sent["fields"] as? [[String: String]], [["name": "command", "value": "make test"]])
+        XCTAssertEqual(sent["edited"] as? Bool, true)
+    }
+
     func testAChoicesCardFlattensWithItsQuestionsAndTheirOptions() throws {
         let input = #"{"questions":[{"question":"Tea or coffee?","header":"Drink","multiSelect":false,"options":[{"label":"Tea","description":"Leaves"}]}]}"#
         var messages = [PermissionCards.card(for: PermissionPrompt.Request(id: "req-2", toolName: "AskUserQuestion", input: input),

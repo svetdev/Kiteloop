@@ -184,7 +184,7 @@ final class AgentCodableTests: XCTestCase {
     /// field on read, so pin the exact set an encode emits.
     func testEncodedKeysMatchTheDeclaredCodingKeys() throws {
         let expected: Set<String> = [
-            "id", "name", "model", "systemPrompt", "tools", "denied",
+            "id", "name", "model", "systemPrompt", "tools", "denied", "askFirst",
             "permissionMode", "subscriptions", "mcpServers", "skills", "avatar", "group",
             "effort", "maxBudgetUSD", "thinkingEnabled", "thinkingBudget",
             "crossAgentAccess", "canAcceptDelegation", "runtimeKind", "workspacePath",
@@ -388,5 +388,16 @@ final class AgentCodableTests: XCTestCase {
             XCTAssertEqual(decoded.runtimeKind, testCase.runtimeKind, "runtimeKind for \(testCase.model)")
             XCTAssertEqual(decoded.resolvedRuntimeKind, testCase.expected, "resolved for \(testCase.model)")
         }
+    }
+
+    func testTheAlwaysAskRulesRoundTripAndDefaultToNone() throws {
+        var agent = Agent(id: "desk", name: "Desk", model: "sonnet", systemPrompt: "", tools: [], denied: [],
+                          permissionMode: "auto", state: .idle)
+        agent.askFirst = ["mcp__chat__post"]
+
+        let decoded = try JSONDecoder().decode(Agent.self, from: JSONEncoder().encode(agent))
+
+        XCTAssertEqual(decoded.askFirst, ["mcp__chat__post"])
+        XCTAssertEqual(try decode(#"{ "name": "Old" }"#).askFirst, [])
     }
 }

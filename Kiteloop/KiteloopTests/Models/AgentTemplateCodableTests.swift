@@ -178,7 +178,7 @@ final class AgentTemplateCodableTests: XCTestCase {
     /// one silently drops the field on read.
     func testEncodedKeysMatchTheDeclaredFields() throws {
         let expected: Set<String> = [
-            "id", "name", "model", "systemPrompt", "tools", "denied",
+            "id", "name", "model", "systemPrompt", "tools", "denied", "askFirst",
             "permissionMode", "subscriptions", "mcpServers", "skills", "description",
             "avatar", "group", "runtimeKind", "crossAgentAccess", "operatorToolsEnabled",
         ]
@@ -459,5 +459,17 @@ final class AgentTemplateCodableTests: XCTestCase {
         XCTAssertNotNil(UUID(uuidString: first.id))
         XCTAssertEqual(first.name, template.name)
         XCTAssertEqual(first.tools, template.tools)
+    }
+
+    func testTheAlwaysAskRulesSurviveTheTeamFileAndReachTheAgent() throws {
+        var template = AgentTemplate(id: "desk", name: "Desk")
+        template.askFirst = ["Bash(gh pr comment:*)"]
+
+        let decoded = try roundTrip(template)
+
+        XCTAssertEqual(decoded.askFirst, ["Bash(gh pr comment:*)"])
+        XCTAssertEqual(decoded.instantiateAgentWithFixedID().askFirst, ["Bash(gh pr comment:*)"])
+        XCTAssertEqual(AgentTemplate(from: decoded.instantiateAgent()).askFirst, ["Bash(gh pr comment:*)"])
+        XCTAssertEqual(try decode(#"{ "name": "Old" }"#).askFirst, [], "a team file from before the field asks about nothing")
     }
 }

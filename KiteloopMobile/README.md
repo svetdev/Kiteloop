@@ -32,7 +32,7 @@ new.
 | Method | Path | Screen | For |
 |---|---|---|---|
 | POST | `/v1/pair` | Connect | The pairing QR's one-time code, traded for this phone's own token |
-| GET | `/v1/projects` | Projects | The chip row, each project's run and queue depth, in the Mac's tab order |
+| GET | `/v1/projects` | Projects | The chip row, each project's run and queue depth, in the Mac's tab order, and the file the Mac pinned for it (`pinned`), shown first |
 | POST | `/v1/projects/reorder` | Projects | A chip dragged to a new place — the same move as a tab drop on the Mac |
 | GET | `/v1/autopilot?project=` | Projects | The status card: state, item, phase, session spend |
 | POST | `/v1/autopilot/pause` | Projects | The one lever while running or idle |
@@ -56,7 +56,7 @@ new.
 | POST | `/v1/agents/interrupt` | Chat | Stop: ends the agent's turn; what the Mac had queued comes back to the draft |
 | POST | `/v1/agents/plan` | Chat | A plan card's answer: build in Auto or Accept Edits, or keep planning with what should change |
 | POST | `/v1/agents/answer` | Chat | An answer to the question the agent stopped to ask |
-| POST | `/v1/agents/permission` | Chat | A permission card's answer: allow once, deny, or allow and remember one of its offers |
+| POST | `/v1/agents/permission` | Chat | A permission card's answer: allow once, deny, or allow and remember one of its offers — an allow may carry the call's text fields reworded (`input`), offered when the card lists `fields` |
 | POST | `/v1/agents/choices` | Chat | Answers to the questions the agent put with choices, one each |
 | POST | `/v1/agents/mode` | Chat | The agent's permission mode, changed as `/mode` changes it on the Mac |
 | GET | `/v1/agents/tasks?project=&agent=` | Chat | The subagents and background shells the agent's session has running |

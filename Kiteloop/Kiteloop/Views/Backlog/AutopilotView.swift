@@ -45,6 +45,8 @@ struct AutopilotView: View {
     /// Opens the project's settings sheet on a page. Installed by the main
     /// window; a preview or test host without it shows the link disabled.
     @Environment(\.openProjectSettings) private var openProjectSettings
+    /// The app's routines; nil in a preview or a test that draws the tab alone.
+    @Environment(RoutineRunner.self) private var routines: RoutineRunner?
     @State private var localSelectedItems: Set<String> = []
     @State private var expandedExecutionID: String?
     /// The item whose gate is being resolved, so both buttons disable while a
@@ -94,6 +96,9 @@ struct AutopilotView: View {
         VStack(spacing: 0) {
             header
             AutopilotFleetControls(autopilot: autopilot)
+            if let routines, let root = autopilot.projectRoot {
+                AutopilotRoutinesRow(runner: routines, projectRoot: root)
+            }
             Divider()
             gridContent
         }

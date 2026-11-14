@@ -281,7 +281,7 @@ class Orchestrator {
             throw AsideError.alreadyOpen(name: existing.name)
         }
 
-        let asideAgent = Agent(
+        var asideAgent = Agent(
             id: UUID().uuidString,
             name: "\(source.name) (aside)",
             model: source.model,
@@ -308,6 +308,8 @@ class Orchestrator {
             asideOfAgentID: sourceAgentID,
             state: .idle
         )
+        // What the source must ask about, its aside must too.
+        asideAgent.askFirst = source.askFirst
 
         addAgent(asideAgent)
         do {

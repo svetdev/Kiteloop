@@ -8,28 +8,49 @@ struct PermissionCardView: View {
     let agentName: String
     let text: String
     let state: PermissionState
-    /// `allow`, `always` or `deny`, and for `always` which offer to remember.
-    let onAnswer: (_ answer: String, _ always: Int?) -> Void
+    /// `allow`, `always` or `deny`; for `always` which offer to remember; and
+    /// for an allow the call's text fields as the person reworded them.
+    let onAnswer: (_ answer: String, _ always: Int?, _ edits: [String: String]) -> Void
+
+    /// The call's text fields while the person rewords them.
+    @State private var drafts: [String: String] = [:]
+    @State private var isEditing = false
+
+    private var fields: [PermissionField] { state.fields ?? [] }
+    private var edits: [String: String] { Self.edits(from: drafts, over: fields) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(Self.title(agentName: agentName, state: state))
                 .font(.caption.bold()).foregroundStyle(.orange)
-            Text(text).font(.system(.callout, design: .monospaced)).textSelection(.enabled).lineLimit(12)
+            if isEditing, state.open == true {
+                editor
+            } else {
+                Text(Self.shown(text: text, state: state))
+                    .font(.system(.callout, design: .monospaced)).textSelection(.enabled).lineLimit(12)
+            }
             if state.open == true {
                 HStack {
-                    Button("Allow once") { onAnswer("allow", nil) }
+                    Button(isEditing ? "Allow as edited" : "Allow once") { onAnswer("allow", nil, edits) }
                         .buttonStyle(.borderedProminent)
-                    Button("Deny", role: .destructive) { onAnswer("deny", nil) }
+                    Button("Deny", role: .destructive) { onAnswer("deny", nil, [:]) }
                         .buttonStyle(.bordered)
+                    if !isEditing, !fields.isEmpty {
+                        Button("Edit") {
+                            drafts = Dictionary(fields.map { ($0.name, $0.value) }, uniquingKeysWith: { first, _ in first })
+                            isEditing = true
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("permission-card-edit")
+                    }
                 }
                 ForEach(Array((state.always ?? []).enumerated()), id: \.offset) { index, offer in
-                    Button(offer) { onAnswer("always", index) }
+                    Button(offer) { onAnswer("always", index, edits) }
                         .font(.caption)
                         .multilineTextAlignment(.leading)
                 }
             } else {
-                Text(Self.answerLabel(state.answer)).font(.caption.bold())
+                Text(Self.answerLabel(state.answer, edited: state.edited == true)).font(.caption.bold())
                     .foregroundStyle(Self.wasAllowed(state.answer) ? .green : .secondary)
             }
         }
@@ -37,6 +58,38 @@ struct PermissionCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
         .accessibilityIdentifier("permission-card")
+    }
+
+    /// One box per text field of the call; a call with one needs no label.
+    private var editor: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(fields, id: \.name) { field in
+                if fields.count > 1 {
+                    Text(field.name).font(.caption2).foregroundStyle(.secondary)
+                }
+                TextField(field.name, text: Binding(
+                    get: { drafts[field.name] ?? field.value },
+                    set: { drafts[field.name] = $0 }
+                ), axis: .vertical)
+                .font(.system(.callout, design: .monospaced))
+                .textFieldStyle(.roundedBorder)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            }
+        }
+    }
+
+    /// The drafts that differ from what the call asked.
+    nonisolated static func edits(from drafts: [String: String], over fields: [PermissionField]) -> [String: String] {
+        let asked = Dictionary(fields.map { ($0.name, $0.value) }, uniquingKeysWith: { first, _ in first })
+        return drafts.filter { asked[$0.key] != nil && asked[$0.key] != $0.value }
+    }
+
+    /// What the card reads: the call as asked, or — once it was allowed
+    /// reworded — its fields as they were sent.
+    nonisolated static func shown(text: String, state: PermissionState) -> String {
+        guard state.edited == true, let fields = state.fields, !fields.isEmpty else { return text }
+        return fields.count == 1 ? fields[0].value : fields.map { "\($0.name): \($0.value)" }.joined(separator: "\n")
     }
 
     /// Who asks, and for which tool: the agent, or the subagent whose call it
@@ -49,6 +102,10 @@ struct PermissionCardView: View {
 
     /// What an answered card says it was answered with; a card closed with an
     /// answer this build has no name for says only that it is closed.
+    nonisolated static func answerLabel(_ answer: String?, edited: Bool) -> String {
+        edited ? "\(answerLabel(answer)), as edited" : answerLabel(answer)
+    }
+
     nonisolated static func answerLabel(_ answer: String?) -> String {
         switch answer {
         case "allowed": "Allowed once"

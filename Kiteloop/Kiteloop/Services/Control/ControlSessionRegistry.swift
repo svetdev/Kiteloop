@@ -56,8 +56,13 @@ final class ControlSessionRegistry {
     var adoptRun: (@MainActor (_ projectID: String, _ itemID: String, _ title: String,
                                _ executionID: String, _ startedAt: Date) -> Void)?
 
+    /// Called once a project is registered — a routine that was waiting on
+    /// this project to open can run now.
+    var projectOpened: (@MainActor () -> Void)?
+
     func register(session: ProjectSession, autopilot: BacklogAutopilot) {
         entries[session.project.id] = Entry(session: session, autopilot: autopilot)
+        projectOpened?()
     }
 
     /// Drops a project, after giving the control server its last chance to write

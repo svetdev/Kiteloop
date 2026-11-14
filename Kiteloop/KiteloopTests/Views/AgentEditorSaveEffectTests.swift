@@ -80,4 +80,11 @@ final class AgentEditorSaveEffectTests: XCTestCase {
     func testNewAgentAllowsUnusedName() {
         XCTAssertNil(AgentEditorSheet.nameRefusal("Planner", agentID: "", agents: team))
     }
+
+    func testACommaInsideARulesParenthesesBelongsToTheRule() {
+        XCTAssertEqual(AgentEditorSheet.rules(in: #"Bash(git commit -m "a, b":*), mcp__chat__post ,, Bash(gh pr comment:*)"#),
+                       [#"Bash(git commit -m "a, b":*)"#, "mcp__chat__post", "Bash(gh pr comment:*)"])
+        XCTAssertEqual(AgentEditorSheet.rules(in: "  "), [])
+        XCTAssertEqual(AgentEditorSheet.rules(in: "a), b"), ["a)", "b"])
+    }
 }

@@ -81,6 +81,14 @@ struct ProjectView: View {
                            spend: model.autopilot?.sessionSpendUSD, cap: model.autopilot?.sessionCostCapUSD,
                            acting: model.acting) { Task { await model.toggle(client) } }
             }
+            if let pinned = model.project?.pinned, let name = model.project?.pinnedName {
+                Section {
+                    NavigationLink(value: FileRoute(path: pinned)) {
+                        Label(name, systemImage: "pin.fill")
+                    }
+                    .accessibilityIdentifier("project-pinned-document")
+                }
+            }
             if let gate = model.project?.gate, let item = gate.item {
                 Section("Merge gate") {
                     HStack(spacing: 8) {

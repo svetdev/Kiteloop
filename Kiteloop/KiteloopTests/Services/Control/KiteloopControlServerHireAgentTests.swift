@@ -54,6 +54,72 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
         XCTAssertEqual(agent.model, "sonnet")
     }
 
+    func testHireTakesTheAgentsAlwaysAskRulesAndItsMCPServers() async throws {
+        let projectSession = try registerProject(named: "alpha")
+
+        let (status, body) = try await harness.post("/v1/agents", [
+            "project": "alpha", "name": "Desk", "askFirst": ["Bash(gh pr comment:*)"], "mcpServers": ["chat"]
+        ])
+
+        XCTAssertEqual(status, 201)
+        let agent = try XCTUnwrap(projectSession.orchestrator.agents.first { $0.id == body["agentId"] as? String })
+        XCTAssertEqual(agent.askFirst, ["Bash(gh pr comment:*)"])
+        XCTAssertEqual(agent.mcpServers, ["chat"])
+    }
+
+    // MARK: - The project's pinned document
+
+    func testPinningAFileIsKeptInTheProjectsSettingsAndListedWithTheProject() async throws {
+        let projectSession = try registerProject(named: "alpha")
+
+        let (status, body) = try await harness.post("/v1/projects/pin", ["project": "alpha", "path": " Briefs/today.md "])
+
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(body["pinned"] as? String, "Briefs/today.md", "a file that does not exist yet can be pinned")
+        XCTAssertEqual(projectSession.project.loadConfig().pinnedDocument, "Briefs/today.md")
+        let (_, listed) = try await harness.get("/v1/projects")
+        XCTAssertEqual((listed["projects"] as? [[String: Any]])?.first?["pinned"] as? String, "Briefs/today.md")
+    }
+
+    func testAnEmptyOrNullPathUnpins() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        _ = try await harness.post("/v1/projects/pin", ["project": "alpha", "path": "Briefs/today.md"])
+
+        let (status, body) = try await harness.post("/v1/projects/pin", ["project": "alpha", "path": NSNull()])
+
+        XCTAssertEqual(status, 200)
+        XCTAssertTrue(body["pinned"] is NSNull)
+        XCTAssertNil(projectSession.project.loadConfig().pinnedDocument)
+    }
+
+    func testAPathThatLeavesTheProjectIsRefusedAndNothingIsPinned() async throws {
+        let projectSession = try registerProject(named: "alpha")
+
+        let (outside, _) = try await harness.post("/v1/projects/pin", ["project": "alpha", "path": "../secrets.md"])
+        let (absolute, _) = try await harness.post("/v1/projects/pin", ["project": "alpha", "path": "/etc/hosts"])
+        let (noProject, _) = try await harness.post("/v1/projects/pin", ["path": "a.md"])
+        let (notOpen, _) = try await harness.post("/v1/projects/pin", ["project": "beta", "path": "a.md"])
+
+        XCTAssertEqual(outside, 400)
+        XCTAssertEqual(absolute, 400)
+        XCTAssertEqual(noProject, 400)
+        XCTAssertEqual(notOpen, 409)
+        XCTAssertNil(projectSession.project.loadConfig().pinnedDocument)
+    }
+
+    func testAnAsideMustAskAboutWhatItsSourceMust() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let (_, body) = try await harness.post("/v1/agents", [
+            "project": "alpha", "name": "Desk", "askFirst": ["mcp__chat__post"]
+        ])
+        let agentID = try XCTUnwrap(body["agentId"] as? String)
+
+        let aside = try await projectSession.orchestrator.forkAside(
+            of: agentID, cwd: projectSession.project.rootURL, sourceSessionID: "session-1")
+
+        XCTAssertEqual(aside.askFirst, ["mcp__chat__post"])
+    }
+
     /// The hire answers before the agent's process is up, and a driver may
     /// message the agent at once. The chat that message makes and runs its
     /// turn in is the agent's chat from then on — the hire finishing does not

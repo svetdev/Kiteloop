@@ -175,10 +175,19 @@ class ChatViewModel {
     /// orchestrator that owns the state.
     private(set) var pendingHumanToolCallID: String? {
         didSet {
+            if pendingHumanToolCallID == nil, carried?.isChoices == false { carried = nil }
+            if pendingHumanToolCallID == nil { bridgeQuestionID = nil }
             guard (oldValue == nil) != (pendingHumanToolCallID == nil) else { return }
             reportAwaitingAnswer()
         }
     }
+    /// The question this chat was left on by a session that is gone
+    /// (`CarriedQuestions`): still open, and answered by saying the answer
+    /// to the agent rather than by returning a call nobody is waiting on.
+    private var carried: CarriedQuestions.Carried?
+    /// The bridge request an open `ask_human` came in on, when it came over
+    /// the tool bridge: the session waits on that request's reply.
+    private var bridgeQuestionID: String?
     /// Whether a plan card is waiting on Approve or Keep planning — a gate
     /// only you can clear, so it reads as waiting on you as a question does.
     private(set) var hasOpenPlanCard = false {
@@ -2186,6 +2195,13 @@ class ChatViewModel {
             handleMCPServerRequest(call: call)
             return
         }
+        // `ask_human` is answered by a person, not here: the bridge holds the
+        // call open, with no limit, until `respondToHuman` replies to it.
+        if InterceptedTool(rawValue: call.toolName) == .askHuman {
+            bridgeQuestionID = call.requestID
+            await pauseForHuman(id: call.requestID, input: call.input)
+            return
+        }
         let result = await handleCustomTool(name: call.toolName, input: call.input) ?? "Error: unhandled tool"
         chatLog.info("[stream] responding reqID=\(call.requestID, privacy: .public) result=\(result.prefix(80))")
         orchestrator.respondToMCPToolCall(requestID: call.requestID, result: result, agentID: agentID)
@@ -4134,21 +4150,47 @@ class ChatViewModel {
     }
 
     /// Allows or refuses the call on an open card; `remembering` names one of
-    /// the card's suggestions to keep with an allow. False when the card is
-    /// not open — answered already, or the session moved past it.
+    /// the card's suggestions to keep with an allow, and `edits` rewords the
+    /// call's text fields by name — the call then runs as reworded. False
+    /// when the card is not open — answered already, or the session moved
+    /// past it — or an edit names something the call does not hold as text.
     @discardableResult
-    func answerPermission(requestID: String, allow: Bool, remembering: Int? = nil) -> Bool {
+    func answerPermission(requestID: String, allow: Bool, remembering: Int? = nil,
+                          edits: [String: String] = [:]) -> Bool {
         let decision = allow
-            ? PermissionCards.allow(requestID, remembering: remembering, in: &messages)
+            ? PermissionCards.allow(requestID, remembering: remembering, edits: edits, in: &messages)
             : PermissionCards.deny(requestID, in: &messages)
-        return sendPromptAnswer(requestID, decision)
+        guard sendPromptAnswer(requestID, decision) else { return false }
+        // The call's result does not say it was reworded, so the agent is
+        // told — queued behind the turn the call belongs to.
+        if let note = PermissionCards.rewordingNote(for: requestID, in: messages) {
+            Task { await say(note) }
+        }
+        return true
     }
 
     /// Answers the model's own questions on an open card, one answer each.
     /// False when the card is not open or the answers do not fit it.
     @discardableResult
     func answerChoices(requestID: String, answers: [String]) -> Bool {
-        sendPromptAnswer(requestID, PermissionCards.answer(requestID, with: answers, in: &messages))
+        let decision = PermissionCards.answer(requestID, with: answers, in: &messages)
+        guard let carried, carried.id == requestID, decision != nil else {
+            return sendPromptAnswer(requestID, decision)
+        }
+        // Asked by a session that is gone: the answers are said to the agent.
+        self.carried = nil
+        promptCardsChanged()
+        Task { await say(CarriedQuestions.reply(to: carried.asked, with: answers)) }
+        return true
+    }
+
+    /// Says `text` to the agent as the person typing it would, leaving
+    /// whatever is in the input box as it was.
+    private func say(_ text: String) async {
+        let draft = inputText
+        inputText = text
+        await send()
+        if inputText.isEmpty { inputText = draft }
     }
 
     private func sendPromptAnswer(_ requestID: String, _ decision: PermissionPrompt.Decision?) -> Bool {
@@ -4173,6 +4215,18 @@ class ChatViewModel {
         return sendPromptAnswer(offered.requestID, offered.decision)
     }
 
+    /// Marks the question's bubble answered. Only the status moves: the
+    /// bubble keeps the question it asked, and the answer goes on the
+    /// transcript as the human message below it.
+    private func markQuestionAnswered(_ toolCallID: String) {
+        guard let idx = messages.lastIndex(where: {
+            if case .approval(let req) = $0.content { return req.id == toolCallID }
+            return false
+        }), case .approval(var req) = messages[idx].content else { return }
+        req.status = .approved
+        messages[idx].content = .approval(req)
+    }
+
     /// Answers the question the bubble carries, and only that one: a bubble the
     /// session has moved past — an older question, or a transcript loaded from
     /// another session — must not answer whatever call is pending now.
@@ -4180,21 +4234,43 @@ class ChatViewModel {
         // An answer of only blank lines is no answer: the question stays open.
         guard let toolCallID = pendingHumanToolCallID, toolCallID == requestID,
               !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let route = questionRoute(for: toolCallID)
         pendingHumanToolCallID = nil
         orchestrator.resolveQuestionNotices(agentID: agentID)
+        markQuestionAnswered(toolCallID)
 
-        if let idx = messages.lastIndex(where: {
-            if case .approval(let req) = $0.content { return req.id == toolCallID }
-            return false
-        }) {
-            // Only the status moves: the bubble keeps the question it asked,
-            // and the answer goes on the transcript as the human message below.
-            if case .approval(var req) = messages[idx].content {
-                req.status = .approved
-                messages[idx].content = .approval(req)
-            }
+        switch route {
+        case .carried(let asked):
+            await say(CarriedQuestions.reply(to: asked, with: [answer]))
+        case .bridge:
+            // The session is blocked on the bridge's reply, inside the turn
+            // that asked: the answer goes back there and the turn goes on.
+            messages.append(.human(answer))
+            orchestrator.respondToMCPToolCall(requestID: toolCallID, result: answer, agentID: agentID)
+            saveMessages()
+        case .call:
+            await returnAnswer(answer, toToolCall: toolCallID)
         }
+    }
 
+    /// How a question's answer reaches the agent that asked.
+    private enum QuestionRoute {
+        /// Asked by a session that is gone: said to the agent as a message.
+        case carried(asked: [String])
+        /// Asked over the tool bridge, which is holding the call open.
+        case bridge
+        /// Asked as a tool call that ended the turn: returned as its result.
+        case call
+    }
+
+    private func questionRoute(for toolCallID: String) -> QuestionRoute {
+        if let carried, carried.id == toolCallID { return .carried(asked: carried.asked) }
+        return bridgeQuestionID == toolCallID ? .bridge : .call
+    }
+
+    /// Returns the answer as the result of the tool call that asked, and
+    /// runs the turn it starts.
+    private func returnAnswer(_ answer: String, toToolCall toolCallID: String) async {
         messages.append(.human(answer))
         isStreaming = true
         streamingStartTime = Date()
@@ -4524,9 +4600,10 @@ class ChatViewModel {
         messages = loaded.messages
         messagesLeftOutOfLoad = loaded.leftOut
         // Whatever a chat on disk was still asking, it asked from a session
-        // that is gone.
-        PermissionCards.lapse(in: &messages)
-        openPromptCount = 0
+        // that is gone — but a question it ends on is still a question.
+        carried = CarriedQuestions.lapseAllButTrailing(in: &messages)
+        openPromptCount = PermissionCards.openRequestIDs(in: messages).count
+        if let carried, !carried.isChoices { pendingHumanToolCallID = carried.id }
         // A chat left with branches reopens on them; one without keeps the
         // fresh tree `quiesceForSessionChange` made and opens on main.
         if let saved = sessionStore.loadBranches(for: session) {

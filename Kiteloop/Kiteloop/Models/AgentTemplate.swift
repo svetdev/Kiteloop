@@ -7,6 +7,8 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
     var systemPrompt: String
     var tools: [String]
     var denied: [String]
+    /// See `Agent.askFirst`.
+    var askFirst: [String] = []
     var permissionMode: String
     var subscriptions: [String]
     var mcpServers: [String]
@@ -80,6 +82,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
         systemPrompt = try container.decodeIfPresent(String.self, forKey: .systemPrompt) ?? ""
         tools = try container.decodeIfPresent([String].self, forKey: .tools) ?? []
         denied = try container.decodeIfPresent([String].self, forKey: .denied) ?? []
+        askFirst = try container.decodeIfPresent([String].self, forKey: .askFirst) ?? []
         permissionMode = try container.decodeIfPresent(String.self, forKey: .permissionMode) ?? Agent.defaultPermissionMode
         subscriptions = try container.decodeIfPresent([String].self, forKey: .subscriptions) ?? []
         mcpServers = try container.decodeIfPresent([String].self, forKey: .mcpServers) ?? []
@@ -111,6 +114,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
             crossAgentAccess: agent.crossAgentAccess,
             operatorToolsEnabled: agent.operatorToolsEnabled
         )
+        askFirst = agent.askFirst
     }
 
     func instantiateAgent() -> Agent {
@@ -122,7 +126,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
     }
 
     private func instantiate(id: String) -> Agent {
-        Agent(
+        var agent = Agent(
             id: id,
             name: name,
             model: model,
@@ -140,5 +144,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
             operatorToolsEnabled: operatorToolsEnabled,
             state: .idle
         )
+        agent.askFirst = askFirst
+        return agent
     }
 }

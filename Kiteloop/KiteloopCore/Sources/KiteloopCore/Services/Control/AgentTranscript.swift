@@ -44,10 +44,15 @@ package enum AgentTranscript {
 
     /// A permission card: the request to answer, whether it still waits, what
     /// was answered, and what an Always answer would remember — by position,
-    /// which is how the answer endpoint names one.
+    /// which is how the answer endpoint names one. `fields` are the call's
+    /// text fields, which an allow may reword by name; once the call was
+    /// allowed reworded they read as it was sent, and `edited` says so.
     private static func permissionState(_ request: Message.PermissionRequest) -> [String: Any] {
+        let fields = PermissionCards.editableFields(ofInput: request.sent ?? request.input)
         var state: [String: Any] = ["request": request.id, "open": request.answer == nil, "tool": request.toolName,
-                                    "always": request.suggestions.map(\.label)]
+                                    "always": request.suggestions.map(\.label),
+                                    "fields": fields.map { ["name": $0.name, "value": $0.value] },
+                                    "edited": request.sent != nil]
         if let answer = request.answer { state["answer"] = answer.rawValue }
         if let subagent = request.subagent { state["subagent"] = subagent }
         return state

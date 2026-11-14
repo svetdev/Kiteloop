@@ -55,6 +55,7 @@ records don't belong here. `README.md` is the folder's index.
 | `adr/0002-embedded-localhost-control-server.md` | ADR: why the control server lives in-process |
 | `adr/0003-run-sandboxing.md` | ADR: run sandboxing |
 | `adr/0004-parallel-disjoint-runs.md` | ADR (proposed): parallel disjoint runs |
+| `adr/0005-multi-repository-items.md` | ADR: one item across several repositories, one gate (proposed) |
 | `repo-map.md` | This file |
 
 ## quality/

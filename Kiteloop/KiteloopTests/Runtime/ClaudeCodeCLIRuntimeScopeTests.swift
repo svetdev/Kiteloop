@@ -156,6 +156,22 @@ final class ClaudeCodeCLIRuntimeScopeTests: XCTestCase {
                         "--permission-prompt-tool", "stdio", "--disallowedTools", "WebSearch"])
     }
 
+    /// The agent's always-ask rules go to the CLI as this session's own
+    /// settings, attended or not: asked on a card where someone attends,
+    /// refused where nobody does.
+    func testAnAgentsAlwaysAskRulesAreTheSessionsOwnSettings() throws {
+        var agent = Agent(id: "desk", name: "Desk", model: "sonnet", systemPrompt: "",
+                          tools: [], denied: [], permissionMode: "auto", state: .idle)
+        agent.askFirst = ["Bash(gh pr comment:*)", " mcp__chat__post ", ""]
+
+        for unattended in [false, true] {
+            let args = ClaudeCodeCLIRuntime.permissionArguments(agent: agent, unattended: unattended)
+            let settings = try XCTUnwrap(args.firstIndex(of: "--settings")).advanced(by: 1)
+            XCTAssertEqual(args[settings], #"{"permissions":{"ask":["Bash(gh pr comment:*)","mcp__chat__post"]}}"#)
+        }
+        XCTAssertEqual(ClaudeCodeCLIRuntime.askFirstArguments([" ", ""]), [])
+    }
+
     func testBuildProfileScopeFromAgent() {
         let agent = Agent(
             name: "tester",

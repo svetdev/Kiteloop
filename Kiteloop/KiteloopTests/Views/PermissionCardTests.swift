@@ -23,6 +23,30 @@ final class PermissionCardTests: XCTestCase {
         XCTAssertEqual(PermissionCard.answeredSymbol(.allowedAlways), PermissionCard.answeredSymbol(.allowed))
     }
 
+    func testOnlyWhatThePersonChangedIsSentAsAnEdit() {
+        let request = Message.PermissionRequest(id: "r", toolName: "Bash",
+                                                input: #"{"command":"make","description":"Build","timeout":5}"#, summary: "make")
+        XCTAssertEqual(PermissionCard.fields(of: request).map(\.name), ["command", "description"])
+        XCTAssertEqual(PermissionCard.edits(from: ["command": "make", "description": "Build"], over: request), [:])
+        XCTAssertEqual(PermissionCard.edits(from: ["command": "make test", "description": "Build", "timeout": "9"], over: request),
+                       ["command": "make test"])
+    }
+
+    func testACardAllowedRewordedReadsAsItWasSentAndSaysSo() {
+        var request = Message.PermissionRequest(id: "r", toolName: "Bash", input: #"{"command":"make"}"#, summary: "make")
+        XCTAssertEqual(PermissionCard.shown(request), "make")
+        XCTAssertEqual(PermissionCard.answeredLabel(for: request), "")
+
+        request.answer = .allowed
+        XCTAssertEqual(PermissionCard.answeredLabel(for: request), "Allowed once")
+        request.sent = #"{"command":"make test"}"#
+        XCTAssertEqual(PermissionCard.shown(request), "make test")
+        XCTAssertEqual(PermissionCard.answeredLabel(for: request), "Allowed once, as edited")
+
+        request.sent = #"{"channel":"C1","text":"hello there"}"#
+        XCTAssertEqual(PermissionCard.shown(request), "channel: C1\ntext: hello there")
+    }
+
     // MARK: - Drawn
 
     /// Lays `view` out in a window and answers the height it needs.
@@ -47,9 +71,9 @@ final class PermissionCardTests: XCTestCase {
                       PermissionSuggestion(label: "Switch to Accept Edits for this session", json: "{}")]
         var request = Message.PermissionRequest(id: "r", toolName: "Bash", input: "{}", summary: "make test",
                                                 subagent: "Run the tests", suggestions: offers)
-        let open = try await drawnHeight(of: PermissionCard(request: request) { _, _ in })
+        let open = try await drawnHeight(of: PermissionCard(request: request) { _, _, _ in })
         request.answer = .allowed
-        let answered = try await drawnHeight(of: PermissionCard(request: request) { _, _ in })
+        let answered = try await drawnHeight(of: PermissionCard(request: request) { _, _, _ in })
 
         XCTAssertGreaterThan(open, answered)
     }

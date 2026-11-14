@@ -86,6 +86,7 @@ struct KiteloopApp: App {
     /// would start runs the first one doesn't know about. Off unless a stored
     /// setting says otherwise.
     @State private var runScheduler: CoordinatorRunScheduler
+    @State private var routineRunner = RoutineRunner()
     /// The app's caller of the fleet-wide hold. One per app, over the same
     /// `FleetQuiesce` the control API's `/v1/fleet/*` endpoints drive — a second
     /// instance would keep a second gate, and a fleet held through one of them
@@ -195,6 +196,29 @@ struct KiteloopApp: App {
         return real
     }
 
+    /// Starts the routines: who they reach is the control server's to say,
+    /// what they may spend is the day's ledger's, and a project opening is an
+    /// occasion to look again for one that was waiting on it.
+    private func startRoutines() {
+        let runner = routineRunner
+        let ledger = dailySpendLedger
+        let configStore = globalConfigStore
+        controlServer.routines = runner
+        runner.agent = { [weak controlServer] routine in
+            controlServer?.routineAgent(for: routine)
+                ?? .failure(Routine.Refusal(problems: ["Kiteloop is shutting down"]))
+        }
+        runner.budgetRefusal = { [weak controlServer] folder in
+            controlServer?.routineBudgetRefusal(folder: folder, ledger: ledger,
+                                                portfolioBudgetUSD: configStore.config.dailyBudgetUSD)
+        }
+        runner.charge = { cost, folder in
+            ledger.charge(costUSD: cost, project: folder.path(percentEncoded: false))
+        }
+        controlRegistry.projectOpened = { [weak runner] in runner?.look() }
+        runner.start()
+    }
+
     var body: some Scene {
         WindowGroup(id: MainWindow.windowID) {
             MainWindow(
@@ -215,6 +239,7 @@ struct KiteloopApp: App {
                 runScheduler: runScheduler,
                 fleetQuiesce: fleetQuiesce
             )
+            .environment(routineRunner)
             .task {
                 // Ahead of the bootstrap guard: a quit has to be offered the
                 // drain whether or not the rest of launch ran, and a quit with
@@ -246,6 +271,7 @@ struct KiteloopApp: App {
                     try await groomer.runOneShot(prompt: prompt, cwd: cwd, systemPrompt: system,
                                                  agentName: "Backlog Groomer", access: grant)
                 }
+                startRoutines()
                 if globalConfigStore.config.controlServerEnabled == true {
                     controlServer.start(port: KiteloopControlServer.resolvedPort(globalConfigStore.config.controlServerPort))
                 }

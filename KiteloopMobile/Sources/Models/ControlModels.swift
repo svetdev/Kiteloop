@@ -26,7 +26,7 @@ enum APICompatibility: Equatable {
     /// The control API this build calls — raised with the Mac's
     /// `ControlRouter.apiVersion` whenever an endpoint the phone calls is
     /// added or changes shape.
-    static let phoneVersion = 2
+    static let phoneVersion = 3
 
     static func judge(macVersion: Int?) -> APICompatibility {
         guard let macVersion, macVersion >= phoneVersion else { return .macOutdated }
@@ -56,6 +56,15 @@ struct Project: Decodable, Identifiable {
     /// What the project's autopilot is running right now, as `/v1/projects`
     /// reports it; absent on a Mac build that predates the field.
     var run: ProjectRun?
+    /// The file the Mac pinned for this project, by its path from the
+    /// project's root — shown first when the project is opened.
+    var pinned: String?
+
+    /// The pinned file's name, without its folders; nil with nothing pinned.
+    var pinnedName: String? {
+        guard let pinned, !pinned.isEmpty else { return nil }
+        return pinned.split(separator: "/").last.map(String.init)
+    }
 
     /// A project with a run up — what the Now tab spins for.
     var isRunning: Bool { run?.running == true }
@@ -365,6 +374,17 @@ struct PermissionState: Decodable, Equatable {
     var answer: String?
     /// The task of the subagent whose call it is; nil for the agent's own.
     var subagent: String?
+    /// The call's text fields, which an allow may reword by name — as they
+    /// were sent, once `edited`. Absent on a Mac that cannot take a rewording.
+    var fields: [PermissionField]?
+    /// Whether the call was allowed reworded.
+    var edited: Bool?
+}
+
+/// One text field of a call: a command, a message's text, a channel.
+struct PermissionField: Decodable, Equatable {
+    var name: String
+    var value: String
 }
 
 struct ChoicesState: Decodable, Equatable {

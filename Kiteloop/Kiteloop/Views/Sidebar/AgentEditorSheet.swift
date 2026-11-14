@@ -26,6 +26,7 @@ struct AgentEditorSheet: View {
     @State private var avatar: String?
     @State private var toolsText: String = ""
     @State private var deniedText: String = ""
+    @State private var askFirstText: String = ""
     @State private var crossAgentAccessText: String = ""
     @State private var systemPrompt: String = ""
     /// The project's config as loaded once with the agent, so the notes below
@@ -112,6 +113,9 @@ struct AgentEditorSheet: View {
                         .accessibilityIdentifier("agent-editor-tools-field")
                     TextField("Denied", text: $deniedText)
                         .accessibilityIdentifier("agent-editor-denied-field")
+                    TextField("Always ask first (comma-separated)", text: $askFirstText)
+                        .help("Calls this agent stops to ask you about in every permission mode, Auto included — a rule as Claude Code spells one, like Bash(gh pr comment:*), or an MCP tool's name. The card lets you reword the call before allowing it. With nobody attending, the call is refused.")
+                        .accessibilityIdentifier("agent-editor-ask-first-field")
                 }
 
                 Section("Cross-Agent Access") {
@@ -169,6 +173,7 @@ struct AgentEditorSheet: View {
         avatar = agent.avatar
         toolsText = agent.tools.joined(separator: ", ")
         deniedText = agent.denied.joined(separator: ", ")
+        askFirstText = agent.askFirst.joined(separator: ", ")
         crossAgentAccessText = agent.crossAgentAccess.joined(separator: ", ")
         systemPrompt = agent.systemPrompt
     }
@@ -189,6 +194,7 @@ struct AgentEditorSheet: View {
             agent.avatar = avatar
             agent.tools = toolsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
             agent.denied = deniedText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+            agent.askFirst = Self.rules(in: askFirstText)
             agent.crossAgentAccess = crossAgentAccessText.isEmpty ? [] : crossAgentAccessText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
             agent.systemPrompt = systemPrompt
         }
@@ -205,6 +211,25 @@ struct AgentEditorSheet: View {
         case .applyAtNextStart:
             appliesAtNextStart = true
         }
+    }
+
+    /// The rules a comma-separated field holds. A comma inside parentheses
+    /// belongs to its rule — `Bash(git commit -m "a, b":*)` is one.
+    static func rules(in text: String) -> [String] {
+        var rules: [String] = []
+        var current = ""
+        var depth = 0
+        for character in text {
+            if character == "(" { depth += 1 }
+            if character == ")" { depth = max(0, depth - 1) }
+            if character == ",", depth == 0 {
+                rules.append(current)
+                current = ""
+            } else {
+                current.append(character)
+            }
+        }
+        return (rules + [current]).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
     /// What a save does to the agent's live session. Everything the sheet

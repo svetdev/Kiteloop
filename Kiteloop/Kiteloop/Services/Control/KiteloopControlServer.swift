@@ -80,7 +80,10 @@ final class KiteloopControlServer {
         return UInt16(persisted)
     }
 
-    private let registry: ControlSessionRegistry
+    let registry: ControlSessionRegistry
+    /// The routines this app keeps, for the `/v1/routines` endpoints. Only the
+    /// app attaches one; a server without answers 503 on them.
+    weak var routines: RoutineRunner?
     /// The fleet-wide hold — "stop taking new work everywhere, and tell me when the
     /// last run has finished". Owned here because the gate it keeps is read on the
     /// path that starts runs, and the autonomous scheduler reaches it through
@@ -561,7 +564,7 @@ final class KiteloopControlServer {
         case .health, .openAPIDocument, .claimPairingCode, .listQuickReplies,
              .registerPushDevice, .registerLiveActivity:
             return await metaRoute(route, req)
-        case .listProjects, .openProject, .reorderProjects, .askAboutProject,
+        case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot,
              .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents,
              .interruptAgent, .answerAgentPlan, .answerAgentQuestion,
@@ -577,13 +580,26 @@ final class KiteloopControlServer {
             return await autopilotRoute(route, req)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
-             .listProposals, .approveProposal, .dismissProposal:
-            return coordinatorRoute(route, req)
+             .listProposals, .approveProposal, .dismissProposal,
+             .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine:
+            return loopsRoute(route, req)
         case .fleetStatus, .quiesceFleet, .resumeFleet, .usage:
             return await fleetRoute(route, req)
         case .startRun, .listRuns, .runStatus, .runResult, .runEvents, .runLog,
              .approveRun, .cancelRun, .steerRun:
             return await runsRoute(route, req)
+        }
+    }
+
+    /// What runs on its own clock: the Planner's two loops, and routines.
+    private func loopsRoute(_ route: ControlRoute, _ req: HTTPServer.Request) -> HTTPServer.Response {
+        switch route {
+        case .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine:
+            // 503 from a server no app gave routines to.
+            guard let routines else { return .error("This Kiteloop keeps no routines", status: 503) }
+            return RoutineEndpoints(routines: routines).answer(route, req)
+        default:
+            return coordinatorRoute(route, req)
         }
     }
 
@@ -639,7 +655,7 @@ final class KiteloopControlServer {
     /// the memory those agents propose back.
     private func teamRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
         switch route {
-        case .listProjects, .openProject, .reorderProjects, .askAboutProject,
+        case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot:
             return await projectsRoute(route, req)
         case .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents:
@@ -894,7 +910,7 @@ final class KiteloopControlServer {
     /// `dispatch(_:_:)` is exhaustive over `ControlRoute` and sends each route to
     /// exactly one area, so this fires only if an area's own switch were to lose
     /// an arm the dispatch still points at it.
-    private static func notThisArea(_ route: ControlRoute) -> HTTPServer.Response {
+    static func notThisArea(_ route: ControlRoute) -> HTTPServer.Response {
         .error("No handler for \(route)", status: 500)
     }
 
@@ -1086,6 +1102,7 @@ final class KiteloopControlServer {
                 "baseBranch": await Self.effectiveBaseBranch(entry) as Any,
                 "unattendedPermissions": "auto",
                 "paused": Self.isPaused(entry),
+                "pinned": entry.session.project.loadConfig().pinnedDocument as Any,
                 "run": await Self.runState(entry.autopilot, clearingInconsistencyVia: "GET /v1/projects"),
                 "queue": queue,
                 // Null while the gate isn't full — the same reading `/health`'s
@@ -2103,9 +2120,34 @@ final class KiteloopControlServer {
         case .openProject: return await openProject(body: req.body)
         case .reorderProjects: return await reorderProjects(body: req.body)
         case .askAboutProject: return await askAboutProject(body: req.body)
+        case .pinProjectDocument: return pinProjectDocument(body: req.body)
         case .workspaceChanges, .workspaceFile, .previewScreenshot: return await workspaceRoute(route, req)
         default: return Self.notThisArea(route)
         }
+    }
+
+    /// Pins one file of the project for the phone to show first, or unpins.
+    /// The path is held to the project as a read of it is, and need not name
+    /// a file that exists yet.
+    private func pinProjectDocument(body: Data) -> HTTPServer.Response {
+        let json = Self.jsonBody(body)
+        guard let name = json["project"] as? String else {
+            return .error("Body must include \"project\"", status: 400)
+        }
+        guard let entry = registry.entry(forProject: name) else {
+            return .error("Project not open in Kiteloop: \(name)", status: 409)
+        }
+        let project = entry.session.project
+        let path = ProjectConfig.pinnedPath(json["path"] as? String)
+        if let path, path.hasPrefix("/") || WorkspaceReader.resolve(root: project.rootURL, relative: path) == nil {
+            return .error("\"path\" is a file inside the project, from its root", status: 400)
+        }
+        var config = project.loadConfig()
+        config.pinnedDocument = path
+        do { try project.saveConfig(config) } catch {
+            return .error("Couldn't save the project's settings: \(error.localizedDescription)", status: 500)
+        }
+        return .json(["project": project.rootURL.lastPathComponent, "pinned": path as Any? ?? NSNull()])
     }
 
     // MARK: - The project's working tree, read from the phone
@@ -3294,6 +3336,8 @@ final class KiteloopControlServer {
             avatar: avatar,
             systemPrompt: systemPrompt,
             tools: tools,
+            askFirst: Self.strings(json["askFirst"]),
+            mcpServers: json["mcpServers"] as? [String],
             select: select
         )
         return .json(["agentId": agentID, "name": name, "model": model], status: 201)
@@ -5005,7 +5049,7 @@ final class KiteloopControlServer {
 
     /// Agent id or name, case-insensitively — both are what the UI shows, and
     /// a phone typing either should land on the same agent.
-    private static func agent(in entry: ControlSessionRegistry.Entry, idOrName: String) -> Agent? {
+    static func agent(in entry: ControlSessionRegistry.Entry, idOrName: String) -> Agent? {
         let key = idOrName.lowercased()
         return entry.session.orchestrator.agents.first {
             $0.id.lowercased() == key || $0.name.lowercased() == key
@@ -5100,7 +5144,7 @@ final class KiteloopControlServer {
     }
 
     /// The reply: the last agent text since the caller's message went in.
-    private static func lastAgentReply(in messages: [Message], since countBefore: Int) -> String {
+    static func lastAgentReply(in messages: [Message], since countBefore: Int) -> String {
         messages.suffix(from: min(countBefore, messages.count))
             .reversed()
             .compactMap { msg -> String? in
@@ -5224,6 +5268,19 @@ final class KiteloopControlServer {
         return .json(["agent": agent.id, "request": request])
     }
 
+    /// The text fields an answer rewords — none when it carries no `input`.
+    /// Rewording is part of an allow, and all of it must be text: nil for an
+    /// `input` that is not, which is refused whole rather than allowed as asked.
+    private static func rewording(_ input: Any?, allowing: Bool) -> [String: String]? {
+        guard let input else { return [:] }
+        return allowing ? input as? [String: String] : nil
+    }
+
+    /// A list of strings from a body, or none.
+    private static func strings(_ raw: Any?) -> [String] {
+        raw as? [String] ?? []
+    }
+
     /// Answers a permission card as its buttons do.
     private func answerAgentPermission(body: Data) -> HTTPServer.Response {
         let json = Self.jsonBody(body)
@@ -5233,13 +5290,18 @@ final class KiteloopControlServer {
               ["allow", "always", "deny"].contains(answer) else {
             return .error("Body must include \"request\" and \"answer\": allow, always or deny", status: 400)
         }
+        guard let edits = Self.rewording(json["input"], allowing: answer != "deny") else {
+            return .error("\"input\" rewords an allow: an object of the call's text fields, each a string", status: 400)
+        }
         let remembering = answer == "always" ? json["always"] as? Int ?? 0 : nil
         let vm = entry.session.chatViewModel(for: agent.id)
-        guard vm.answerPermission(requestID: request, allow: answer != "deny", remembering: remembering) else {
+        guard vm.answerPermission(requestID: request, allow: answer != "deny", remembering: remembering,
+                                  edits: edits) else {
             return .error("No open permission card \(request) to answer that way — answered already, taken back, "
-                + "or it offers nothing at that position", status: 409)
+                + "it offers nothing at that position, or \"input\" names something that is not one of its text fields",
+                          status: 409)
         }
-        return .json(["agent": agent.id, "request": request, "answer": answer])
+        return .json(["agent": agent.id, "request": request, "answer": answer, "edited": !edits.isEmpty])
     }
 
     /// Answers the model's own questions, one answer each.
@@ -5825,6 +5887,9 @@ final class KiteloopControlServer {
         let note: String?
         let epic: String
         let groom: Bool
+        /// What makes a second sighting the same item; nil files a new item
+        /// every time.
+        let key: String?
     }
 
     /// `POST /v1/backlog/items`: one new item at `draft`, answered at once and
@@ -5839,11 +5904,26 @@ final class KiteloopControlServer {
             return .error("Project not open in Kiteloop: \(filing.project)", status: 409)
         }
         let backlog = entry.session.backlogViewModel
-        let id = backlog.itemID(forTitle: filing.title)
+        if let already = Self.alreadyFiled(filing, in: backlog) { return already }
+        let id = filing.key.map(QueueRefill.Draft.slug) ?? backlog.itemID(forTitle: filing.title)
         let outcome = Self.file(filing, id: id, in: backlog)
         guard outcome.didFile else { return Self.filingRefusal(outcome, id: id) }
         return .json(["item": id, "epic": filing.epic, "status": BacklogItemStatus.draft.rawValue,
                       "grooming": filing.groom ? startGrooming(id, in: entry) : "not asked"], status: 201)
+    }
+
+    /// A filing that carries a `key` is filed once: the key, slugged, is the
+    /// item's id, and a second sighting is answered with the item already
+    /// there — or with `closed` for one that has since left the backlog —
+    /// instead of a `-2` beside it. Nil when there is nothing yet to answer with.
+    private static func alreadyFiled(_ filing: ItemFiling, in backlog: BacklogViewModel) -> HTTPServer.Response? {
+        guard let key = filing.key else { return nil }
+        let id = QueueRefill.Draft.slug(key)
+        guard !id.isEmpty else { return .error("\"key\" needs a letter or a digit", status: 400) }
+        if let item = backlog.item(withID: id) {
+            return .json(["item": id, "existing": true, "status": item.status.rawValue])
+        }
+        return backlog.hasUsedID(id) ? .json(["item": id, "existing": true, "status": "closed"]) : nil
     }
 
     private static func itemFiling(_ json: [String: Any]) -> StampStep<ItemFiling> {
@@ -5862,7 +5942,8 @@ final class KiteloopControlServer {
         case .value(let value): groom = value
         }
         return .value(ItemFiling(project: project, title: title, note: nonEmptyText(json["note"]),
-                                 epic: nonEmptyText(json["epic"]) ?? "Inbox", groom: groom))
+                                 epic: nonEmptyText(json["epic"]) ?? "Inbox", groom: groom,
+                                 key: nonEmptyText(json["key"])))
     }
 
     private static func nonEmptyText(_ raw: Any?) -> String? {

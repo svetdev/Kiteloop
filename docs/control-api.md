@@ -137,6 +137,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/projects/open` | Open a project in the app |
 | POST | `/v1/projects/reorder` | Move an open project's tab before another, or to the end — the order `GET /v1/projects` lists |
 | POST | `/v1/projects/ask` | Ask the Planner about one project's **source**, read-only — costs a model call |
+| POST | `/v1/projects/pin` | Pin one file of a project for the phone to show first |
 | GET | `/v1/backlog?project=` | List backlog items and statuses |
 | GET | `/v1/metrics` | Recent measured run records (duration, cost, quality, opening context) + the escaped-defect rate |
 | GET | `/v1/estimates` | Latest pre-run estimate for each scoped item |
@@ -202,6 +203,11 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/runs/{runId}/approve` | Resolve this run's pending gate |
 | POST | `/v1/runs/{runId}/cancel` | Abandon a run that is still in flight |
 | POST | `/v1/runs/{runId}/note` | Hand this run's worker a steering note |
+| GET | `/v1/routines` | Every routine, when it next falls and how it last went |
+| PUT | `/v1/routines/{id}` | Add a routine, or replace the one with this id |
+| DELETE | `/v1/routines/{id}` | Remove a routine |
+| POST | `/v1/routines/{id}/run` | Send a routine's prompt now |
+| GET | `/v1/routines/runs` | The ledger of firings, newest first |
 
 Throughout the examples:
 
@@ -391,6 +397,7 @@ curl -s -H "$H" $B/projects
       "baseBranch": "main",
       "unattendedPermissions": "auto",
       "paused": false,
+      "pinned": null,
       "run": {
         "state": "running",
         "running": true,
@@ -506,6 +513,10 @@ The hold is a live reading, not a latch: it exists exactly while
 `queue.awaitingApproval` is over the floor, and is gone the moment an approval
 or a send-back drains it under.
 
+**`pinned`** is the file pinned for the phone to show first, by its path from
+the project's root, or `null` — set with
+[`POST /v1/projects/pin`](#post-v1projectspin).
+
 To find the projects that are busy, or the ones that only think they are:
 
 ```bash
@@ -585,6 +596,35 @@ The answer is the new order, as names — the same order the next
 **Status:** 200 · 400 (no `project` in the body) · 401 · 409 (`project` or
 `before` names no open project) · 503 (the app window isn't running, so there is
 no tab order to move).
+
+---
+
+### POST /v1/projects/pin
+
+Pins one file of a project — the brief an agent writes each morning — so the
+phone shows it first when the project is opened. The same setting is
+**Pinned document** on the project's settings page.
+
+| Field | Required | Notes |
+|---|---|---|
+| `project` | yes | Project identifier |
+| `path` | no | The file's path from the project's root. It need not exist yet. `null` or empty unpins |
+
+```bash
+curl -s -H "$H" -d '{"project":"vault","path":"Briefs/today.md"}' $B/projects/pin
+```
+
+```json
+{ "project": "vault", "pinned": "Briefs/today.md" }
+```
+
+[`GET /v1/projects`](#get-v1projects) carries the path as `pinned` (null with
+nothing pinned), and the phone reads the file through
+[`GET /v1/workspace/file`](#get-v1workspacefile), under its rules: a
+git-ignored file is refused.
+
+**Status:** 200 · 400 (no `project`, or a `path` that is absolute or leaves the
+project) · 401 · 409 (project not open) · 500 (the settings could not be written)
 
 ---
 
@@ -2400,7 +2440,10 @@ A `permission` is a call the session stopped to ask leave for, as a terminal
 would — its `text` is what the call would do, led by the subagent's task when
 the call is a subagent's — and carries `"permission": {"request": "…", "open":
 true, "tool": "Bash", "always": ["Always allow Bash(make test) in this
-project"]}`, with `"subagent"` when it is one's and, once answered, `"answer"`
+project"], "fields": [{"name": "command", "value": "make test"}], "edited":
+false}` — `fields` being the call's text fields, which an allow may reword,
+read as they were sent once `edited` is true — with `"subagent"` when it is
+one's and, once answered, `"answer"`
 (`allowed`, `allowedAlways`, `denied`, or `lapsed` for one the session took
 back); answer it with [`POST /v1/agents/permission`](#post-v1agentspermission).
 A `choices` is the model's own questions, each with the options it offers:
@@ -2528,10 +2571,27 @@ curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","request":"<request 
 | `request` | string | The card's `request` id from the transcript. Required |
 | `answer` | string | `allow`, `always` or `deny`. Required |
 | `always` | integer | With `always`: which offer to remember; default `0` |
+| `input` | object | With `allow` or `always`: text fields of the call to reword, by name — `{"command": "gh pr comment 12 --body \"Looks right.\""}`. The call then runs as reworded |
 
-**Status:** 200 · 400 (missing field, unknown answer) · 404 (no such agent) ·
-409 (project not open, or no such card is open — answered already, taken
-back, or it offers nothing at that position)
+**Rewording a call.** The card's `fields` in the transcript are the call's
+text fields — a command, a message's text, a channel — the one that says what
+the call does first. `input` puts your wording over the ones it names; the
+reply carries `"edited": true`, and the card keeps both what was asked and
+what was sent. Numbers, flags and nested values are not `fields` and cannot be
+changed.
+
+**Draft, approve, send.** Give an agent an always-ask rule for the call that
+writes outward — `askFirst` on [`POST /v1/agents`](#post-v1agents), or
+**Always ask first** in the agent's settings: `Bash(gh pr comment:*)`, or an
+MCP tool by name. That call then stops on a card in every permission mode,
+Auto included, and the CLI offers nothing to remember with the answer. In a
+session nobody attends — an autopilot run — the same rule refuses the call.
+
+**Status:** 200 · 400 (missing field, unknown answer, an `input` that is not
+text by field or came with a `deny`) · 404 (no such agent) · 409 (project not
+open, or no such card is open — answered already, taken back, it offers
+nothing at that position, or `input` names something that is not one of its
+text fields)
 
 ### POST /v1/agents/choices
 
@@ -2750,6 +2810,8 @@ the sidebar.
 | `systemPrompt` | string | built-in developer prompt | |
 | `avatar` | string | none | Bundled avatar name |
 | `tools` | string[] | built-in default tool set | |
+| `askFirst` | string[] | none | Calls the agent always stops to ask you about, in every permission mode — rules as Claude Code spells them, `Bash(gh pr comment:*)` or an MCP tool's name. See [`POST /v1/agents/permission`](#post-v1agentspermission) |
+| `mcpServers` | string[] | none | The configured MCP servers the agent's sessions are given, by name |
 | `select` | bool | `false` | Whether to switch the user's UI selection to the new agent |
 
 ```bash
@@ -3207,6 +3269,7 @@ it to capture an idea away from the desk.
 | `note` | no | What the item is about, written as its detail file's `## What` |
 | `epic` | no | The epic to file under; `Inbox` when omitted (created if missing) |
 | `groom` | no | `true` runs the grooming pass after filing. Default `false` |
+| `key` | no | What makes a second sighting the same item — a watcher's `pr-1234-review`. The id is slugged from it, and filing it again writes nothing |
 
 ```bash
 curl -s -H "$H" -d '{"project":"kiteloop","title":"Refunds round to the cent","note":"Seen on the order page.","groom":true}' $B/backlog/items
@@ -3226,8 +3289,14 @@ is still a person's step. A pass that fails says why in the item's Notes.
 `grooming` is `started`, `not asked`, or why it could not start (no model
 runner on this Mac).
 
-**Status:** 201 · 400 (no project or title, a title holding the separator, a
-non-boolean `groom`) · 409 (project not open, or it has no backlog) · 500 (a
+A filing with a `key` is filed once. The second answers **200** with
+`{"item": "pr-1234-review", "existing": true, "status": "draft"}` — the item's
+status as it stands, or `closed` once it has left the backlog — so a routine
+that polls can file what it sees every time without piling up `-2`s.
+
+**Status:** 201 · 200 (an item with this `key` is already filed) · 400 (no
+project or title, a title holding the separator, a `key` with no letter or
+digit, a non-boolean `groom`) · 409 (project not open, or it has no backlog) · 500 (a
 write failed)
 
 ### POST /v1/backlog/templates/stamp
@@ -4464,3 +4533,138 @@ curl -s -H "$H" -d '{"approve":true}' $B/runs/$RUN/approve
 - **Token auth only** — no per-caller identity, scopes, or audit trail beyond the
   event bus. This is safe only because the listener is loopback-bound; do not port-
   forward or proxy it.
+
+---
+
+## Routines
+
+A **routine** sends one prompt to one agent on a schedule: a morning brief, a
+poll of the code host, a Friday review. It starts the same chat turn typing the
+prompt into that agent's chat would — same session, same tools, same permission
+mode, same cards — so a routine can do nothing the agent could not already be
+asked to. What it adds is the *when*, and a check that can decide there is
+nothing to say.
+
+Routines live in `~/.kiteloop/routines.json`, outside every project, and every
+firing is a line in `~/.kiteloop/routine-runs.jsonl`. Both are readable by you
+alone: a prompt names what it is about.
+
+**What bounds one:**
+
+- **Off until armed.** A routine fires only while its own `armed` is true.
+- **The daily budget.** A scheduled firing is refused on a day whose budget is
+  spent — the portfolio's or the project's own — and what its turn cost is
+  charged to that day. `POST /v1/routines/{id}/run` is your own start and is
+  not refused.
+- **A Mac that was asleep.** A daily routine missed while the Mac slept runs
+  when it wakes, with `scheduledFor` saying when it was due. A poll (`every`)
+  is owed only until the next one would have come.
+- **An agent that cannot be reached** — its project is not open, the fleet is
+  held for a restart — leaves the occurrence `waiting`, written down once, and
+  it runs when the project opens.
+
+### GET /v1/routines
+
+```bash
+curl -s -H "$H" "$B/routines?project=vault"
+```
+
+```json
+{ "routines": [
+  { "id": "morning-brief", "name": "Morning brief", "project": "vault", "agent": "Chief of staff",
+    "prompt": "Write today's brief.", "trigger": { "at": "07:00", "days": ["mon","tue","wed","thu","fri"] },
+    "armed": true, "when": "Weekdays at 07:00", "next": "2026-11-16T07:00:00Z",
+    "lastRun": { "id": "…", "routine": "morning-brief", "scheduledFor": "2026-11-13T07:00:00Z",
+                 "at": "2026-11-13T07:00:00Z", "outcome": "started", "finishedAt": "2026-11-13T07:02:10Z",
+                 "reply": "Three things today.", "costUSD": 0.41 } } ] }
+```
+
+`project` narrows the list to the routines naming that project. `next` is when
+the routine next falls whether or not it is armed; `lastRun` is null for one
+that has never fired.
+
+**Status:** 200 · 401 · 503 (this Kiteloop keeps no routines)
+
+### PUT /v1/routines/{id}
+
+Adds a routine, or replaces the one with this id. The id takes lowercase
+letters, digits and hyphens.
+
+| Field | Required | Notes |
+|---|---|---|
+| `project` | yes | The project the agent is in, as every endpoint names one |
+| `agent` | yes | The agent the prompt goes to, by name or id |
+| `prompt` | yes | What the agent is sent |
+| `trigger` | yes | Either `{"at": "07:00"}` — a time of day in the Mac's time zone — or `{"every": 30, "from": "08:00", "until": "18:00"}`, minutes between occurrences inside those hours (the whole day when absent). `"days": ["mon", …]` narrows either |
+| `name` | no | What a person calls it; the id when absent |
+| `precheck` | no | A shell command run in the project's folder before the turn. Failing, or printing nothing, skips the turn at no model cost; what it prints goes to the agent under the prompt. It has until the routine next falls |
+| `armed` | no | `false` for a new routine. A replacement that does not say keeps what it had |
+
+```bash
+curl -s -X PUT -H "$H" -d '{"name":"PR watch","project":"reviews","agent":"Reviewer",
+  "prompt":"Draft a review for each of these.","precheck":"gh pr list --search review-requested:@me",
+  "trigger":{"every":30,"from":"08:00","until":"18:00","days":["mon","tue","wed","thu","fri"]},
+  "armed":true}' $B/routines/pr-watch
+```
+
+The reply is `{"routine": …}` in the shape `GET /v1/routines` lists. Arming a
+routine, or changing when an armed one falls, starts what it owes from that
+moment — nothing earlier is made up for.
+
+**Status:** 200 · 400 (the body cannot be a routine; every problem is named at
+once) · 401 · 500 (the routines file could not be written) · 503
+
+### DELETE /v1/routines/{id}
+
+```bash
+curl -s -X DELETE -H "$H" $B/routines/pr-watch
+```
+
+```json
+{ "removed": "pr-watch" }
+```
+
+Its past runs stay in the ledger.
+
+**Status:** 200 · 401 · 404 (no routine with this id) · 500 · 503
+
+### POST /v1/routines/{id}/run
+
+Sends the routine's prompt now. This is your own start: it needs no arming,
+the daily budget does not refuse it, and a check that finds nothing does not
+stop it. Answered at once; how the turn went is in `GET /v1/routines/runs`.
+
+```bash
+curl -s -X POST -H "$H" $B/routines/morning-brief/run
+```
+
+```json
+{ "routine": "morning-brief" }
+```
+
+**Status:** 202 · 401 · 404 (no routine with this id) · 503
+
+### GET /v1/routines/runs
+
+The ledger, newest first. `routine` narrows it to one routine's; `limit` is how
+many to return, 50 by default.
+
+```bash
+curl -s -H "$H" "$B/routines/runs?routine=pr-watch&limit=5"
+```
+
+```json
+{ "runs": [
+  { "id": "…", "routine": "pr-watch", "scheduledFor": "2026-11-13T09:30:00Z", "at": "2026-11-13T09:30:00Z",
+    "outcome": "skipped", "reason": "its check found nothing" } ] }
+```
+
+| `outcome` | Meaning |
+|---|---|
+| `started` | The turn began; `finishedAt`, `reply` (the agent's first line) and `costUSD` are filled in when it ends. A start with no `finishedAt` is a turn the app did not see end |
+| `queued` | The agent was mid-turn, so the prompt waits behind that turn |
+| `skipped` | The check failed, timed out or printed nothing; `reason` says which |
+| `refused` | The day's budget, or a Run now with nobody to send it to. Final |
+| `waiting` | The agent could not be reached. The occurrence stays owed and a later line records it running |
+
+**Status:** 200 · 401 · 503

@@ -218,8 +218,11 @@ struct ChatView: View {
     private func sessionCard(_ row: TranscriptRow) -> some View {
         let agentName = model.chatAgent?.name ?? "The agent"
         if case .permission(let text, let state) = row.kind {
-            PermissionCardView(agentName: agentName, text: text, state: state) { answer, always in
-                Task { await model.answerPermission(client, requestID: state.request ?? "", answer: answer, always: always) }
+            PermissionCardView(agentName: agentName, text: text, state: state) { answer, always, edits in
+                Task {
+                    await model.answerPermission(client, requestID: state.request ?? "", answer: answer, always: always,
+                                                 edits: edits)
+                }
             }
         } else if case .choices(let state) = row.kind {
             ChoicesCardView(agentName: agentName, state: state) { answers in

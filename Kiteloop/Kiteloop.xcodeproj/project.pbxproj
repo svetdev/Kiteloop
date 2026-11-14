@@ -22,6 +22,7 @@
 		0496068773DC53CEF94D0DC3 /* RunEconomicsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0AC2FF64B39334510027E0 /* RunEconomicsTests.swift */; };
 		04A0C89CEEA79CD186B36F7B /* AutopilotQueueList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CAC40F34084319D0FEFB79D /* AutopilotQueueList.swift */; };
 		D4BFEBA5D3815859209F721D /* AutopilotFleetControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB51908C312274ADE8E557D1 /* AutopilotFleetControls.swift */; };
+		5F5FB522FC9B0AD17345DB1B /* AutopilotRoutinesRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBA29B3945912CB39092DAE5 /* AutopilotRoutinesRow.swift */; };
 		0590873270D6B2973093F40C /* MemoryLibrarian.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF57927E7B183E782ECD02F /* MemoryLibrarian.swift */; };
 		0656C0B24A7A48B11A7CA713 /* RecordedInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = D52577C50F651219331C4654 /* RecordedInteraction.swift */; };
 		066CF871BD878F253AD4CB32 /* BacklogAutopilotCircuitBreakerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA676A6022056C5D6080BC6C /* BacklogAutopilotCircuitBreakerTests.swift */; };
@@ -140,6 +141,7 @@
 		4565864C78E4930D0D0B951D /* CoordinatorRunScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF2B04890D489512A751EAEA /* CoordinatorRunScheduler.swift */; };
 		457411602BE378ACE1DD340D /* OrchestratorResumeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DDF7CE9FF96A85040D77E7B /* OrchestratorResumeTests.swift */; };
 		A1B2C3D4000200020002ABCD /* ChatViewModelAskHumanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4000100010001ABCD /* ChatViewModelAskHumanTests.swift */; };
+		32D2BDF144582D28B71CC81C /* ChatViewModelCarriedQuestionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADBA9ACCCF8F3585B5AC333A /* ChatViewModelCarriedQuestionTests.swift */; };
 		D3C4A1E5F60718293A4B5C62 /* ChatViewModelDeleteSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3C4A1E5F60718293A4B5C63 /* ChatViewModelDeleteSessionTests.swift */; };
 		D7A1F2E3C4B5A69788990A01 /* ChatViewModelDraftTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A1F2E3C4B5A69788990A02 /* ChatViewModelDraftTests.swift */; };
 		E7A1C2D3F40516273849AB10 /* ChatViewModelRenameSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A1C2D3F40516273849AB11 /* ChatViewModelRenameSessionTests.swift */; };
@@ -153,6 +155,7 @@
 		4804CDC30E94CED862FE38AA /* ItemRunHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58758E5BB80AA598D2C9F4EC /* ItemRunHistory.swift */; };
 		4836A1D874FBBE162155EEC8 /* AutopilotQueueListTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1FB702E7B31916F3A745D9 /* AutopilotQueueListTests.swift */; };
 		40D9C39ECB8CB934C06D19AE /* AutopilotFleetControlsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 816412ECCB83906236D062BD /* AutopilotFleetControlsTests.swift */; };
+		871F793F8A17F37CC0FB5567 /* AutopilotRoutinesRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403657AA47BFC2DB260AD220 /* AutopilotRoutinesRowTests.swift */; };
 		4A1C9E2B7D3F6018B2C40915 /* AvatarUploadInstallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A1C9E2B7D3F6018B2C40916 /* AvatarUploadInstallTests.swift */; };
 		4856F93B24A8C8E10B685ADA /* GitBranchDetectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC378F39DFAF43BD9D64E85 /* GitBranchDetectionTests.swift */; };
 		A39D2DEE58C546E4AAA41F14 /* PluginScanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59EDCC5D32EC42CEBF087606 /* PluginScanTests.swift */; };
@@ -211,6 +214,7 @@
 		686B13EE93D27261A8A07570 /* KiteloopControlServerBacklogGroomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2527CFD035B5AEDF7E22019A /* KiteloopControlServerBacklogGroomTests.swift */; };
 		68A158C9C451C538AB945635 /* AgentEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DD2B5AF920104404D06BD1 /* AgentEditorSheet.swift */; };
 		68A8376EDB40972D66CCC9CC /* KiteloopControlServerSteerRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76FCC22B0E805671CCF452B /* KiteloopControlServerSteerRunTests.swift */; };
+		EA6674C961A452D0364E2956 /* KiteloopControlServerRoutinesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC54B42CB84DF052938839F /* KiteloopControlServerRoutinesTests.swift */; };
 		6927B9FB4D96FD6A9654F52C /* Phase2BIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F24B6BC7F5C408A770DB5D /* Phase2BIntegrationTests.swift */; };
 		6B14A14F659846200A43D04B /* MemoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BC6FCFE2E75202C3E2C353E /* MemoryManager.swift */; };
 		6B40018E1C146D88C9D4A6FD /* KiteloopControlServerProposalsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2C85A08E8C2B180C97E052A /* KiteloopControlServerProposalsTests.swift */; };
@@ -227,6 +231,7 @@
 		7126D4ACA7EBF929BAE13732 /* WebScrollToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF0B73707405BF550817F7B /* WebScrollToolTests.swift */; };
 		71686EE4719268DEF4F073B5 /* RunQualityJudge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136F2EF6822067FDDCB8A514 /* RunQualityJudge.swift */; };
 		71B6535FBA96A313828C1650 /* RunSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A283D08B1D04B0B47B97723 /* RunSchedulingTests.swift */; };
+		BB54947E0ADDA4EE4893F591 /* RoutineRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3429277E5093EFCC5AEAB458 /* RoutineRunnerTests.swift */; };
 		72DA73B9D1B427046B6A72BE /* PortfolioReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50BF25DA78255CF652B3786 /* PortfolioReport.swift */; };
 		730A5213E3066069F03BBED6 /* PanelEmptyStateCopyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0989D98F6F211F3D25A356D /* PanelEmptyStateCopyTests.swift */; };
 		730F833CF0F143CB5C1E754B /* AgentTemplateCodableTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C28FFC61EA782184F344AA7A /* AgentTemplateCodableTests.swift */; };
@@ -495,6 +500,7 @@
 		F2158648160BA15AF2FB7DAA /* PortfolioReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51356AE752CB3E02E35C1A7 /* PortfolioReportTests.swift */; };
 		F32A7476A6ADF260BA78B7B9 /* examples in Resources */ = {isa = PBXBuildFile; fileRef = 775AF51C1DF64189BCA4091A /* examples */; };
 		F38C6B5ED3C64333B4719075 /* RunScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */; };
+		0F31837E9FB813140FE71E55 /* RoutineRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */; };
 		F3A9BF4E5D23D0EFD48E9245 /* KiteloopControlServerSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A4846B87C61D8C24E83190 /* KiteloopControlServerSchedulingTests.swift */; };
 		F3F81FA2138DFD20E1EFCF18 /* AgentCatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC04DDF864EA60BEAD7BFFA6 /* AgentCatalogStore.swift */; };
 		F402A30B6263709165655087 /* ClaudeCodeCLIRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73D7E5B42202DD55DAD9AB5 /* ClaudeCodeCLIRuntime.swift */; };
@@ -647,6 +653,7 @@
 		500D082B8022C13538630318 /* KiteloopControlServerAgentPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE4747F68DC36537837DFE5E /* KiteloopControlServerAgentPromptTests.swift */; };
 		72342798D992FA41029D8A10 /* KiteloopControlServerWorkspaceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 987D541FF3270CA9B1F1CAE8 /* KiteloopControlServerWorkspaceTests.swift */; };
 		9209BD6D9ACB695685B077A6 /* PushRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */; };
+		63042440C7986509B43C723F /* RoutineEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */; };
 		48DE3F1B82420CAC54A2B60F /* PushKeySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164389180D28DD6DA990F84D /* PushKeySection.swift */; };
 		709982B651144040796CE0FD /* PushRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06054E1C30015012CF0D535 /* PushRelayTests.swift */; };
 		28E2B76B86015E051FBC1BE3 /* PairedPhonesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4FE41187AB3E4523785BA8 /* PairedPhonesSection.swift */; };
@@ -715,6 +722,7 @@
 		0F01EEDAF44E1A3187232658 /* KnowledgeRecallServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeRecallServiceTests.swift; sourceTree = "<group>"; };
 		0F1FB702E7B31916F3A745D9 /* AutopilotQueueListTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutopilotQueueListTests.swift; sourceTree = "<group>"; };
 		816412ECCB83906236D062BD /* AutopilotFleetControlsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutopilotFleetControlsTests.swift; sourceTree = "<group>"; };
+		403657AA47BFC2DB260AD220 /* AutopilotRoutinesRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutopilotRoutinesRowTests.swift; sourceTree = "<group>"; };
 		4A1C9E2B7D3F6018B2C40916 /* AvatarUploadInstallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvatarUploadInstallTests.swift; sourceTree = "<group>"; };
 		103EBE2342876B7804335176 /* ChatViewModelHandoffTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelHandoffTests.swift; sourceTree = "<group>"; };
 		3075E474597A433AB3BBEA75 /* ChatViewModelTaskUpdateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelTaskUpdateTests.swift; sourceTree = "<group>"; };
@@ -817,6 +825,7 @@
 		3E0FE1CEF52CB0A16681B1D4 /* SearchUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchUITests.swift; sourceTree = "<group>"; };
 		3E2394E17F22ECBB22EC9B62 /* MemoryBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryBrowserView.swift; sourceTree = "<group>"; };
 		3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunScheduling.swift; sourceTree = "<group>"; };
+		FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineRunner.swift; sourceTree = "<group>"; };
 		40758D27B5B863E9BD66FB34 /* SettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUITests.swift; sourceTree = "<group>"; };
 		40B1C236B2218D02F96AD9B0 /* CoordinatorAdvisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorAdvisor.swift; sourceTree = "<group>"; };
 		41C4208A1F527750364D6971 /* BacklogTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogTemplateTests.swift; sourceTree = "<group>"; };
@@ -834,10 +843,12 @@
 		47C1D88446DF824DE19FE7CB /* WebPreviewLoading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPreviewLoading.swift; sourceTree = "<group>"; };
 		481FFE4FB1408E5780787FB8 /* Phase2AIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase2AIntegrationTests.swift; sourceTree = "<group>"; };
 		4A283D08B1D04B0B47B97723 /* RunSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunSchedulingTests.swift; sourceTree = "<group>"; };
+		3429277E5093EFCC5AEAB458 /* RoutineRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineRunnerTests.swift; sourceTree = "<group>"; };
 		4A461C3B400D7D9620AC1672 /* InspectorDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorDrawer.swift; sourceTree = "<group>"; };
 		4AE1A981061E2D9E7CE47337 /* CoordinatorStartsModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorStartsModel.swift; sourceTree = "<group>"; };
 		4CAC40F34084319D0FEFB79D /* AutopilotQueueList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutopilotQueueList.swift; sourceTree = "<group>"; };
 		FB51908C312274ADE8E557D1 /* AutopilotFleetControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutopilotFleetControls.swift; sourceTree = "<group>"; };
+		FBA29B3945912CB39092DAE5 /* AutopilotRoutinesRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutopilotRoutinesRow.swift; sourceTree = "<group>"; };
 		4CAFD6725EA0CE4B385FE356 /* MemoryLibrarianTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryLibrarianTests.swift; sourceTree = "<group>"; };
 		4D06B622604FE798530D777E /* HireAgentReplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HireAgentReplayTests.swift; sourceTree = "<group>"; };
 		4DB90602B13E885FBF4E4D09 /* Phase2CIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase2CIntegrationTests.swift; sourceTree = "<group>"; };
@@ -872,6 +883,7 @@
 		5F17F6D7DCA23887BBD2FDA6 /* OrgManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrgManifest.swift; sourceTree = "<group>"; };
 		5F8B0CB421840EB82C1E1165 /* SetupWizardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWizardViewModel.swift; sourceTree = "<group>"; };
 		A1B2C3D4000100010001ABCD /* ChatViewModelAskHumanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelAskHumanTests.swift; sourceTree = "<group>"; };
+		ADBA9ACCCF8F3585B5AC333A /* ChatViewModelCarriedQuestionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelCarriedQuestionTests.swift; sourceTree = "<group>"; };
 		D3C4A1E5F60718293A4B5C63 /* ChatViewModelDeleteSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelDeleteSessionTests.swift; sourceTree = "<group>"; };
 		D7A1F2E3C4B5A69788990A02 /* ChatViewModelDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelDraftTests.swift; sourceTree = "<group>"; };
 		E7A1C2D3F40516273849AB11 /* ChatViewModelRenameSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelRenameSessionTests.swift; sourceTree = "<group>"; };
@@ -1195,6 +1207,7 @@
 		E74AC54A900D3114BB665140 /* BacklogFileGroomedItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogFileGroomedItemTests.swift; sourceTree = "<group>"; };
 		E74F81862584A2BA04B3FF96 /* WorkflowEventBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEventBridge.swift; sourceTree = "<group>"; };
 		E76FCC22B0E805671CCF452B /* KiteloopControlServerSteerRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerSteerRunTests.swift; sourceTree = "<group>"; };
+		5EC54B42CB84DF052938839F /* KiteloopControlServerRoutinesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerRoutinesTests.swift; sourceTree = "<group>"; };
 		E7A89CAED3DB9870FB7D30DB /* ProjectTabIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectTabIndicator.swift; sourceTree = "<group>"; };
 		2461F427A006A02657AB9761 /* PhaseRailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhaseRailView.swift; sourceTree = "<group>"; };
 		E7F68908398D21F32FD3DBA5 /* WorktreeSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorktreeSessionTests.swift; sourceTree = "<group>"; };
@@ -1324,6 +1337,7 @@
 		CE4747F68DC36537837DFE5E /* KiteloopControlServerAgentPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerAgentPromptTests.swift; sourceTree = "<group>"; };
 		987D541FF3270CA9B1F1CAE8 /* KiteloopControlServerWorkspaceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerWorkspaceTests.swift; sourceTree = "<group>"; };
 		30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRelay.swift; sourceTree = "<group>"; };
+		D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineEndpoints.swift; sourceTree = "<group>"; };
 		164389180D28DD6DA990F84D /* PushKeySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushKeySection.swift; sourceTree = "<group>"; };
 		E06054E1C30015012CF0D535 /* PushRelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRelayTests.swift; sourceTree = "<group>"; };
 		5D4FE41187AB3E4523785BA8 /* PairedPhonesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairedPhonesSection.swift; sourceTree = "<group>"; };
@@ -1418,6 +1432,7 @@
 				F44757F71691DB23553F62D7 /* AutopilotHistorySummaryTests.swift */,
 				0F1FB702E7B31916F3A745D9 /* AutopilotQueueListTests.swift */,
 				816412ECCB83906236D062BD /* AutopilotFleetControlsTests.swift */,
+				403657AA47BFC2DB260AD220 /* AutopilotRoutinesRowTests.swift */,
 				71539657A5E75A82E084DC2C /* AutopilotTranscriptTests.swift */,
 				A1C7E4B29D3F60815A2B4C72 /* AutopilotTranscriptScrollTests.swift */,
 				D1A6C3E58F2B40719C3E5B02 /* DiagnosticsLogEmptyStateTests.swift */,
@@ -1580,6 +1595,7 @@
 				F2568F972316CA886999B931 /* RunKnowledgeDistiller.swift */,
 				136F2EF6822067FDDCB8A514 /* RunQualityJudge.swift */,
 				3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */,
+				FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */,
 				917ECCEF15B9C71E5890CA1E /* RunWorkEvidence.swift */,
 				8CB80D099D424A70A7879393 /* SampleProjectService.swift */,
 				C3270240124011E101985C2D /* SizeCalibration.swift */,
@@ -1732,6 +1748,7 @@
 				4481F207D99D6F441C5920B4 /* QAStoryboardSheet.swift */,
 				4CAC40F34084319D0FEFB79D /* AutopilotQueueList.swift */,
 				FB51908C312274ADE8E557D1 /* AutopilotFleetControls.swift */,
+				FBA29B3945912CB39092DAE5 /* AutopilotRoutinesRow.swift */,
 				1B8B8DCF403CF423298486CB /* AutopilotTranscript.swift */,
 				1338D682E6E537EB83381EC8 /* AutopilotTranscriptView.swift */,
 				29894D3506D08AA50F030427 /* AutopilotView.swift */,
@@ -1826,6 +1843,7 @@
 			isa = PBXGroup;
 			children = (
 				30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */,
+				D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */,
 				00958C541947982DB0D4A81E /* AgentChatStream.swift */,
 				EBB9CD9D1C672E7354207898 /* ControlSessionRegistry.swift */,
 				71AC35D33FFB7DCEBAEF4264 /* FleetQuiesce.swift */,
@@ -1955,6 +1973,7 @@
 				FC7A107A40600869A585576B /* BacklogViewModelQueueHealthTests.swift */,
 				1948472B8881F86FB809A61A /* BacklogViewModelStatusTests.swift */,
 				A1B2C3D4000100010001ABCD /* ChatViewModelAskHumanTests.swift */,
+				ADBA9ACCCF8F3585B5AC333A /* ChatViewModelCarriedQuestionTests.swift */,
 				D3C4A1E5F60718293A4B5C63 /* ChatViewModelDeleteSessionTests.swift */,
 				D7A1F2E3C4B5A69788990A02 /* ChatViewModelDraftTests.swift */,
 				E7A1C2D3F40516273849AB11 /* ChatViewModelRenameSessionTests.swift */,
@@ -2284,6 +2303,7 @@
 				D7A4846B87C61D8C24E83190 /* KiteloopControlServerSchedulingTests.swift */,
 				94816A873885B81167E54039 /* KiteloopControlServerStartRunTests.swift */,
 				E76FCC22B0E805671CCF452B /* KiteloopControlServerSteerRunTests.swift */,
+				5EC54B42CB84DF052938839F /* KiteloopControlServerRoutinesTests.swift */,
 				EF05C08AC8068E9473124F74 /* KiteloopControlServerStrandedWorkTests.swift */,
 				C831EFDB78C1D0D42C39ACDB /* KiteloopControlServerTemplatesTests.swift */,
 				6DAE6A64DD2E67E186F6FF96 /* KiteloopControlServerTokenCreationTests.swift */,
@@ -2310,6 +2330,7 @@
 				8B53E168BC509B35A7B1FA3E /* FleetQuiesceTests.swift */,
 				D2401543CFBA83B98CDF6333 /* QueueRefillTests.swift */,
 				4A283D08B1D04B0B47B97723 /* RunSchedulingTests.swift */,
+				3429277E5093EFCC5AEAB458 /* RoutineRunnerTests.swift */,
 			);
 			path = Coordinator;
 			sourceTree = "<group>";
@@ -2502,6 +2523,7 @@
 				28E2B76B86015E051FBC1BE3 /* PairedPhonesSection.swift in Sources */,
 				48DE3F1B82420CAC54A2B60F /* PushKeySection.swift in Sources */,
 				9209BD6D9ACB695685B077A6 /* PushRelay.swift in Sources */,
+				63042440C7986509B43C723F /* RoutineEndpoints.swift in Sources */,
 				9A446BE5F67F36FB958902D7 /* AgentChatStream.swift in Sources */,
 				A4683541906C95064E6A84F9 /* Orchestrator+UnpromptedTurns.swift in Sources */,
 				E33161BE701265232FC775CE /* Orchestrator+PermissionPrompts.swift in Sources */,
@@ -2543,6 +2565,7 @@
 				118842A8B79E30DA0D9582CC /* QAStoryboardSheet.swift in Sources */,
 				04A0C89CEEA79CD186B36F7B /* AutopilotQueueList.swift in Sources */,
 				D4BFEBA5D3815859209F721D /* AutopilotFleetControls.swift in Sources */,
+				5F5FB522FC9B0AD17345DB1B /* AutopilotRoutinesRow.swift in Sources */,
 				D0314F5D56369FB8A8F15F3B /* AutopilotTranscript.swift in Sources */,
 				DD72CAD80D1DE9729B61899C /* AutopilotTranscriptView.swift in Sources */,
 				5520BFDD695C71C94FAF8C08 /* AutopilotView.swift in Sources */,
@@ -2672,6 +2695,7 @@
 				CFA621E845D2C88A23C0A7AE /* RunKnowledgeDistiller.swift in Sources */,
 				71686EE4719268DEF4F073B5 /* RunQualityJudge.swift in Sources */,
 				F38C6B5ED3C64333B4719075 /* RunScheduling.swift in Sources */,
+				0F31837E9FB813140FE71E55 /* RoutineRunner.swift in Sources */,
 				88FF61AB05ACCA63248CC6BB /* RunWorkEvidence.swift in Sources */,
 				B7BD7F06C8994B8585754DA4 /* SampleProjectService.swift in Sources */,
 				464B26AFC65E95D486C16389 /* SearchBar.swift in Sources */,
@@ -2818,6 +2842,7 @@
 				B96D97B85FF1642AA5BD83FF /* AutopilotHistorySummaryTests.swift in Sources */,
 				4836A1D874FBBE162155EEC8 /* AutopilotQueueListTests.swift in Sources */,
 				40D9C39ECB8CB934C06D19AE /* AutopilotFleetControlsTests.swift in Sources */,
+				871F793F8A17F37CC0FB5567 /* AutopilotRoutinesRowTests.swift in Sources */,
 				4A1C9E2B7D3F6018B2C40915 /* AvatarUploadInstallTests.swift in Sources */,
 				34E8A281E2155311CB1C02BE /* AutopilotSalvageTests.swift in Sources */,
 				3AE933242382C2432C0A8D05 /* AutopilotTranscriptTests.swift in Sources */,
@@ -2874,6 +2899,7 @@
 				00F0C4AA9D034F8FBE8ECB37 /* ChatViewModelTurnStopNoteTests.swift in Sources */,
 				354575BC6055438C8C844EC7 /* ChatViewModelRetryNoticeTests.swift in Sources */,
 				A1B2C3D4000200020002ABCD /* ChatViewModelAskHumanTests.swift in Sources */,
+				32D2BDF144582D28B71CC81C /* ChatViewModelCarriedQuestionTests.swift in Sources */,
 				D3C4A1E5F60718293A4B5C62 /* ChatViewModelDeleteSessionTests.swift in Sources */,
 				D7A1F2E3C4B5A69788990A01 /* ChatViewModelDraftTests.swift in Sources */,
 				E7A1C2D3F40516273849AB10 /* ChatViewModelRenameSessionTests.swift in Sources */,
@@ -2957,6 +2983,7 @@
 				F3A9BF4E5D23D0EFD48E9245 /* KiteloopControlServerSchedulingTests.swift in Sources */,
 				1FBB4B9A38FCCD8B79ED375A /* KiteloopControlServerStartRunTests.swift in Sources */,
 				68A8376EDB40972D66CCC9CC /* KiteloopControlServerSteerRunTests.swift in Sources */,
+				EA6674C961A452D0364E2956 /* KiteloopControlServerRoutinesTests.swift in Sources */,
 				BB9E98AACFDEBE1FFEA6BEF9 /* KiteloopControlServerStrandedWorkTests.swift in Sources */,
 				C3D7D11A5BD918998B5B9F16 /* KiteloopControlServerTemplatesTests.swift in Sources */,
 				8A66B71CC09C61B2F4CDA165 /* KiteloopControlServerTokenCreationTests.swift in Sources */,
@@ -3022,6 +3049,7 @@
 				DDD9B9911D27D0A75AA9D121 /* RunQualityJudgeTests.swift in Sources */,
 				6550E1ECC6384CEE8FF832DA /* ReviewerDiffFactsBlockTests.swift in Sources */,
 				71B6535FBA96A313828C1650 /* RunSchedulingTests.swift in Sources */,
+				BB54947E0ADDA4EE4893F591 /* RoutineRunnerTests.swift in Sources */,
 				9330953B622A450FF3B26B95 /* RunWorkEvidenceTests.swift in Sources */,
 				BAE19069DBB63C03D83346FF /* SelfMessageReplayTests.swift in Sources */,
 				4F0073BC6CCA74D6FB8650A1 /* SetupWizardViewModelCredentialCheckTests.swift in Sources */,
@@ -3196,7 +3224,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "ai.kasatkin.kiteloop$(KITELOOP_QA_SUFFIX)";
 				SDKROOT = macosx;
 			};
@@ -3332,7 +3360,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "ai.kasatkin.kiteloop$(KITELOOP_QA_SUFFIX)";
 				SDKROOT = macosx;
 			};

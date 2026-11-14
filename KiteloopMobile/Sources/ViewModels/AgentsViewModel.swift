@@ -212,10 +212,14 @@ final class AgentsViewModel {
 
     /// Answers a permission card as the Mac's would: `allow` this once,
     /// `deny`, or `always` — allow, and remember the card's offer at `always`.
-    func answerPermission(_ client: ControlClient, requestID: String, answer: String, always: Int? = nil) async {
+    /// `edits` rewords the call's text fields by name; the call then runs as
+    /// reworded.
+    func answerPermission(_ client: ControlClient, requestID: String, answer: String, always: Int? = nil,
+                          edits: [String: String] = [:]) async {
         guard let agent = chatAgent else { return }
         var body: [String: Any] = ["project": project, "agent": agent.id, "request": requestID, "answer": answer]
         if let always { body["always"] = always }
+        if !edits.isEmpty { body["input"] = edits }
         await post("/v1/agents/permission", body, client)
     }
 

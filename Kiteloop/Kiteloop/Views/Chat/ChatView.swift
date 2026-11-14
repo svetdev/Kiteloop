@@ -776,8 +776,8 @@ struct MessageListContainer: View {
                 Task { await viewModel.answerPlan(messageID: message.id, with: answer, feedback: feedback) }
             }
         } else if case .permission(let request) = message.content {
-            PermissionCard(request: request) { allow, remembering in
-                viewModel.answerPermission(requestID: request.id, allow: allow, remembering: remembering)
+            PermissionCard(request: request) { allow, remembering, edits in
+                viewModel.answerPermission(requestID: request.id, allow: allow, remembering: remembering, edits: edits)
             }
         } else if case .choices(let asked) = message.content {
             ChoicesCard(asked: asked) { answers in

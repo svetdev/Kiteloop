@@ -29,6 +29,7 @@ struct ProjectSettingsView: View {
     @State private var permissionMode: String = ProjectConfig.default.permissionMode
     @State private var effort: String = ""
     @State private var maxBudgetUSD: String = ""
+    @State private var pinnedDocument: String = ""
     @State private var showAdvanced = false
     @State private var loaded = false
     @State private var saveError: String?
@@ -222,6 +223,12 @@ struct ProjectSettingsView: View {
                 RememberedPermissionsList(projectRoot: project.rootURL)
             }
 
+            Section("Phone") {
+                TextField("Pinned document", text: $pinnedDocument)
+                    .help("A file in this project, by its path from the project's root, that the phone shows first when it opens the project — a brief an agent writes each morning")
+                    .accessibilityIdentifier("project-settings-pinned-document-field")
+            }
+
             Section("Budget") {
                 TextField("Max per-turn USD", text: $maxBudgetUSD)
                     .frame(width: 100)
@@ -233,6 +240,7 @@ struct ProjectSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onChange(of: pinnedDocument) { _, _ in savePinnedDocument() }
         .onChange(of: model) { _, _ in saveConfig() }
         .onChange(of: permissionMode) { _, _ in saveConfig() }
         .onChange(of: effort) { _, _ in saveConfig() }
@@ -265,6 +273,20 @@ struct ProjectSettingsView: View {
         permissionMode = config.permissionMode
         effort = config.effort ?? ""
         maxBudgetUSD = config.maxBudgetUSD.map { String(format: "%.2f", $0) } ?? ""
+        pinnedDocument = config.pinnedDocument ?? ""
+    }
+
+    /// The pinned document is its own save: it is not one of the four fields
+    /// a mistyped budget refuses.
+    private func savePinnedDocument() {
+        guard loaded else { return }
+        var config = project.loadConfig()
+        config.pinnedDocument = ProjectConfig.pinnedPath(pinnedDocument)
+        do {
+            try project.saveConfig(config)
+        } catch {
+            saveError = "Couldn't save settings: \(error.localizedDescription)"
+        }
     }
 
     /// What the Budget field's text means. `Double(_:)` alone cannot tell a

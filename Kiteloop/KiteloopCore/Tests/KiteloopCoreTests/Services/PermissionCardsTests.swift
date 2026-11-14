@@ -92,6 +92,76 @@ final class PermissionCardsTests: XCTestCase {
         XCTAssertEqual(try permission(messages[0]).answer, .allowedAlways)
     }
 
+    func testAllowingWithTheCommandRewordedSendsTheRewordingAndKeepsItOnTheCard() throws {
+        var messages = [card(leave())]
+
+        let decision = PermissionCards.allow("req-1", edits: ["command": "make test"], in: &messages)
+
+        XCTAssertEqual(decision, .allow(input: #"{"command":"make test"}"#))
+        let request = try permission(messages[0])
+        XCTAssertEqual(request.answer, .allowed)
+        XCTAssertEqual(request.sent, #"{"command":"make test"}"#)
+        XCTAssertEqual(request.input, #"{"command":"make"}"#, "what was asked stays on record beside what was sent")
+    }
+
+    func testTheAgentIsToldHowARewordedCallRan() {
+        var messages = [card(leave())]
+        XCTAssertNil(PermissionCards.rewordingNote(for: "req-1", in: messages), "an open card has nothing to say")
+
+        _ = PermissionCards.allow("req-1", edits: ["command": "make test"], in: &messages)
+
+        XCTAssertEqual(PermissionCards.rewordingNote(for: "req-1", in: messages),
+                       "I changed your Bash call before allowing it. It ran with:\n\ncommand: make test")
+        XCTAssertNil(PermissionCards.rewordingNote(for: "req-other", in: messages))
+    }
+
+    func testTheNoteNamesOnlyTheFieldsThatWereChanged() {
+        let post = PermissionPrompt.Request(id: "req-1", toolName: "mcp__chat__post",
+                                            input: #"{"channel":"C1","text":"hello"}"#)
+        var messages = [card(post)]
+
+        _ = PermissionCards.allow("req-1", edits: ["text": "hello there"], in: &messages)
+
+        XCTAssertEqual(PermissionCards.rewordingNote(for: "req-1", in: messages),
+                       "I changed your mcp__chat__post call before allowing it. It ran with:\n\ntext: hello there")
+    }
+
+    func testACallAllowedAsAskedNeedsNoNote() {
+        var messages = [card(leave())]
+        _ = PermissionCards.allow("req-1", in: &messages)
+
+        XCTAssertNil(PermissionCards.rewordingNote(for: "req-1", in: messages))
+    }
+
+    func testAnEditThatChangesNothingIsAnAllowAsAsked() throws {
+        var messages = [card(leave())]
+
+        _ = PermissionCards.allow("req-1", edits: ["command": "make"], in: &messages)
+
+        XCTAssertNil(try permission(messages[0]).sent)
+    }
+
+    func testAnEditOfSomethingThatIsNotOneOfTheCallsTextFieldsAnswersNothing() throws {
+        let post = PermissionPrompt.Request(id: "req-1", toolName: "mcp__chat__post",
+                                            input: #"{"channel":"C1","text":"hello","urgent":false}"#)
+        var messages = [card(post)]
+
+        XCTAssertNil(PermissionCards.allow("req-1", edits: ["urgent": "true"], in: &messages))
+        XCTAssertNil(PermissionCards.allow("req-1", edits: ["thread": "T9"], in: &messages))
+
+        XCTAssertNil(try permission(messages[0]).answer, "the card still waits")
+        XCTAssertEqual(PermissionCards.allow("req-1", edits: ["text": "hello there"], in: &messages),
+                       .allow(input: #"{"channel":"C1","text":"hello there","urgent":false}"#))
+    }
+
+    func testTheFieldsAPersonMayRewordAreTheCallsTextWithWhatItDoesFirst() {
+        XCTAssertEqual(PermissionCards.editableFields(ofInput: #"{"description":"Build","command":"make","timeout":5}"#),
+                       [.init(name: "command", value: "make"), .init(name: "description", value: "Build")])
+        XCTAssertEqual(PermissionCards.editableFields(ofInput: #"{"text":"hi","channel":"C1","blocks":[]}"#),
+                       [.init(name: "channel", value: "C1"), .init(name: "text", value: "hi")])
+        XCTAssertEqual(PermissionCards.editableFields(ofInput: "{}"), [])
+    }
+
     func testAnOfferTheCardDoesNotMakeAnswersNothing() throws {
         var messages = [card(leave())]
         XCTAssertNil(PermissionCards.allow("req-1", remembering: 3, in: &messages))

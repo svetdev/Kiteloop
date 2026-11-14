@@ -198,7 +198,7 @@ Entry format:
 **What:** Nothing postpones Sparkle's relaunch while runs are in flight. Sparkle quits the app the way Cmd-Q does, so `AppDelegate.applicationShouldTerminate` asks its existing fleet question, and an update whose quit was cancelled installs at the next quit.
 **Why:** A second mechanism deciding when the app may quit would have to agree with the first forever.
 **Evidence:** `AppDelegate.applicationShouldTerminate`, `FleetQuitPrompt`.
-**Status:** holds — not yet observed end to end; no release with Sparkle in it has been published.
+**Status:** holds — an installed 0.4.9 updated itself to 0.5.0 from the published feed on 2026-11-12; the relaunch with a run in flight is still unobserved.
 
 ## [2026-11-10] An attended session's prompts are Kiteloop's to answer
 **Kind:** decision
@@ -226,4 +226,46 @@ Entry format:
 **What:** An attended session in `default`, `acceptEdits` or `plan` is spawned with only the agent's MCP tools and spelled-out rules in `--allowedTools`; its built-in tools are the CLI's to ask about. `auto`, `dontAsk`, `bypassPermissions` and every unattended session keep the whole list approved. A mode change across the two groups replaces the process.
 **Why:** `--allowedTools` approves, so with the whole list passed an agent in Ask never asked before Bash or Edit — the mode's name was untrue. Auto is left alone because its users chose not to be asked, and the list keeps listed tools out of the classifier.
 **Evidence:** CLI 2.1.322 with no built-in tool approved: `default` reads without asking and asks before Write; `acceptEdits` writes and runs `touch` without asking and asks before `python3 -c`. `ClaudeCodeCLIRuntime.buildAllowedToolsArgs`, `Orchestrator.liveSessionTakes`.
+**Status:** holds
+
+## [2026-11-13] A routine is a chat turn on a schedule, not a new kind of run
+**Kind:** decision
+**What:** A routine sends its prompt through the same path as `POST /v1/agents/message`, to an agent that already exists, and adds only a trigger and an optional check command. It has no tools, permissions or output types of its own.
+**Why:** Everything a scheduled watcher needs to be bounded by — the agent's tool list, its permission mode, the cards it stops on, the daily budget — already bounds a chat turn. A second engine with its own contract would have to agree with those forever.
+**Evidence:** `RoutineRunner`, `RoutineEndpoints.swift`.
+**Status:** holds
+
+## [2026-11-13] Routines live outside every project
+**Kind:** decision
+**What:** Routines and their ledger are `~/.kiteloop/routines.json` and `routine-runs.jsonl`, mode 0600, rather than a file in the project's `.kiteloop/`.
+**Why:** A routine's prompt names the people and systems it watches, and a project folder is often a repository other people read.
+**Evidence:** `RoutineStore`.
+**Status:** holds
+
+## [2026-11-13] A missed daily routine is owed, a missed poll is not
+**Kind:** rule
+**What:** An `at` routine whose time passed while the Mac slept or its project was closed runs at the next look, recorded with the time it was due. An `every` routine's occurrence is owed only until the next one would have come. Nothing from before a routine was armed, or before its trigger last changed, is owed.
+**Why:** A brief that is late is still wanted; a poll that is late has been replaced by the next poll, and one outside its hours was never asked for.
+**Evidence:** `RoutineSchedule.owed`, `RoutineScheduleTests`.
+**Status:** holds
+
+## [2026-11-13] The outbound gate is an ask rule and an editable permission card
+**Kind:** decision
+**What:** An agent's `askFirst` rules are passed to its sessions as `--settings {"permissions":{"ask":[…]}}`, and a permission card's allow may carry the call's text fields reworded (`updatedInput`). There is no separate gate store or connector that performs the write: the agent's own call is what is approved, reworded or refused.
+**Why:** The CLI already stops the call, waits without limit and runs it with whatever input the host answers with, so "draft, approve, send" needs no second path that could send something the card did not show.
+**Evidence:** CLI 2.1.322, `auto` mode with `--allowedTools Bash` and an ask rule `Bash(touch:*)`: the call arrives as `can_use_tool` with no `permission_suggestions`; answered with a changed `command`, only the changed command ran. Without `--permission-prompt-tool stdio` the same rule refuses the call. `ClaudeCodeCLIRuntime.askFirstArguments`, `PermissionCards.allow`.
+**Status:** holds
+
+## [2026-11-13] A question a chat ends on is carried across a restart
+**Kind:** decision
+**What:** When a saved chat's last message is an unanswered `ask_human` or an open choices card, loading it keeps the question open instead of lapsing it, and the answer is sent to the agent as a message naming what was asked. A call waiting on leave to run and a plan card still lapse, and so does a question with anything after it.
+**Why:** The call that was waiting died with the session, but the conversation is resumed and the question is still the next thing to settle; dropping it left a scheduled agent's decision request invisible after any relaunch. A permission card is different: the call itself is gone and the agent has to make it again.
+**Evidence:** `CarriedQuestions`, `ChatViewModel.loadSessionMessages`, `ChatViewModelCarriedQuestionTests`.
+**Status:** holds
+
+## [2026-11-14] `ask_human` arrives over the tool bridge, not as a tool call that ends the turn
+**Kind:** finding
+**What:** With the agent's Kiteloop tools served by the bridge, the CLI's own `tool_use` is named `mcp__kiteloop-tools__ask_human` and the call reaches the chat as an `.mcpToolCall` named `ask_human`. Only a `.toolUse` named exactly `ask_human` paused the turn, so the bridge call was answered "Error: unhandled tool" and no question was ever put to the person. The bridge call now opens the question and is held until the person answers; the older tool-call path is kept.
+**Why:** Every test of the question drove a `.toolUse`, which the real CLI never sends for this tool, so the suite stayed green while the feature did nothing.
+**Evidence:** A live agent on CLI 2.1.322 asked to use `ask_human`: two calls, both "Error: unhandled tool"; after the change the question was open over `GET /v1/agents/transcript`, the agent read `waitingForHuman`, and its reply followed the answer. `ChatViewModel.handleMCPToolCall`.
 **Status:** holds

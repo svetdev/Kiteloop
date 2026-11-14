@@ -79,6 +79,44 @@ final class KiteloopControlServerBacklogGroomTests: XCTestCase {
         XCTAssertEqual(body["item"] as? String, "fix-login-2")
     }
 
+    func testAKeyedFilingIsFiledOnceAndASecondSightingAnswersWithTheItemThere() async throws {
+        let root = try registerProject(named: "alpha")
+        let sighting: [String: Any] = ["project": "alpha", "title": "Review PR 12", "key": "PR 12 review"]
+
+        let (first, filed) = try await harness.post("/v1/backlog/items", sighting)
+        let (second, seen) = try await harness.post("/v1/backlog/items", sighting)
+
+        XCTAssertEqual(first, 201, "\(filed)")
+        XCTAssertEqual(filed["item"] as? String, "pr-12-review")
+        XCTAssertEqual(second, 200, "\(seen)")
+        XCTAssertEqual(seen["item"] as? String, "pr-12-review")
+        XCTAssertEqual(seen["existing"] as? Bool, true)
+        XCTAssertEqual(seen["status"] as? String, "draft")
+        let backlog = try String(contentsOf: URL(fileURLWithPath: root).appending(path: "BACKLOG.md"), encoding: .utf8)
+        XCTAssertEqual(backlog.components(separatedBy: "pr-12-review").count - 1, 1, "one line, not two")
+    }
+
+    func testAKeyedItemThatHasLeftTheBacklogIsAnsweredAsClosed() async throws {
+        let root = try registerProject(named: "alpha")
+        let details = URL(fileURLWithPath: root).appending(path: "backlog")
+        try FileManager.default.createDirectory(at: details, withIntermediateDirectories: true)
+        try "## What\n\nDone long ago.\n".write(to: details.appending(path: "pr-9-review.md"), atomically: true, encoding: .utf8)
+
+        let (code, body) = try await harness.post("/v1/backlog/items",
+                                                  ["project": "alpha", "title": "Review PR 9", "key": "pr-9-review"])
+
+        XCTAssertEqual(code, 200, "\(body)")
+        XCTAssertEqual(body["status"] as? String, "closed")
+    }
+
+    func testAKeyWithNoLetterOrDigitIsRefused() async throws {
+        try registerProject(named: "alpha")
+
+        let (code, _) = try await harness.post("/v1/backlog/items", ["project": "alpha", "title": "x", "key": "--"])
+
+        XCTAssertEqual(code, 400)
+    }
+
     func testAMissingTitleOrOneHoldingTheSeparatorIsRefusedAndNothingIsWritten() async throws {
         let root = try registerProject(named: "alpha")
         let before = try String(contentsOf: URL(fileURLWithPath: root).appending(path: "BACKLOG.md"), encoding: .utf8)

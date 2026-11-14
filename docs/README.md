@@ -42,3 +42,4 @@ implementing file is cited.
 - [adr/0002-embedded-localhost-control-server.md](adr/0002-embedded-localhost-control-server.md) — why headless drive is an embedded loopback HTTP server
 - [adr/0003-run-sandboxing.md](adr/0003-run-sandboxing.md) — run sandboxing: what enforcement below the prompt is worth building
 - [adr/0004-parallel-disjoint-runs.md](adr/0004-parallel-disjoint-runs.md) — parallel disjoint runs (proposed; no enforcement code shipped)
+- [adr/0005-multi-repository-items.md](adr/0005-multi-repository-items.md) — one item across several repositories, one gate (proposed; no code shipped)

@@ -92,20 +92,70 @@ package enum PermissionCards {
     // MARK: - Answering a call
 
     /// Allows the call on the open card `requestID`, remembering the
-    /// suggestion at `remembering` when one is named. Nil — and nothing
-    /// changed — when no such card is open or it offers no such suggestion.
-    package static func allow(_ requestID: String, remembering: Int? = nil,
+    /// suggestion at `remembering` when one is named, and with `edits` put
+    /// over the fields of its input they name — the person's own wording of
+    /// a command or a message, which is then what runs. Nil — and nothing
+    /// changed — when no such card is open, it offers no such suggestion, or
+    /// an edit names something that is not one of the call's text fields.
+    package static func allow(_ requestID: String, remembering: Int? = nil, edits: [String: String] = [:],
                               in messages: inout [Message]) -> PermissionPrompt.Decision? {
         guard let at = index(ofOpen: requestID, in: messages),
-              case .permission(var request) = messages[at].content else { return nil }
+              case .permission(var request) = messages[at].content,
+              let input = edited(request.input, with: edits) else { return nil }
         var remembered: [String] = []
         if let remembering {
             guard request.suggestions.indices.contains(remembering) else { return nil }
             remembered = [request.suggestions[remembering].json]
         }
         request.answer = remembered.isEmpty ? .allowed : .allowedAlways
+        request.sent = input == request.input ? nil : input
         messages[at].content = .permission(request)
-        return .allow(input: request.input, remembering: remembered)
+        return .allow(input: input, remembering: remembered)
+    }
+
+    /// What the agent is told after a call of its was allowed reworded: the
+    /// change. The call's own result says nothing of the change, and
+    /// an agent left to assume would report what it asked for. Nil for a card
+    /// that was not answered that way.
+    package static func rewordingNote(for requestID: String, in messages: [Message]) -> String? {
+        for message in messages.reversed() {
+            guard case .permission(let request) = message.content, request.id == requestID else { continue }
+            guard let sent = request.sent else { return nil }
+            // Only what was changed: the rest of the call ran as asked.
+            let asked = editableFields(ofInput: request.input)
+            let changed = editableFields(ofInput: sent).filter { !asked.contains($0) }
+            return "I changed your \(request.toolName) call before allowing it. It ran with:\n\n"
+                + changed.map { "\($0.name): \($0.value)" }.joined(separator: "\n")
+        }
+        return nil
+    }
+
+    /// One text field of a call's input, as a person may reword it.
+    package struct EditableField: Equatable, Sendable {
+        package let name: String
+        package let value: String
+    }
+
+    /// The fields of a call a person may reword before allowing it: the text
+    /// values at the top of its input, the one that says what the call does
+    /// first. Numbers, flags and nested values are the call's own.
+    package static func editableFields(ofInput input: String) -> [EditableField] {
+        let fields = PermissionPrompt.object(from: input).compactMapValues { $0 as? String }
+        let subject = PermissionPrompt.subject(ofInput: input)?.field
+        let names = fields.keys.sorted { ($0 != subject ? 1 : 0, $0) < ($1 != subject ? 1 : 0, $1) }
+        return names.map { EditableField(name: $0, value: fields[$0] ?? "") }
+    }
+
+    /// `input` with `edits` over its text fields; nil when an edit names a
+    /// field the input does not hold as text.
+    private static func edited(_ input: String, with edits: [String: String]) -> String? {
+        guard !edits.isEmpty else { return input }
+        var fields = PermissionPrompt.object(from: input)
+        for (name, value) in edits {
+            guard fields[name] is String else { return nil }
+            fields[name] = value
+        }
+        return PermissionPrompt.text(of: fields)
     }
 
     /// Refuses the call on the open card `requestID`. Nil when none is open.
