@@ -126,6 +126,7 @@ is the XcodeGen spec; transport for the companion's current stage is HTTP inside
 | `test-test-host-hook.sh` | Preflight: runs that hook end to end against a stub `pgrep` — the pattern being right is not the same as the hook denying, and a command laid out across backslash continuations used to slip past |
 | `kiteloop-verify.py` | Headless control harness: smoke, single-run driver, marathon with scorecard |
 | `make-release.sh` | Version- and bundled-resource-drift refusals, changelog extraction, sign → notarize → staple → zip → Sparkle update feed |
+| `make-sounds.py` | Synthesises the three bundled notification sounds into `Kiteloop/Kiteloop/Resources/Sounds/`; rerun after changing a cue's notes or level |
 | `make-mobile-release.sh` | The phone app to TestFlight: version-drift and credential refusals, archive → export → upload |
 | `verify-map-replay.sh` | Replays the verify-coverage rules against recorded runs |
 | `qa/run-ui-flow.sh` | Kiteloop's QA flow (`kiteloop-qa.json` `run` and `smoke`): builds the QA copy (`KITELOOP_QA_SUFFIX=.qa`, own build folder), runs one UI flow through the `KiteloopQA` scheme against a throwaway `KITELOOP_HOME`, writes its storyboard — see `docs/qa-flow.md` |

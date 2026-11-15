@@ -45,16 +45,29 @@ enum TerminalText {
         target.isEmpty ? tool : "\(tool)(\(target))"
     }
 
+    /// The call line as it is drawn: the tool's name in semibold and what it
+    /// was pointed at in the regular weight, so a column of calls reads by
+    /// tool rather than as a column of bold.
+    static func styledCallLine(tool: String, target: String) -> AttributedString {
+        var name = AttributedString(tool)
+        name.font = TerminalStyle.font.weight(.semibold)
+        guard !target.isEmpty else { return name }
+        var rest = AttributedString("(\(target))")
+        rest.font = TerminalStyle.font
+        return name + rest
+    }
+
     /// The lines printed under `⎿` for a finished call. A read or a search
-    /// reads as a count — "Read 84 lines", "Found 12 matches" — and a failure
-    /// as its error; anything else shows the first lines of its output, with
-    /// how many more there were. A file change reads as what it changed —
+    /// reads as a count — "Read 84 lines", "Found 12 matches"; a failure and
+    /// anything else show the first lines of the output, with how many more
+    /// there were — a failed command's first line is its exit code, and what
+    /// went wrong is on the lines after it. A file change reads as what it changed —
     /// "Updated notes.txt with 2 additions and 1 removal", "Wrote 14 lines to
     /// notes.txt" — worked out from the call's `input`.
     static func resultLines(tool: String, output: String, input: [String: Any] = [:],
                             limit: Int = TerminalStyle.previewLines) -> [String] {
         let summary = ToolResultSummary.text(tool: tool, output: output)
-        if ToolResultOutcome.of(output: output).isError { return [summary] }
+        if ToolResultOutcome.of(output: output).isError { return preview(of: output, limit: limit) }
         if let change = changeLine(tool: tool, input: input) { return [change] }
         switch tool {
         case "Read": return ["Read \(summary)"]
@@ -250,8 +263,7 @@ struct TerminalToolCallRow: View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(TerminalStyle.replyMark).font(TerminalStyle.font).foregroundStyle(markColor)
-                Text(TerminalText.callLine(tool: toolCall.name, target: target))
-                    .font(TerminalStyle.font.weight(.semibold))
+                Text(TerminalText.styledCallLine(tool: toolCall.name, target: target))
                     .lineLimit(isExpanded ? nil : 1)
                     .truncationMode(.middle)
             }

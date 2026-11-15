@@ -110,7 +110,8 @@ final class NotificationService {
 
         let banner = Self.finishedBanner(agentName: agentName, projectName: projectName, reply: summary)
         let content = Self.bannerContent(title: banner.title, body: banner.body, badge: pendingCount,
-                                         destination: destination)
+                                         destination: destination,
+                                         sound: SoundCues.notificationSound(for: .finished))
 
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
@@ -289,7 +290,8 @@ final class NotificationService {
         pendingCount += 1
         updateDockBadge()
 
-        let content = Self.bannerContent(title: title, body: body, badge: pendingCount, destination: destination)
+        let content = Self.bannerContent(title: title, body: body, badge: pendingCount, destination: destination,
+                                         sound: SoundCues.notificationSound(for: .needsYou))
 
         // The gate is the identifier too, so a re-post replaces rather than
         // stacks even if the ledger was reset in between.
@@ -299,12 +301,16 @@ final class NotificationService {
 
     /// What a gate's banner carries. The destination, when there is one, rides
     /// in `userInfo` for `AppDelegate` to read back when the banner is clicked.
+    ///
+    /// `sound` is the caller's cue under the theme chosen in Settings; nil is a
+    /// banner that makes none.
     static func bannerContent(title: String, body: String, badge: Int,
-                              destination: BannerDestination?) -> UNMutableNotificationContent {
+                              destination: BannerDestination?,
+                              sound: UNNotificationSound? = nil) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.sound = .default
+        content.sound = sound
         content.badge = NSNumber(value: badge)
         if let destination {
             content.userInfo = destination.userInfo
@@ -381,8 +387,8 @@ final class NotificationService {
 
         let banner = Self.crashedBanner(agentName: agentName, projectName: projectName, reason: reason)
         let content = Self.bannerContent(title: banner.title, body: banner.body, badge: pendingCount,
-                                         destination: destination)
-        content.sound = .defaultCritical
+                                         destination: destination,
+                                         sound: SoundCues.notificationSound(for: .failed))
 
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,

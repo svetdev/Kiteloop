@@ -37,6 +37,8 @@ final class ProjectSession {
     let knowledgeStore: AgentKnowledgeStore
     let knowledgeIndex: KnowledgeIndex
     let memoryViewModel: MemoryViewModel
+    /// The Memory tab's page over the Claude CLI's own notes for this project.
+    let claudeMemoryViewModel: ClaudeMemoryViewModel
     let backlogViewModel: BacklogViewModel
     let traceViewModel: TraceViewModel?
     let activityFeed: ActivityFeedViewModel
@@ -76,6 +78,7 @@ final class ProjectSession {
         self.context = context
 
         self.memoryViewModel = MemoryViewModel(memoryManager: orchestrator.memoryManager)
+        self.claudeMemoryViewModel = ClaudeMemoryViewModel(store: ClaudeMemoryStore(projectRoot: project.rootURL))
         let backlogVM = BacklogViewModel(globalConfigStore: context.globalConfigStore, notifications: orchestrator.notificationStore)
         // Before the load: the first queue reading is taken during it, and one
         // taken without the ledger would report items a gate has refused as

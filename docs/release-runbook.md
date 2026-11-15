@@ -107,7 +107,7 @@ repository** — a key that lands in a commit is a key to revoke.
 1. **Bump the version.** `MARKETING_VERSION` in the three places `CLAUDE.md`
    names — the Debug and Release entries in
    `Kiteloop/Kiteloop.xcodeproj/project.pbxproj`, and `Kiteloop/project.yml`.
-   Patch for fixes, minor for new capability. The script refuses to build if they
+   A release bumps the patch; the minor moves only when the maintainer asks. The script refuses to build if they
    disagree, so a missed one costs you seconds rather than a bad artifact. The
    build number (`CFBundleVersion`) is the same number — it is what Sparkle
    orders releases by — so there is nothing else to bump, and a version cannot

@@ -526,6 +526,9 @@ private struct DayMarker: View {
 private struct MessageListScroll: Equatable {
     var offset: CGFloat
     var distanceFromBottom: CGFloat
+    /// How tall the stack is, which is how content arriving is told from a
+    /// scroll.
+    var height: CGFloat
 }
 
 /// Where the reader was left in the message list, kept as one value so a
@@ -536,19 +539,49 @@ struct MessageListPosition: Equatable {
     var lastOffset: CGFloat = 0
     /// How far the bottom of the stack sits below the bottom of the window.
     var distanceFromBottom: CGFloat = 0
+    /// How tall the stack was as of the last report.
+    var lastHeight: CGFloat = 0
     /// How many messages the list held when the reader, scrolled up, first let
     /// one arrive below them; `nil` while they are at the bottom.
     var messageCountWhenLeft: Int?
 
+    /// Whether the reader is where the newest message is.
+    var isAtBottom: Bool { distanceFromBottom <= ChatView.atBottomTolerance }
+
     /// The position once the stack reports where it now sits: the distance
     /// `ChatView.recordedDistance` keeps, and — back at the bottom — no count
     /// of messages from when the reader left.
-    func recording(offset: CGFloat, distanceFromBottom reported: CGFloat) -> MessageListPosition {
+    ///
+    /// A report in which the stack's height changed is content arriving, a row
+    /// unfolding or the lazy stack measuring a row it had only estimated — not
+    /// the reader scrolling, even when the stack's offset moved back with it.
+    /// It takes a new distance only when that distance is the bottom.
+    func recording(offset: CGFloat, distanceFromBottom reported: CGFloat, height: CGFloat) -> MessageListPosition {
         var next = self
+        let resized = height != lastHeight
         next.distanceFromBottom = ChatView.recordedDistance(
-            offset: offset, distanceFromBottom: reported, lastOffset: lastOffset, recorded: distanceFromBottom)
+            offset: offset, distanceFromBottom: reported,
+            lastOffset: resized ? offset : lastOffset, recorded: distanceFromBottom)
         next.lastOffset = offset
-        if next.distanceFromBottom <= ChatView.atBottomTolerance { next.messageCountWhenLeft = nil }
+        next.lastHeight = height
+        if next.isAtBottom { next.messageCountWhenLeft = nil }
+        return next
+    }
+
+    /// Whether a report of `height` is the conversation growing or shrinking
+    /// under a reader who was at the bottom of it, and so one the list answers
+    /// by going to the bottom again. This is what keeps the newest line in
+    /// view: a reply's text grows many times without a message being added.
+    func followsResize(to height: CGFloat) -> Bool {
+        height != lastHeight && isAtBottom
+    }
+
+    /// The position of a reader put back at the bottom — by sending a message,
+    /// or by the jump button.
+    var returnedToBottom: MessageListPosition {
+        var next = self
+        next.distanceFromBottom = 0
+        next.messageCountWhenLeft = nil
         return next
     }
 }
@@ -581,6 +614,10 @@ struct MessageListContainer: View {
     /// against: in it the stack's `maxY` is the bottom of the conversation and
     /// the viewport's height is the bottom of the window onto it.
     private static let scrollSpace = "message-list-scroll"
+    /// The row under the last one, which is what going to the bottom scrolls
+    /// to: it is there whatever the last message is and whether or not a turn
+    /// is running.
+    private static let bottomID = "message-list-bottom"
 
     var body: some View {
         // Ahead of the mode switch, because both modes render an empty chat as
@@ -633,16 +670,21 @@ struct MessageListContainer: View {
                             completionSummary
                                 .id("completion-summary")
                         }
+                        // The list's bottom margin is this row rather than
+                        // padding under it, so scrolling to it is scrolling
+                        // to the very end.
+                        Color.clear.frame(height: 8).id(Self.bottomID)
                     }
-                    .padding(.vertical, 8)
+                    .padding(.top, 8)
                     .background(
                         GeometryReader { stack in
                             let frame = stack.frame(in: .named(Self.scrollSpace))
                             Color.clear.onChange(of: MessageListScroll(
                                 offset: -frame.minY,
-                                distanceFromBottom: frame.maxY - viewportHeight
+                                distanceFromBottom: frame.maxY - viewportHeight,
+                                height: frame.height
                             )) { _, scroll in
-                                record(scroll)
+                                record(scroll, proxy: proxy)
                             }
                         }
                     )
@@ -669,10 +711,13 @@ struct MessageListContainer: View {
                         isSearching: viewModel.isSearching,
                         hasMatches: !viewModel.matchingMessageIDs.isEmpty
                     )
-                    if action == .stayPut && position.messageCountWhenLeft == nil { position.messageCountWhenLeft = oldCount }
-                    guard action == .follow else { return }
-                    withAnimation(KiteloopTokens.Anim.messageAppear) {
-                        scrollToBottom(proxy: proxy)
+                    // What the reader sends is always shown to them, wherever
+                    // they had scrolled to: the terminal's rule.
+                    if case .human = viewModel.messages.last?.sender, action != .holdOnMatch {
+                        position = position.returnedToBottom
+                        scrollToBottom(proxy: proxy, animated: false)
+                    } else if action == .stayPut && position.messageCountWhenLeft == nil {
+                        position.messageCountWhenLeft = oldCount
                     }
                 }
                 .onChange(of: viewModel.conversationTree.activeBranchID) { _, _ in
@@ -680,14 +725,6 @@ struct MessageListContainer: View {
                 }
                 .onChange(of: viewModel.currentSession?.id) { _, _ in
                     if viewModel.isSearching { viewModel.refreshSearch() }
-                }
-                .onChange(of: elapsedSeconds) { _, _ in
-                    guard isStreaming, ChatView.streamScrollAction(
-                        distanceFromBottom: position.distanceFromBottom,
-                        isSearching: viewModel.isSearching,
-                        hasMatches: !viewModel.matchingMessageIDs.isEmpty
-                    ) == .follow else { return }
-                    scrollToBottom(proxy: proxy)
                 }
                 .onChange(of: viewModel.searchQuery) { _, _ in
                     viewModel.performSearch()
@@ -931,9 +968,21 @@ struct MessageListContainer: View {
 
     /// Takes down where the reader is from the stack's geometry — which distance
     /// is kept is `ChatView.recordedDistance`'s judgement.
-    private func record(_ scroll: MessageListScroll) {
-        let next = position.recording(offset: scroll.offset, distanceFromBottom: scroll.distanceFromBottom)
+    ///
+    /// A report that the stack changed height under a reader at the bottom is
+    /// answered by going to the bottom again, so the stream is followed as it
+    /// arrives — a chunk of a reply, a call's result, the line that ends a
+    /// turn — rather than once a second or once a message.
+    private func record(_ scroll: MessageListScroll, proxy: ScrollViewProxy) {
+        let held = viewModel.isSearching && !viewModel.matchingMessageIDs.isEmpty
+        let follows = !held && position.followsResize(to: scroll.height)
+        let next = position.recording(
+            offset: scroll.offset, distanceFromBottom: scroll.distanceFromBottom, height: scroll.height)
         if next != position { position = next }
+        // On the next turn of the main queue: this report comes out of the
+        // layout pass that grew the stack, and the scroll view it is drawn in
+        // still has the old end of the conversation as its own.
+        if follows { DispatchQueue.main.async { scrollToBottom(proxy: proxy, animated: false) } }
     }
 
     /// The floating way back to the newest message, drawn over the bottom of
@@ -944,6 +993,7 @@ struct MessageListContainer: View {
         let state = ChatView.jumpToLatest(distanceFromBottom: position.distanceFromBottom, messagesArrivedWhileAway: arrived)
         if state != .hidden {
             Button {
+                position = position.returnedToBottom
                 scrollToBottom(proxy: proxy)
             } label: {
                 Label(state == .newMessages ? "New messages" : "Jump to latest", systemImage: "arrow.down")
@@ -962,22 +1012,12 @@ struct MessageListContainer: View {
     }
 
     private func scrollToBottom(proxy: ScrollViewProxy, animated: Bool = true) {
-        let targetID: AnyHashable
-        if isStreaming {
-            targetID = "streaming-indicator"
-        } else if lastCompletedDuration != nil {
-            targetID = "completion-summary"
-        } else if let last = viewModel.messages.last {
-            targetID = last.id
-        } else {
-            return
-        }
         if animated {
             withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(targetID, anchor: .bottom)
+                proxy.scrollTo(Self.bottomID, anchor: .bottom)
             }
         } else {
-            proxy.scrollTo(targetID, anchor: .bottom)
+            proxy.scrollTo(Self.bottomID, anchor: .bottom)
         }
     }
 

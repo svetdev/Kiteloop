@@ -48,9 +48,18 @@ final class TerminalRowsTests: XCTestCase {
         XCTAssertEqual(TerminalText.resultLines(tool: "Grep", output: "a.swift:1:x\nb.swift:2:y"), ["Found 2 matches"])
     }
 
-    func testAFailurePrintsItsErrorNotItsOutput() {
-        let lines = TerminalText.resultLines(tool: "Bash", output: "Error: ENOENT: no such file or directory\nat line 2")
-        XCTAssertEqual(lines, ["Error: ENOENT: no such file or directory"])
+    /// A failed command's first line is its exit code; what went wrong is on
+    /// the lines after it, so a failure shows its first lines as any output does.
+    func testAFailureShowsTheFirstLinesOfItsOutput() {
+        let lines = TerminalText.resultLines(tool: "Bash", output: "Exit code 1\ngrep: nope: No such file or directory")
+        XCTAssertEqual(lines, ["Exit code 1", "grep: nope: No such file or directory"])
+    }
+
+    func testOnlyTheToolNameOfACallLineIsSemibold() {
+        let line = TerminalText.styledCallLine(tool: "Bash", target: "swift test")
+        XCTAssertEqual(String(line.characters), "Bash(swift test)")
+        XCTAssertEqual(line.runs.map { String(line[$0.range].characters) }, ["Bash", "(swift test)"])
+        XCTAssertEqual(String(TerminalText.styledCallLine(tool: "TodoWrite", target: "").characters), "TodoWrite")
     }
 
     func testLongOutputShowsItsFirstLinesAndHowManyMoreThereWere() {

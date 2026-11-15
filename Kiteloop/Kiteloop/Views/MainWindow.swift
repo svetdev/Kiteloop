@@ -76,6 +76,9 @@ struct MainWindow: View {
     private let memorySidebarID = "__memory__"
     private let autopilotSidebarID = "__autopilot__"
     private let portfolioSidebarID = "__portfolio__"
+    private let routinesSidebarID = "__routines__"
+    /// The app's routine runner, which the Routines page lists and changes.
+    @Environment(RoutineRunner.self) private var routineRunner: RoutineRunner?
 
     /// The cross-project backlog list. One per window, not one per project: it
     /// reads `~/.kiteloop/portfolio.md` and the projects that names, so which
@@ -1096,7 +1099,8 @@ struct MainWindow: View {
         case backlogSidebarID: return 0
         case memorySidebarID: return 1
         case autopilotSidebarID: return 2
-        case portfolioSidebarID: return 3
+        case routinesSidebarID: return 3
+        case portfolioSidebarID: return 4
         default:
             if let id, let idx = currentSession?.orchestrator.agents.firstIndex(where: { $0.id == id }) {
                 return 10 + idx
@@ -1113,6 +1117,7 @@ struct MainWindow: View {
         case backlogSidebarID: return "Backlog"
         case memorySidebarID: return "Memory"
         case autopilotSidebarID: return "Autopilot"
+        case routinesSidebarID: return "Routines"
         case portfolioSidebarID: return "Portfolio"
         default: return currentSession?.orchestrator.agents.first { $0.id == id }?.name ?? "Chat"
         }
@@ -1479,43 +1484,12 @@ struct MainWindow: View {
             } else if agentID == memorySidebarID {
                 MemoryBrowserView(
                     viewModel: session.memoryViewModel,
-                    agents: session.orchestrator.agents
+                    agents: session.orchestrator.agents,
+                    claudeMemory: session.claudeMemoryViewModel
                 )
                 .id("\(projID)-memory")
-            } else if agentID == autopilotSidebarID {
-                AutopilotView(
-                    autopilot: backlogAutopilot(for: session),
-                    // Team only: an aside is ephemeral, so offering it as a
-                    // worker or reviewer would assign a run role to something
-                    // that won't exist after the next restart.
-                    agents: session.orchestrator.teamAgents,
-                    chatViewModels: session.chatViewModels,
-                    backlogViewModel: session.backlogViewModel,
-                    // The same two stores the Backlog tab hands the item page,
-                    // so an item opened from a history row here shows exactly
-                    // what it shows opened from its backlog line.
-                    metricStore: taskMetricStore,
-                    metricIndex: metricIndex,
-                    // The autonomy ladder is assessed from the portfolio loops,
-                    // and it is drawn here because this is the tab somebody sets
-                    // a project up in.
-                    refill: queueRefill,
-                    scheduler: runScheduler,
-                    globalConfigStore: globalConfigStore,
-                    controlRegistry: controlRegistry
-                )
-                .id("\(projID)-autopilot")
-            } else if agentID == portfolioSidebarID {
-                PortfolioView(
-                    viewModel: portfolioViewModel,
-                    // Only ever a starting point for a portfolio file that does
-                    // not exist yet — the file, once written, is what is read.
-                    openProjectPaths: openProjects.map(\.id)
-                )
-                // Not keyed on the project: this surface is the same list in
-                // every tab, and re-identifying it per project would tear down
-                // its watcher and reload on every tab switch.
-                .id("portfolio")
+            } else if [autopilotSidebarID, routinesSidebarID, portfolioSidebarID].contains(agentID) {
+                automationPage(for: agentID, session: session)
             } else if let vm = session.chatViewModels[agentID] {
                 ChatView(
                     viewModel: vm,
@@ -1531,6 +1505,83 @@ struct MainWindow: View {
                 ContentUnavailableView("Select an Agent", systemImage: "person.crop.circle")
             }
         }
+    }
+
+    /// The pages about work that runs without you: the project's Autopilot,
+    /// its Routines, and the Portfolio. Apart from `detailView` so that one
+    /// stays a list of what the sidebar can select, and each its own function
+    /// so none of them is a switch.
+    @ViewBuilder
+    private func automationPage(for agentID: String, session: ProjectSession) -> some View {
+        if agentID == autopilotSidebarID {
+            autopilotPage(session: session)
+        } else {
+            scheduledPage(for: agentID, session: session)
+        }
+    }
+
+    @ViewBuilder
+    private func scheduledPage(for agentID: String, session: ProjectSession) -> some View {
+        if agentID == routinesSidebarID {
+            routinesPage(session: session)
+        } else {
+            portfolioPage
+        }
+    }
+
+    private func autopilotPage(session: ProjectSession) -> some View {
+        let projID = session.project.id
+        return AutopilotView(
+            autopilot: backlogAutopilot(for: session),
+            // Team only: an aside is ephemeral, so offering it as a
+            // worker or reviewer would assign a run role to something
+            // that won't exist after the next restart.
+            agents: session.orchestrator.teamAgents,
+            chatViewModels: session.chatViewModels,
+            backlogViewModel: session.backlogViewModel,
+            // The same two stores the Backlog tab hands the item page,
+            // so an item opened from a history row here shows exactly
+            // what it shows opened from its backlog line.
+            metricStore: taskMetricStore,
+            metricIndex: metricIndex,
+            // The autonomy ladder is assessed from the portfolio loops,
+            // and it is drawn here because this is the tab somebody sets
+            // a project up in.
+            refill: queueRefill,
+            scheduler: runScheduler,
+            globalConfigStore: globalConfigStore,
+            controlRegistry: controlRegistry
+        )
+        .id("\(projID)-autopilot")
+    }
+
+    /// The project's routines; nothing in a preview or a test host that has
+    /// no routine runner in its environment.
+    @ViewBuilder
+    private func routinesPage(session: ProjectSession) -> some View {
+        if let routineRunner {
+            RoutinesView(
+                runner: routineRunner,
+                projectRoot: session.project.rootURL,
+                // Team only, as the Autopilot's roles are: an aside does
+                // not outlive a restart, and a routine does.
+                agentNames: session.orchestrator.teamAgents.map(\.name)
+            )
+            .id("\(session.project.id)-routines")
+        }
+    }
+
+    private var portfolioPage: some View {
+        PortfolioView(
+            viewModel: portfolioViewModel,
+            // Only ever a starting point for a portfolio file that does
+            // not exist yet — the file, once written, is what is read.
+            openProjectPaths: openProjects.map(\.id)
+        )
+        // Not keyed on the project: this surface is the same list in
+        // every tab, and re-identifying it per project would tear down
+        // its watcher and reload on every tab switch.
+        .id("portfolio")
     }
 
     // MARK: - Start View

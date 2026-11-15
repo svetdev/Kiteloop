@@ -297,3 +297,10 @@ Entry format:
 **Why:** The base-only tree has no companions under `.kiteloop/repos/`, so a command that reaches into one fails there whatever the base's state, and the refusal would blame a base that had no part in it — an answer then remembered for as long as the app runs.
 **Evidence:** `WorktreeManager.runScratchMergeAndLand`, `WorktreeSessionCompanionTests.testARedProjectWideVerifyIsNotBlamedOnABaseThatHasNoCompanions`.
 **Status:** holds
+
+## [2026-11-15] A release bumps the patch
+**Kind:** rule
+**What:** Each release increments the patch version, whether it carries fixes or new capability. The minor version moves only when the maintainer asks for it.
+**Why:** The minor was climbing with nearly every release, so it had stopped saying anything about the size of a change.
+**Evidence:** 0.5.0, 0.6.0 and 0.7.0 shipped within five days; the release after 0.7.0 is 0.7.1.
+**Status:** holds — supersedes "patch for fixes, minor for new capability" in `CLAUDE.md` and `docs/release-runbook.md`.

@@ -150,23 +150,63 @@ final class ChatViewStreamScrollTests: XCTestCase {
     /// A scroll up is taken down along with where it came from, and the count
     /// kept for a reader who left is still held while they are away.
     func testScrollingUpRecordsTheOffsetAndDistanceAndKeepsTheCountFromWhenYouLeft() {
-        let away = MessageListPosition(lastOffset: 500, distanceFromBottom: 0, messageCountWhenLeft: 12)
-            .recording(offset: 200, distanceFromBottom: 620)
-        XCTAssertEqual(away, MessageListPosition(lastOffset: 200, distanceFromBottom: 620, messageCountWhenLeft: 12))
+        let away = MessageListPosition(lastOffset: 500, distanceFromBottom: 0, lastHeight: 900, messageCountWhenLeft: 12)
+            .recording(offset: 200, distanceFromBottom: 620, height: 900)
+        XCTAssertEqual(away, MessageListPosition(
+            lastOffset: 200, distanceFromBottom: 620, lastHeight: 900, messageCountWhenLeft: 12))
     }
 
     /// Back at the bottom there is no longer anyone away, so the count of
     /// messages from when they left goes — which is what hides "New messages".
     func testReachingTheBottomForgetsTheCountFromWhenYouLeft() {
-        let back = MessageListPosition(lastOffset: 200, distanceFromBottom: 620, messageCountWhenLeft: 12)
-            .recording(offset: 820, distanceFromBottom: 0)
-        XCTAssertEqual(back, MessageListPosition(lastOffset: 820, distanceFromBottom: 0, messageCountWhenLeft: nil))
+        let back = MessageListPosition(lastOffset: 200, distanceFromBottom: 620, lastHeight: 900, messageCountWhenLeft: 12)
+            .recording(offset: 820, distanceFromBottom: 0, height: 900)
+        XCTAssertEqual(back, MessageListPosition(
+            lastOffset: 820, distanceFromBottom: 0, lastHeight: 900, messageCountWhenLeft: nil))
     }
 
-    /// Content growing under a reader at the bottom moves nothing they would
-    /// notice: they are still at the bottom, so the view's state is unchanged.
-    func testContentArrivingUnderAReaderAtTheBottomLeavesThePositionAsItWas() {
-        let atBottom = MessageListPosition(lastOffset: 500, distanceFromBottom: 0, messageCountWhenLeft: nil)
-        XCTAssertEqual(atBottom.recording(offset: 500, distanceFromBottom: 320), atBottom)
+    /// Content growing under a reader at the bottom leaves them counted as at
+    /// the bottom — only the height it grew to is taken down.
+    func testContentArrivingUnderAReaderAtTheBottomLeavesThemAtTheBottom() {
+        let atBottom = MessageListPosition(lastOffset: 500, distanceFromBottom: 0, lastHeight: 900)
+        XCTAssertEqual(atBottom.recording(offset: 500, distanceFromBottom: 320, height: 1220),
+                       MessageListPosition(lastOffset: 500, distanceFromBottom: 0, lastHeight: 1220))
+    }
+
+    // MARK: - Following the conversation as it grows
+
+    /// A reply's text grows chunk by chunk with no message added; each growth
+    /// under a reader at the bottom is one the list goes to the bottom for.
+    func testAStackThatGrowsUnderAReaderAtTheBottomIsFollowed() {
+        let atBottom = MessageListPosition(lastOffset: 500, distanceFromBottom: 0, lastHeight: 900)
+        XCTAssertTrue(atBottom.followsResize(to: 960))
+        XCTAssertTrue(atBottom.followsResize(to: 840), "a row folding shut is followed too")
+    }
+
+    func testAScrollThatChangesNoHeightIsNotFollowed() {
+        let atBottom = MessageListPosition(lastOffset: 500, distanceFromBottom: 0, lastHeight: 900)
+        XCTAssertFalse(atBottom.followsResize(to: 900))
+    }
+
+    func testAStackThatGrowsUnderAReaderWhoScrolledUpIsLeftAlone() {
+        let away = MessageListPosition(lastOffset: 200, distanceFromBottom: 620, lastHeight: 900)
+        XCTAssertFalse(away.followsResize(to: 960))
+    }
+
+    /// The lazy stack measuring a row it had only estimated moves the stack's
+    /// offset back as its height changes. That is not the reader scrolling up,
+    /// and reading it as one is what stopped the list following for good.
+    func testAnOffsetThatMovesBackAsTheHeightChangesIsNotAScrollUp() {
+        let atBottom = MessageListPosition(lastOffset: 500, distanceFromBottom: 0, lastHeight: 900)
+        let next = atBottom.recording(offset: 460, distanceFromBottom: 80, height: 940)
+        XCTAssertTrue(next.isAtBottom)
+        XCTAssertTrue(next.followsResize(to: 1000))
+    }
+
+    /// Sending a message, or the jump button, puts a reader who was away back
+    /// at the bottom, with nothing counted as having arrived behind them.
+    func testReturningToTheBottomForgetsHavingBeenAway() {
+        let away = MessageListPosition(lastOffset: 200, distanceFromBottom: 620, lastHeight: 900, messageCountWhenLeft: 12)
+        XCTAssertEqual(away.returnedToBottom, MessageListPosition(lastOffset: 200, distanceFromBottom: 0, lastHeight: 900))
     }
 }

@@ -124,7 +124,7 @@ What each preflight check asserts and why: `docs/testing.md`.
   the pbxproj from) — and turn the
   `unreleased` heading in `CHANGELOG.md` into `## <version> — <date>`. The version
   is what `/health` and the About panel report, read from
-  `CFBundleShortVersionString`. Patch for fixes, minor for new capability.
+  `CFBundleShortVersionString`. Each release bumps the patch.
   `scripts/make-release.sh` refuses to build if the three sites disagree, and
   `--dry-run` rehearses the whole release without credentials; the signed,
   notarized path and its one-time setup are `docs/release-runbook.md`.

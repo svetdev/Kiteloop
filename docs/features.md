@@ -113,6 +113,7 @@ Legend: `[x]` = implemented + tested, `[~]` = implemented, no test, `[ ]` = plan
 | [~] | Memory browser UI | `Views/Memory/MemoryBrowserView.swift` | — |
 | [~] | Memory proposal UI (approve/reject/edit) | `Views/Memory/MemoryProposalView.swift` | — |
 | [~] | Memory view model | `ViewModels/MemoryViewModel.swift` | — |
+| [x] | Claude CLI memory in the Memory tab (read, filter, edit, delete the project's `~/.claude/projects/<slug>/memory/` notes) | `Services/ClaudeMemoryStore.swift`, `ViewModels/ClaudeMemoryViewModel.swift`, `Views/Memory/ClaudeMemoryPane.swift` | `Services/ClaudeMemoryStoreTests.swift`, `ViewModels/ClaudeMemoryViewModelTests.swift` |
 | [x] | Librarian consolidation pass (proposes merges/deletions/archival, applies nothing) | `Services/MemoryLibrarian.swift`, `Services/MemoryLibrarianPass.swift` | `Services/Agents/MemoryLibrarianTests.swift` |
 | [x] | Project context auto-seeding (README, stack, structure) | `Services/ProjectContextSeeder.swift` | `Services/ProjectContextSeederTests.swift` |
 
@@ -186,6 +187,7 @@ Legend: `[x]` = implemented + tested, `[~]` = implemented, no test, `[ ]` = plan
 | [~] | Context window % indicator (live from stream events) | `ViewModels/ChatViewModel.swift` | — |
 | [x] | Notification store (pending/resolved/dismissed, 7-day prune) | `Services/NotificationStore.swift` | `Services/NotificationStoreTests.swift` |
 | [x] | macOS notifications (task complete, errors) | `Services/NotificationService.swift` | `Services/Sessions/NotificationServiceTests.swift` |
+| [x] | Kiteloop's own sounds per cue (finished, needs you, stopped), with a Settings choice of Kiteloop / System / Off and previews | `Services/SoundCue.swift`, `Services/SoundCues.swift`, `Views/Settings/SoundSettingsSection.swift` | `Services/SoundCueTests.swift`, `Services/Sessions/SoundCuesTests.swift` |
 | [~] | Notification list view | `Views/Notifications/NotificationListView.swift` | — |
 | [~] | Notification badge (unread count indicator) | `Views/Notifications/NotificationBadge.swift` | — |
 | [x] | Store read/write failure reporting (error row + Diagnostics line, one row per store+operation) | `Services/StoreProblemReporter.swift` | `Services/StoreProblemReporterTests.swift` |
@@ -326,7 +328,7 @@ through the local control API.
 | [x] | Routines: a prompt sent to one agent on a schedule (a time of day or an interval within hours, on chosen weekdays), kept in `~/.kiteloop/routines.json` with a ledger of every firing | `Models/Routine.swift`, `Services/RoutineStore.swift` | `Services/RoutineStoreTests.swift` |
 | [x] | What a routine owes (a daily one missed while the Mac slept runs late; a missed poll lapses when the next would have come; nothing from before it was armed) | `Services/RoutineSchedule.swift` | `Services/RoutineScheduleTests.swift` |
 | [x] | The routine loop (one sleep to the next occurrence; a check that can skip the turn; the daily budget refuses a scheduled turn and is charged for it; an unreachable agent leaves the occurrence waiting until its project opens; Run now) | `Services/RoutineRunner.swift` | `Services/Coordinator/RoutineRunnerTests.swift` |
-| [x] | A project's routines on its Autopilot tab (arming switch, schedule in words, last outcome, Run now) | `Views/Backlog/AutopilotRoutinesRow.swift` | `Views/AutopilotRoutinesRowTests.swift` |
+| [x] | A project's Routines page (a card per routine: arming switch, schedule in words, next run, last outcome, recent runs, Run Now; make, edit and delete one in a sheet) | `Views/Routines/RoutinesView.swift`, `Views/Routines/RoutineCard.swift`, `Views/Routines/RoutineEditorSheet.swift`, `Services/RoutineDraft.swift` | `Views/RoutinesViewTests.swift`, `Services/RoutineDraftTests.swift` |
 | [x] | Routines over the control API (`/v1/routines`: list, put, delete, run now, the ledger) | `Services/Control/RoutineEndpoints.swift` | `Services/Control/KiteloopControlServerRoutinesTests.swift` |
 | [x] | Daily spend ceiling, portfolio-wide and per-project (refuses an autonomous start, never a human one) | `Services/DailyBudget.swift` | `Services/DailyBudgetTests.swift` |
 | [x] | Fleet quiesce (holds every project's queue and gates new starts; a quit waits out the drain and is called off by a resume) | `Services/FleetQuiesceControl.swift` | `Services/Coordinator/FleetQuiesceControlTests.swift` |

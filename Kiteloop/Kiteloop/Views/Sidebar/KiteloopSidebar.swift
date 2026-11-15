@@ -131,6 +131,7 @@ struct KiteloopSidebar: View {
     private let memoryID = "__memory__"
     private let autopilotID = "__autopilot__"
     private let portfolioID = "__portfolio__"
+    private let routinesID = "__routines__"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -171,6 +172,17 @@ struct KiteloopSidebar: View {
                         action: { selectedID = autopilotID }
                     )
                     .accessibilityIdentifier("autopilot-sidebar-entry")
+
+                    SidebarRow(
+                        icon: Image(systemName: "clock.arrow.2.circlepath")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.orange),
+                        label: "Routines",
+                        isSelected: selectedID == routinesID,
+                        splitAction: { onPinToSplit?(routinesID) },
+                        action: { selectedID = routinesID }
+                    )
+                    .accessibilityIdentifier("routines-sidebar-entry")
 
                     // Portfolio-wide rather than per-project: it reads
                     // `~/.kiteloop/portfolio.md` and shows those projects'

@@ -1299,7 +1299,7 @@ class ChatViewModel {
     private func reportTurnOutcome(receivedResult: Bool, cutOffText: String? = nil) async {
         guard receivedResult else { return await attemptRecovery(cutOffText: cutOffText) }
         recoveryAttempts = 0
-        if NSApplication.shared.isActive { NSSound(named: "Pop")?.play() }
+        if NSApplication.shared.isActive { SoundCues.play(.finished) }
         if let lastMessage = messages.last, case .text(let t) = lastMessage.content {
             NotificationService.shared.notifyTaskComplete(
                 agentName: agentName, projectName: projectName, summary: t,

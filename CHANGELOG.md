@@ -6,6 +6,23 @@ The version here is the app's `MARKETING_VERSION` (what `/health` reports and
 what the About panel shows). Every build that ships a behavioural change gets an
 entry — see the changelog convention in `CLAUDE.md`.
 
+## 0.7.1 — 2026-11-15
+
+### Added
+- Routines have a page of their own, in the sidebar under Autopilot. Each of the project's routines is a card with its arming switch, its schedule in words, when it next runs, how it last went and its recent runs, with what the agent said and what it cost.
+- A routine can be made, changed and deleted in the app: its name, the agent, the prompt, once a day at a time or every so many minutes between two times, the days, and an optional check that decides whether there is anything to send. Until now a routine was written over the control API or in `~/.kiteloop/routines.json`.
+- The Memory tab shows Claude's memory: the notes the Claude CLI keeps for the project when you ask an agent in chat to remember something. Each note can be read, filtered, edited and deleted there, and deleting one takes its line out of the index. Until now the tab showed only Kiteloop's own per-agent memory, which a chat agent told to remember does not write to.
+- Kiteloop has its own sounds: three short, quiet ones — an agent finished, something needs you, an agent stopped — in place of the macOS alert sound on every banner. Settings → General → Sounds chooses between them, the system sounds and none, and plays each one.
+
+### Changed
+- The Autopilot tab no longer lists the project's routines; they are on the Routines page.
+
+### Fixes
+- A chat follows the conversation again. The list stays on the newest line as a reply is written, as a call's result comes in and when the turn ends, instead of leaving the end of a reply below the window; it still stays put for a reader who scrolled up. Sending a message always takes you to the bottom.
+- A shell command that did not exit 0 is marked red in the chat and shows the first lines of what it printed, where it wore a green mark beside "Exit code 1".
+- In a chat drawn terminal-style, only the tool's name in a call line is bold.
+- The Memory tab no longer begins under the window's tab bar: its first rows, Project Context among them, were hidden and could not be scrolled into view.
+
 ## 0.7.0 — 2026-11-14
 
 ### Added

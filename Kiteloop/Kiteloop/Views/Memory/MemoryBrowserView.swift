@@ -3,11 +3,21 @@ import SwiftUI
 struct MemoryBrowserView: View {
     @Bindable var viewModel: MemoryViewModel
     let agents: [Agent]
+    /// The notes the Claude CLI keeps for the project — nil where a caller has
+    /// no project to read them for.
+    var claudeMemory: ClaudeMemoryViewModel?
 
-    /// The two shared rows' selection tags — not agent ids. Named so a test can
+    /// The shared rows' selection tags — not agent ids. Named so a test can
     /// move the selection onto them the way the sidebar does.
     static let projectContextID = "__project_context__"
     static let fleetKnowledgeID = "__fleet_knowledge__"
+    static let claudeMemoryID = "__claude_memory__"
+    static let sidebarWidth: CGFloat = 240
+
+    /// The Claude's-memory row, with how many notes there are once known.
+    static func claudeMemoryLabel(noteCount: Int) -> String {
+        noteCount == 0 ? "Claude's memory" : "Claude's memory (\(noteCount))"
+    }
 
     /// What the tab calls an agent: the name it was given, as the Agents section
     /// lists it — the id only when no agent on the team has it, as for a
@@ -28,14 +38,21 @@ struct MemoryBrowserView: View {
     @State private var newFact: String = ""
 
     var body: some View {
-        HSplitView {
+        // An HStack, not an HSplitView: the split view does not pass the
+        // window's top inset down, so both panes began under the tab bar and
+        // their first rows could not be reached.
+        HStack(spacing: 0) {
             sidebar
-                .frame(minWidth: 200, idealWidth: 220, maxWidth: 300)
+                .frame(width: Self.sidebarWidth)
+            Divider()
             detail
                 .frame(minWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .task { await viewModel.refresh() }
+        .task {
+            await viewModel.refresh()
+            await claudeMemory?.refresh()
+        }
     }
 
     private var sidebar: some View {
@@ -47,6 +64,13 @@ struct MemoryBrowserView: View {
                 // in the app has ever shown.
                 Label("What the fleet has learned", systemImage: "brain")
                     .tag(Self.fleetKnowledgeID)
+                if let claudeMemory {
+                    // Where an agent in chat actually writes when it is told
+                    // to remember something.
+                    Label(Self.claudeMemoryLabel(noteCount: claudeMemory.noteCount), systemImage: "tray.full")
+                        .tag(Self.claudeMemoryID)
+                        .accessibilityIdentifier("claude-memory-sidebar-row")
+                }
             }
 
             if !viewModel.pendingProposals.isEmpty {
@@ -78,6 +102,8 @@ struct MemoryBrowserView: View {
             ProjectContextEditor(viewModel: viewModel)
         } else if viewModel.selectedAgentID == Self.fleetKnowledgeID {
             FleetKnowledgeEditor(viewModel: viewModel)
+        } else if viewModel.selectedAgentID == Self.claudeMemoryID, let claudeMemory {
+            ClaudeMemoryPane(viewModel: claudeMemory)
         } else {
             agentMemoryDetail
         }

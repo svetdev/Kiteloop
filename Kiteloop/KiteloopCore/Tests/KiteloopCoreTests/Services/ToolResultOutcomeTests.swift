@@ -22,6 +22,18 @@ final class ToolResultOutcomeTests: XCTestCase {
         XCTAssertEqual(ToolResultOutcome.of(output: "<tool_use_error>File has not been read yet"), .failure)
     }
 
+    /// How a shell command that did not exit 0 comes back. It wore a green
+    /// mark in the chat, beside the words "Exit code 1".
+    func testAShellResultOpeningWithANonZeroExitCodeIsAFailure() {
+        XCTAssertEqual(ToolResultOutcome.of(output: "Exit code 1\ngrep: no such file"), .failure)
+        XCTAssertEqual(ToolResultOutcome.of(output: "Exit code 127"), .failure)
+    }
+
+    func testExitCodeZeroAndAnExitCodeWithNoNumberAreNotFailures() {
+        XCTAssertEqual(ToolResultOutcome.of(output: "Exit code 0\nok"), .success)
+        XCTAssertEqual(ToolResultOutcome.of(output: "Exit code unknown"), .success)
+    }
+
     func testCommandFailedAnywhereNearTheTopIsAFailure() {
         let output = """
         $ swift build

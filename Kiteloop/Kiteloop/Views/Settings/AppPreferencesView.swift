@@ -132,6 +132,8 @@ struct AppPreferencesView: View {
                     .foregroundStyle(.tertiary)
             }
 
+            SoundSettingsSection()
+
             Section("Knowledge Repository") {
                 HStack {
                     Text(globalConfigStore.config.knowledgeRepoPath ?? "Not configured")

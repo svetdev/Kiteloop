@@ -24,11 +24,14 @@ final class SubagentCallRowsTests: XCTestCase {
         XCTAssertEqual(SubagentRowText.openedLines(for: read, result: result), ["Read 84 lines"])
     }
 
-    func testAnOpenedChildThatFailedReadsAsItsError() {
+    /// A failure shows the first lines of what it printed, as the main
+    /// agent's calls do: the error is not always on the first of them.
+    func testAnOpenedChildThatFailedReadsAsTheFirstLinesOfItsError() {
         let output = "Error: ENOENT: no such file or directory\nat line 2"
         let result = Message.ToolResult(id: "o", toolCallID: "b", output: output, parentToolUseID: "a")
         XCTAssertTrue(ToolResultOutcome.of(output: output).isError)
-        XCTAssertEqual(SubagentRowText.openedLines(for: childCall, result: result), ["Error: ENOENT: no such file or directory"])
+        XCTAssertEqual(SubagentRowText.openedLines(for: childCall, result: result),
+                       ["Error: ENOENT: no such file or directory", "at line 2"])
     }
 
     func testAnOpenedChildWithNoResultIsStillRunning() {
