@@ -6,7 +6,7 @@ The version here is the app's `MARKETING_VERSION` (what `/health` reports and
 what the About panel shows). Every build that ships a behavioural change gets an
 entry — see the changelog convention in `CLAUDE.md`.
 
-## 0.7.2 — unreleased
+## 0.7.2 — 2026-11-17
 
 ### Added
 - The routine editor now sets everything a routine can have: choose whether it runs **On a schedule**, **On an event** (an approval is needed, an agent asks a question, an agent finishes, something fails, the project posts an update) or **When a folder changes**, and turn on **Limit what this routine spends** to give it a ceiling for a day or a month, or off to clear it. A folder outside the project or a ceiling that is not above zero is refused under its field, exactly as the control API refuses it. A routine's card says what fires it and its budget, and the editor names the webhooks that fire the routine (their secrets are never shown).
