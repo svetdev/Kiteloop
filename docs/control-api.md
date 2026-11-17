@@ -154,6 +154,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/fleet/quiesce` | Stop the whole fleet taking new work, and wait for it to drain |
 | POST | `/v1/fleet/resume` | Lift the hold and pick the held queues back up |
 | GET | `/v1/usage` | How close the agents are to their rate limit, and the last day's spend per project |
+| GET | `/v1/attention` | Everything waiting on you across every open project, oldest first, each row naming the call that answers it |
 | GET | `/v1/events` | Every open project's inbox notices as one live, resumable SSE stream |
 | GET | `/v1/memory/proposals?project=` | List a project's pending memory proposals |
 | POST | `/v1/memory/proposals/approve` | Approve one — applies it to the agent's memory |
@@ -2254,6 +2255,52 @@ curl -s -H "$H" $B/usage
 | `rateLimit` | Of the readings every open project's agents last reported (the CLI's `rate_limit_event`), the one closest to its limit: a refusal (`rejected`) first, then any other warning, then the highest `utilization`. `null` when no agent has reported one since the app started |
 | `agentsReporting` | How many agents' readings that was chosen from |
 | `spend` | The last 24 hours — the day the shared daily budget covers — per project, busiest first, from the same report as [`GET /v1/report`](#get-v1report), capped as it is, with the rest named in `omittedProjects`. On a subscription these are token-equivalent dollars. `null` on a build that keeps no metrics |
+
+**Status:** 200
+
+---
+
+### GET /v1/attention
+
+Everything **waiting on you** across every open project — the same list the
+app's waiting drawer and menu bar draw, oldest first. A snapshot;
+[`GET /v1/events`](#get-v1events) streams the notices behind it. Read scope.
+
+```bash
+curl -s -H "$H" $B/attention
+```
+
+```json
+{
+  "count": 2,
+  "summary": "1 approval · 1 question",
+  "rows": [
+    { "id": "…#approval:item-1", "kind": "approval",
+      "project": { "id": "…", "name": "kiteloop", "path": "/Users/me/kiteloop" },
+      "itemId": "item-1", "agentId": null, "title": "Needs sign-off", "detail": "item-1 — needs sign-off",
+      "since": "2026-11-17T09:12:00Z", "gateRefusal": null, "staleFileCount": null,
+      "answer": { "method": "POST", "path": "/v1/backlog/approve" } },
+    { "id": "…#question:A1B2…", "kind": "question",
+      "project": { "id": "…", "name": "kiteloop", "path": "/Users/me/kiteloop" },
+      "itemId": null, "agentId": "A1B2…", "title": "Builder needs input", "detail": "Keep the old rounding?",
+      "since": "2026-11-17T09:40:00Z", "gateRefusal": null, "staleFileCount": null,
+      "answer": { "method": "POST", "path": "/v1/agents/answer" } }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `count` | How many rows |
+| `summary` | What is waiting, by kind — `nothing is waiting on you` when the list is empty |
+| `rows` | Longest-waiting first; a row whose notice is gone (`since` null) sorts to the top. Ties break on project name, then row id |
+| `kind` | `approval` — an item at the approval gate; `question` — an agent holding an unanswered `ask_human`; `plan` — an agent with an open plan card; `prompt` — an agent stopped on a permission or choices card; `stale` — an open item nothing has touched in a while |
+| `itemId` / `agentId` | The item (approval, stale) or the agent (question, plan, prompt) the row is about; the other is `null` |
+| `title` / `detail` | What is waiting, and the notice's own words (for an approval refused at the merge gate, the refusal) |
+| `since` | When it started waiting, ISO 8601 — the notice's time, or a stale item's last touch |
+| `gateRefusal` | For an approval row: the merge gate's refusal, verbatim, when it already ran and said no; else `null` |
+| `staleFileCount` | For an approval row: how many files conflict with the base right now; `null` when clean or unchecked |
+| `answer` | The call that deals with the row: approval → `POST /v1/backlog/approve`, question → `POST /v1/agents/answer`, plan → `POST /v1/agents/plan`, prompt → `POST /v1/agents/permission`, stale → `GET /v1/backlog/detail` |
 
 **Status:** 200
 

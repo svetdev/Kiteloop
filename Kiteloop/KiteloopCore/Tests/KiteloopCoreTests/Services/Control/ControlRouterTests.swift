@@ -94,6 +94,7 @@ final class ControlRouterTests: XCTestCase {
             ("POST", "/v1/fleet/quiesce",       .quiesceFleet),
             ("POST", "/v1/fleet/resume",        .resumeFleet),
             ("GET",  "/v1/usage",               .usage),
+            ("GET",  "/v1/attention",           .attention),
             ("GET",  "/v1/events",              .appEvents),
             ("GET",  "/v1/memory/proposals",    .listMemoryProposals),
             ("POST", "/v1/memory/proposals/approve", .approveMemoryProposal),
@@ -140,6 +141,7 @@ final class ControlRouterTests: XCTestCase {
     func testEachKindOfRouteCarriesItsScope() {
         let expected: [(ControlRoute, ControlScope)] = [
             (.listBacklog, .read),
+            (.attention, .read),
             (.runStatus(runID: "r"), .read),
             (.agentTranscript, .read),
             (.startRun, .operate),
@@ -248,7 +250,7 @@ final class ControlRouterTests: XCTestCase {
     func testOnlyHealthAndThePairingClaimAreUnauthenticated() {
         XCTAssertFalse(ControlRouter.requiresAuth(method: "GET", path: "/health"))
         XCTAssertFalse(ControlRouter.requiresAuth(method: "POST", path: "/v1/pair"))
-        for path in ["/v1/projects", "/v1/backlog", "/v1/runs/exec-1"] {
+        for path in ["/v1/projects", "/v1/backlog", "/v1/runs/exec-1", "/v1/attention"] {
             XCTAssertTrue(ControlRouter.requiresAuth(method: "GET", path: path),
                           "\(path) must be behind the bearer token")
         }
