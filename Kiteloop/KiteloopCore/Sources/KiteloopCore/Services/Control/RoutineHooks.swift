@@ -70,4 +70,11 @@ package final class RoutineHooks {
     private func save() {
         PrivateJSONFile.save(hooks, to: url)
     }
+
+    /// The names of the webhooks on file at `url` that fire `routine` — what
+    /// the Routines page shows of them. A name is not a secret, and the file
+    /// holds no secret to show.
+    package static func names(firing routine: String, at url: URL = RoutineHooks.defaultURL) -> [String] {
+        RoutineHooks(url: url).hooks.filter { $0.routine == routine }.map(\.name)
+    }
 }

@@ -2,8 +2,9 @@ import KiteloopCore
 import SwiftUI
 
 /// The sheet a routine is made or changed in: its name, the agent, the prompt,
-/// when it falls, and — for one that should stay quiet when there is nothing
-/// to do — the check that decides.
+/// what fires it — a schedule, an event or a changed folder — the check that
+/// decides whether there is anything to do, which chat it goes into and what
+/// it may spend.
 struct RoutineEditorSheet: View {
     /// What the sheet is open on.
     enum Target: Identifiable {
@@ -32,14 +33,21 @@ struct RoutineEditorSheet: View {
 
     let target: Target
     let agentNames: [String]
+    /// The file the routines' webhooks are kept in.
+    let hooksURL: URL
     let onSave: (RoutineDraft) -> Void
 
     @State private var draft: RoutineDraft
+    /// The webhooks that fire the routine being edited; nil for a new routine
+    /// and until the file has been read.
+    @State private var hookNames: [String]?
     @Environment(\.dismiss) private var dismiss
 
-    init(target: Target, agentNames: [String], onSave: @escaping (RoutineDraft) -> Void) {
+    init(target: Target, agentNames: [String], hooksURL: URL = RoutineHooks.defaultURL,
+         onSave: @escaping (RoutineDraft) -> Void) {
         self.target = target
         self.agentNames = agentNames
+        self.hooksURL = hooksURL
         self.onSave = onSave
         _draft = State(initialValue: target.draft)
     }
@@ -51,7 +59,8 @@ struct RoutineEditorSheet: View {
                 .padding(KiteloopTokens.Spacing.xl)
             Divider()
             ScrollView {
-                RoutineEditorFields(draft: $draft, agentNames: Self.agentChoices(agentNames, current: draft.agent))
+                RoutineEditorFields(draft: $draft, agentNames: Self.agentChoices(agentNames, current: draft.agent),
+                                    hookNames: hookNames)
                     .padding(KiteloopTokens.Spacing.xl)
             }
             Divider()
@@ -59,6 +68,15 @@ struct RoutineEditorSheet: View {
         }
         .frame(width: 540, height: 700)
         .accessibilityIdentifier("routine-editor")
+        .task { await loadHooks() }
+    }
+
+    /// Reads which webhooks fire this routine, off the main actor: their
+    /// names only — the file keeps no secret to show.
+    private func loadHooks() async {
+        guard let id = target.routine?.id else { return }
+        let url = hooksURL
+        hookNames = await Task.detached { RoutineHooks.names(firing: id, at: url) }.value
     }
 
     private var actions: some View {
@@ -94,45 +112,92 @@ struct RoutineEditorSheet: View {
 struct RoutineEditorFields: View {
     @Binding var draft: RoutineDraft
     let agentNames: [String]
+    /// The webhooks that fire this routine; nil when there is nothing to say
+    /// about them — a routine not yet saved.
+    var hookNames: [String]?
 
     var body: some View {
         VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.xl) {
-            field("Name") {
-                TextField("Morning brief", text: $draft.name)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityIdentifier("routine-editor-name")
+            who
+            field("Trigger") { RoutineTriggerFields(draft: $draft) }
+            precheck
+            conversation
+            field("Budget", note: "Optional. Once its runs have cost this much in the day or the month, the runs it starts by itself are refused until the next one. Run Now still works.") {
+                RoutineBudgetFields(draft: $draft)
             }
-            field("Agent") {
-                Picker("Agent", selection: $draft.agent) {
-                    ForEach(agentNames, id: \.self) { Text($0).tag($0) }
-                }
-                .labelsHidden()
-                .fixedSize()
-                .accessibilityIdentifier("routine-editor-agent")
-            }
-            field("Prompt", note: "Sent to the agent as if you had typed it in its chat.") {
-                editor($draft.prompt, height: 96, identifier: "routine-editor-prompt")
-            }
-            field("Schedule") { RoutineScheduleFields(draft: $draft) }
-            field("Only when", note: "Optional. A shell command run in the project folder first: if it fails or prints nothing the prompt is not sent, and what it prints goes to the agent under the prompt.") {
-                TextField("gh pr list --search review-requested:@me", text: $draft.precheck)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                    .accessibilityIdentifier("routine-editor-precheck")
-            }
-            field("Conversation", note: "A fresh chat each run keeps the agent's context from growing; it opens with a note of how the last run went.") {
-                Picker("Conversation", selection: $draft.conversation) {
-                    Text("Continue its chat").tag(Routine.Conversation.continues)
-                    Text("Start a fresh chat").tag(Routine.Conversation.fresh)
-                }
-                .labelsHidden()
-                .fixedSize()
-                .accessibilityIdentifier("routine-editor-conversation")
-            }
-            Toggle("Armed — runs on its schedule once saved", isOn: $draft.armed)
+            if let hookNames { webhook(hookNames) }
+            Toggle(Self.armedLabel(for: draft.kind), isOn: $draft.armed)
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .accessibilityIdentifier("routine-editor-armed")
+        }
+    }
+
+    /// What it is called, who it goes to and what it says.
+    @ViewBuilder private var who: some View {
+        field("Name") {
+            TextField("Morning brief", text: $draft.name)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("routine-editor-name")
+        }
+        field("Agent") {
+            Picker("Agent", selection: $draft.agent) {
+                ForEach(agentNames, id: \.self) { Text($0).tag($0) }
+            }
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityIdentifier("routine-editor-agent")
+        }
+        field("Prompt", note: "Sent to the agent as if you had typed it in its chat.") {
+            editor($draft.prompt, height: 96, identifier: "routine-editor-prompt")
+        }
+    }
+
+    private var precheck: some View {
+        field("Only when", note: "Optional. A shell command run in the project folder first: if it fails or prints nothing the prompt is not sent, and what it prints goes to the agent under the prompt.") {
+            TextField("gh pr list --search review-requested:@me", text: $draft.precheck)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .accessibilityIdentifier("routine-editor-precheck")
+        }
+    }
+
+    private var conversation: some View {
+        field("Conversation", note: "A fresh chat each run keeps the agent's context from growing; it opens with a note of how the last run went.") {
+            Picker("Conversation", selection: $draft.conversation) {
+                Text("Continue its chat").tag(Routine.Conversation.continues)
+                Text("Start a fresh chat").tag(Routine.Conversation.fresh)
+            }
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityIdentifier("routine-editor-conversation")
+        }
+    }
+
+    private func webhook(_ names: [String]) -> some View {
+        field("Webhook", note: "Webhooks are made and revoked over the control API. A webhook's secret is shown once, when it is made, and never here.") {
+            Text(Self.webhookWords(names))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("routine-editor-webhook")
+        }
+    }
+
+    /// The arming switch's label: what an armed routine of this kind does.
+    static func armedLabel(for kind: RoutineDraft.Kind) -> String {
+        switch kind {
+        case .clock: return "Armed — runs on its schedule once saved"
+        case .event: return "Armed — runs when the event happens once saved"
+        case .folder: return "Armed — runs when the folder changes once saved"
+        }
+    }
+
+    /// Whether a webhook fires the routine, and which: names only.
+    static func webhookWords(_ names: [String]) -> String {
+        switch names.count {
+        case 0: return "No webhook fires this routine."
+        case 1: return "Fired by the webhook \(names[0])."
+        default: return "Fired by the webhooks \(names.joined(separator: ", "))."
         }
     }
 
@@ -141,9 +206,7 @@ struct RoutineEditorFields: View {
         VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.sm) {
             Text(title).font(.subheadline.weight(.medium))
             content()
-            if let note {
-                Text(note).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
+            if let note { RoutineFieldNote(note) }
         }
     }
 
@@ -157,6 +220,123 @@ struct RoutineEditorFields: View {
             .overlay(RoundedRectangle(cornerRadius: KiteloopTokens.Radius.sm)
                 .strokeBorder(Color.primary.opacity(KiteloopTokens.Opacity.strong)))
             .accessibilityIdentifier(identifier)
+    }
+}
+
+/// What fires a routine: a schedule, an event of one kind, or a change in a
+/// folder — the choice, then the fields of the kind chosen, with what is wrong
+/// with them underneath.
+struct RoutineTriggerFields: View {
+    @Binding var draft: RoutineDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.lg) {
+            Picker("Trigger", selection: $draft.kind) {
+                Text("On a schedule").tag(RoutineDraft.Kind.clock)
+                Text("On an event").tag(RoutineDraft.Kind.event)
+                Text("When a folder changes").tag(RoutineDraft.Kind.folder)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityIdentifier("routine-editor-kind")
+            switch draft.kind {
+            case .clock: RoutineScheduleFields(draft: $draft)
+            case .event: event
+            case .folder: folder
+            }
+            RoutineFieldProblems(problems: draft.triggerProblems, identifier: "routine-editor-trigger-problems")
+        }
+    }
+
+    private var event: some View {
+        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.sm) {
+            Picker("Event", selection: $draft.event) {
+                ForEach(RoutineDraft.eventChoices(current: draft.event), id: \.self) {
+                    Text(RoutineDraft.eventLabel($0)).tag($0)
+                }
+            }
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityIdentifier("routine-editor-event")
+            RoutineFieldNote("Runs each time this happens in the routine's project. What happened goes to the agent under the prompt.")
+        }
+    }
+
+    private var folder: some View {
+        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.sm) {
+            TextField("notes/inbox", text: $draft.watch)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .accessibilityIdentifier("routine-editor-watch")
+            RoutineFieldNote("A folder inside the project, written relative to it. Runs when a file directly inside it is added, removed, renamed or replaced.")
+        }
+    }
+}
+
+/// A routine's own budget: whether it has one, and then its ceiling and
+/// whether that is for a day or a month.
+struct RoutineBudgetFields: View {
+    @Binding var draft: RoutineDraft
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.lg) {
+            Toggle("Limit what this routine spends", isOn: $draft.limitsSpend)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .accessibilityIdentifier("routine-editor-budget")
+            if draft.limitsSpend {
+                ceiling
+                RoutineFieldProblems(problems: draft.budgetProblems, identifier: "routine-editor-budget-problems")
+            }
+        }
+    }
+
+    private var ceiling: some View {
+        HStack(spacing: KiteloopTokens.Spacing.md) {
+            Text("Up to $")
+            TextField("5.00", text: $draft.ceiling)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 80)
+                .accessibilityIdentifier("routine-editor-ceiling")
+            Text("a")
+            Picker("Period", selection: $draft.period) {
+                Text("day").tag(SpendBudget.Period.day)
+                Text("month").tag(SpendBudget.Period.month)
+            }
+            .labelsHidden()
+            .fixedSize()
+            .accessibilityIdentifier("routine-editor-period")
+        }
+    }
+}
+
+/// The small grey line under a field that says what it does.
+struct RoutineFieldNote: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// What is wrong with a field, under it, in the colour the sheet's own
+/// status line names a problem in. Draws nothing when nothing is wrong.
+struct RoutineFieldProblems: View {
+    let problems: [String]
+    let identifier: String
+
+    var body: some View {
+        if !problems.isEmpty {
+            VStack(alignment: .leading, spacing: KiteloopTokens.Spacing.xs) {
+                ForEach(problems, id: \.self) {
+                    Text($0).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityIdentifier(identifier)
+        }
     }
 }
 

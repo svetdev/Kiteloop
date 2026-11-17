@@ -1,8 +1,8 @@
 import KiteloopCore
 import SwiftUI
 
-/// One routine on the Routines page: what it is called and when it falls, who
-/// it goes to, its arming switch, when it next runs and how it last went, the
+/// One routine on the Routines page: what it is called and what fires it, who
+/// it goes to and what it may spend, its arming switch, when it next runs and how it last went, the
 /// prompt it sends, and — unfolded — its recent runs.
 struct RoutineCard: View {
     let routine: Routine
@@ -55,17 +55,15 @@ struct RoutineCard: View {
             Toggle("Armed", isOn: Binding(get: { routine.armed }, set: setArmed))
                 .toggleStyle(.switch)
                 .labelsHidden()
-                .help("Armed, this routine sends its prompt to \(routine.agent) on its schedule. Off, it runs only when you press Run Now.")
+                .help("Armed, this routine sends its prompt to \(routine.agent) by itself when its trigger fires. Off, it runs only when you press Run Now.")
                 .accessibilityIdentifier("routine-armed-\(routine.id)")
             menu
         }
     }
 
-    /// The schedule's kind as a mark: a clock for a time of day, a loop for an
-    /// interval, in colour while the routine is armed.
+    /// The trigger's kind as a mark, in colour while the routine is armed.
     private var badge: some View {
-        let isInterval = routine.trigger.every != nil
-        return Image(systemName: isInterval ? "arrow.triangle.2.circlepath" : "clock")
+        Image(systemName: Self.symbol(for: routine.trigger))
             .font(.system(size: 15, weight: .medium))
             .foregroundStyle(routine.armed ? Color.orange : Color.secondary)
             .frame(width: 34, height: 34)
@@ -130,9 +128,19 @@ struct RoutineCard: View {
 
     // MARK: - Words
 
-    /// Under the name: when it falls and who it goes to.
+    /// Under the name: what fires it, who it goes to, and what it may spend
+    /// when it has a budget of its own.
     static func caption(for routine: Routine) -> String {
-        "\(routine.schedule?.words ?? "No schedule") · \(routine.agent)"
+        ([routine.trigger.words ?? "No schedule", routine.agent] + [routine.budgetWords].compactMap { $0 })
+            .joined(separator: " · ")
+    }
+
+    /// The mark for a trigger: a folder for a watched folder, a bolt for an
+    /// event, a loop for an interval and a clock for a time of day.
+    static func symbol(for trigger: Routine.Trigger) -> String {
+        if trigger.watch != nil { return "folder" }
+        if trigger.on != nil { return "bolt" }
+        return trigger.every != nil ? "arrow.triangle.2.circlepath" : "clock"
     }
 
     /// The card's status line: when it next falls while armed, that it is off

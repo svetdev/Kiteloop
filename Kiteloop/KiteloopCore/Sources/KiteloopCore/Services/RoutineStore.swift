@@ -173,14 +173,16 @@ extension Routine {
         where value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             found.append("\"\(field)\" is required")
         }
-        if let watch = trigger.watch {
-            found += WatchedFolder.problems(watch, beside: trigger)
-        } else if trigger.on != nil {
-            found += eventProblems
-        } else if case .failure(let refusal) = RoutineSchedule.parse(trigger) {
-            found += refusal.problems
-        }
-        return found
+        return found + triggerProblems
+    }
+
+    /// What is wrong with the trigger alone: the part of `problems` the
+    /// Routines page's editor shows beside its trigger fields.
+    package var triggerProblems: [String] {
+        if let watch = trigger.watch { return WatchedFolder.problems(watch, beside: trigger) }
+        if trigger.on != nil { return eventProblems }
+        if case .failure(let refusal) = RoutineSchedule.parse(trigger) { return refusal.problems }
+        return []
     }
 
     /// What is wrong with a trigger that names an event: a kind the feed does
