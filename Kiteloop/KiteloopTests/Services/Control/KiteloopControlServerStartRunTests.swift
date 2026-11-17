@@ -317,7 +317,162 @@ final class KiteloopControlServerStartRunTests: XCTestCase {
                        "the retry must not have entered start() a second time")
     }
 
+    // MARK: - A list of items
+
+    /// A list is one run, walked in the order it was posted. `a` is first in
+    /// the file and `c` is the only `now` item, so every order but the
+    /// caller's would put one of them ahead of `b`.
+    func testAListRunsInTheOrderItWasPosted() async throws {
+        let autopilot = try registerListProject()
+        var queued: [String] = []
+        autopilot.stageStartForTesting { autopilot in
+            await autopilot.admitSelectionForTesting()
+            queued = autopilot.runQueue.map(\.id)
+            autopilot.stageStartOutcomeForTesting(refusal: nil, detail: "3 item(s) queued")
+            autopilot.stageStartedExecutionForTesting("exec-list")
+        }
+
+        let (status, body) = try await harness.post("/v1/runs", ["project": "alpha", "items": ["b", "a", "c"]])
+
+        XCTAssertEqual(status, 202, "\(body)")
+        XCTAssertEqual(queued, ["b", "a", "c"], "the queue the pickup pass built follows the list")
+        XCTAssertEqual(body["runId"] as? String, "exec-list")
+        XCTAssertEqual(body["items"] as? [String], ["b", "a", "c"], "the list is echoed as posted")
+        XCTAssertEqual(body["item"] as? String, "b", "and the run is named after the item it begins with")
+        XCTAssertEqual(body["title"] as? String, "Item b")
+        XCTAssertNil(autopilot.requestedOrder, "the order was that start's alone")
+    }
+
+    /// A list leaves nothing behind: the single item posted after it is a
+    /// plain start, with no order of its own, and its reply is the one a
+    /// single item has always had.
+    func testASingleItemAfterAListIsNotOrderedByIt() async throws {
+        let autopilot = try registerListProject()
+        var orders: [[String]?] = []
+        autopilot.stageStartForTesting { autopilot in
+            orders.append(autopilot.requestedOrder)
+            autopilot.stageStartOutcomeForTesting(refusal: nil, detail: "queued")
+            autopilot.stageStartedExecutionForTesting("exec-\(orders.count)")
+        }
+
+        _ = try await harness.post("/v1/runs", ["project": "alpha", "items": ["c", "b"]])
+        let (status, body) = try await harness.post("/v1/runs", ["project": "alpha", "item": "a"])
+
+        XCTAssertEqual(status, 202, "\(body)")
+        XCTAssertEqual(orders, [["c", "b"], nil])
+        XCTAssertEqual(autopilot.selectedItemIDs, ["a"])
+        XCTAssertNil(body["items"], "a single item's reply is unchanged")
+        XCTAssertEqual(body["item"] as? String, "a")
+    }
+
+    /// The order is dropped on the refusals too. Here the real `start()` gets
+    /// as far as finding the agents have no session and refuses.
+    func testARefusedListLeavesNoOrderBehind() async throws {
+        let autopilot = try registerListProject()
+
+        let (status, body) = try await harness.post("/v1/runs", ["project": "alpha", "items": ["b", "a"]])
+
+        XCTAssertEqual(status, 409, "\(body)")
+        XCTAssertEqual(autopilot.lastStartOutcome?.refusal, .noAgentSession)
+        XCTAssertNil(autopilot.requestedOrder)
+    }
+
+    /// A list is checked whole before anything starts: none of these reaches
+    /// `start()`, so the attempt counter never moves.
+    func testAListThatCannotBeRunAsPostedStartsNothing() async throws {
+        let autopilot = try registerListProject()
+        let refused: [(body: [String: Any], status: Int, error: String)] = [
+            (["project": "alpha", "item": "a", "items": ["b"]], 400, "Give either \"item\" or \"items\", not both"),
+            (["project": "alpha", "items": [String]()], 400, "\"items\" is empty — name at least one backlog item"),
+            (["project": "alpha", "items": ["a", "b", "a"]], 400, "\"items\" names 'a' more than once"),
+            (["project": "alpha", "items": ["b", "ghost", "a"]], 404, "No backlog item 'ghost' in this project")
+        ]
+
+        for request in refused {
+            let (status, body) = try await harness.post("/v1/runs", request.body)
+
+            XCTAssertEqual(status, request.status, "\(request.body)")
+            XCTAssertEqual(body["error"] as? String, request.error)
+        }
+        XCTAssertNil(autopilot.lastStartOutcome, "nothing was asked to start")
+        XCTAssertNil(autopilot.requestedOrder)
+        XCTAssertTrue(autopilot.selectedItemIDs.isEmpty, "and nothing was selected")
+    }
+
+    /// The run block says what the list is and how far the run has got.
+    func testTheRunBlockReportsTheOrderAndThePositionInIt() async throws {
+        let autopilot = try registerListProject()
+        let queue = ["b", "a", "c"].map {
+            BacklogItem(id: $0, title: "Item \($0)", verify: "true", status: .ready, type: .local, size: .s)
+        }
+        autopilot.stageRunForTesting(status: .running(itemIndex: 1, total: 3), queue: queue)
+        autopilot.stageQueueIndexForTesting(1)
+        autopilot.stageExecutingRunForTesting(true)
+
+        let running = try await runBlock()
+
+        XCTAssertEqual(running["order"] as? [String], ["b", "a", "c"])
+        XCTAssertEqual(running["orderIndex"] as? Int, 1)
+        XCTAssertEqual(running["item"] as? String, "a")
+
+        autopilot.stageExecutingRunForTesting(false)
+        autopilot.stageRunForTesting(status: .idle, queue: queue)
+        let idle = try await runBlock()
+
+        XCTAssertEqual(idle["order"] as? [String], ["b", "a", "c"], "the last run's queue stays readable")
+        XCTAssertTrue(idle["orderIndex"] is NSNull, "nothing in flight has no position: \(idle)")
+    }
+
     // MARK: - Helpers
+
+    /// The `run` block `GET /v1/projects` reports for the one project open.
+    private func runBlock() async throws -> [String: Any] {
+        let (_, body) = try await harness.get("/v1/projects")
+        let projects = try XCTUnwrap(body["projects"] as? [[String: Any]])
+        return try XCTUnwrap(projects.first?["run"] as? [String: Any])
+    }
+
+    /// A project holding `a`, `b` and `c` — written in that order, `c` alone
+    /// promoted to `now` — each groomed enough to pass every pickup gate, so
+    /// the queue that comes out is the ordering and not the grooming.
+    private func registerListProject() throws -> BacklogAutopilot {
+        let details = tempDir.appendingPathComponent("alpha/backlog", isDirectory: true)
+        try FileManager.default.createDirectory(at: details, withIntermediateDirectories: true)
+        for id in ["a", "b", "c"] {
+            try """
+            ---
+            id: \(id)
+            title: Item \(id)
+            status: ready
+            size: S
+            verify:
+              - name: build
+                cmd: "true"
+            ---
+
+            ## What
+
+            Something small and self-contained.
+
+            ## How
+
+            Change it in place.
+
+            ## Validation
+
+            - [ ] It still works
+            """.write(to: details.appendingPathComponent("\(id).md"), atomically: true, encoding: .utf8)
+        }
+        let autopilot = try registerProject(named: "alpha", items: [
+            "- [ ] a | Item a | ready → [detail](backlog/a.md)",
+            "- [ ] b | Item b | ready → [detail](backlog/b.md)",
+            "- [ ] c | Item c | lane:now | ready → [detail](backlog/c.md)"
+        ], wireBacklog: true)
+        autopilot.workerAgentID = "worker"
+        autopilot.reviewerAgentID = "reviewer"
+        return autopilot
+    }
+
 
     /// The parts of a reply these tests read, as a value a task can hand back.
     private struct Reply: Sendable {

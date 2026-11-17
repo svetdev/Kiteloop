@@ -2150,6 +2150,7 @@ final class KiteloopControlServer {
         // `?? nil` flattens what the `map` nests: a `String??` bridges to JSON as
         // neither a value nor null.
         let startedAt = state.inFlight?.startedAt.map { iso.string(from: $0) } ?? nil
+        let order = autopilot.runQueue.map(\.id)
         let rail = PortfolioSnapshot.phaseRail(
             currentRunPhase: autopilot.currentRunPhase, attempt: autopilot.currentRunAttempt,
             lastActivityAt: autopilot.lastActivityAt, stallTimeoutMinutes: autopilot.stallTimeoutMinutes)
@@ -2163,7 +2164,12 @@ final class KiteloopControlServer {
             "status": state.statusLabel,
             "heldItems": state.heldItems,
             "detail": state.detail as Any,
-            "phaseRail": rail.map(Self.phaseRailJSON) as Any
+            "phaseRail": rail.map(Self.phaseRailJSON) as Any,
+            // The whole queue in the order it runs, and where the run is in it
+            // — for a list handed to `POST /v1/runs`, the list and how far it
+            // has got.
+            "order": order,
+            "orderIndex": RunRequest.position(of: state.inFlight?.itemID, in: order) as Any
         ]
     }
 
@@ -3810,10 +3816,10 @@ final class KiteloopControlServer {
     }
 
     private func startRun(body: Data) async -> HTTPServer.Response {
-        guard let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any],
-              let project = json["project"] as? String,
-              let itemId = (json["item"] as? String) ?? (json["itemId"] as? String) else {
-            return .error("Body must be JSON: { \"project\": \"…\", \"item\": \"…\" }", status: 400)
+        let request: RunRequest
+        switch RunRequest.parse(body) {
+        case .success(let parsed): request = parsed
+        case .failure(let invalid): return .error(invalid.message, status: 400)
         }
         // The fleet gate, before anything else this could do. A driver on its
         // usual cadence would otherwise start a fresh run into a fleet that was
@@ -3827,8 +3833,8 @@ final class KiteloopControlServer {
                 status: 409
             )
         }
-        guard let entry = registry.entry(forProject: project) else {
-            return .error("Project not open in Kiteloop: \(project)", status: 409)
+        guard let entry = registry.entry(forProject: request.project) else {
+            return .error("Project not open in Kiteloop: \(request.project)", status: 409)
         }
         // The project's own hold, named the same way the fleet-wide one just was
         // above. Pausing is one act now — the fleet board's switch and a held
@@ -3843,8 +3849,10 @@ final class KiteloopControlServer {
         }
         let autopilot = entry.autopilot
         let items = entry.session.backlogViewModel.backlogFile?.sections.flatMap(\.items) ?? []
-        guard let item = items.first(where: { $0.id == itemId }) else {
-            return .error("No backlog item '\(itemId)' in this project", status: 404)
+        // Every id is looked up before anything starts: a list with a typo in
+        // it runs nothing, rather than everything but the item meant.
+        if let unknown = request.firstUnknown(among: Set(items.map(\.id))) {
+            return .error("No backlog item '\(unknown)' in this project", status: 404)
         }
         // What blocks this run is another run, not a flag — see `waitOutTail`.
         if let inFlight = await waitOutTail(autopilot) {
@@ -3857,14 +3865,25 @@ final class KiteloopControlServer {
         guard autopilot.workerAgentID != nil, autopilot.reviewerAgentID != nil else {
             return .error("Configure worker and reviewer agents in the Autopilot screen first", status: 409)
         }
+        return await begin(request, entry: entry, backlog: items)
+    }
 
+    /// Hands the autopilot what was asked for and answers with what it
+    /// decided: the execution it created, or the refusal that means there is
+    /// none. Every check about the request and the moment is behind it.
+    private func begin(_ request: RunRequest, entry: ControlSessionRegistry.Entry,
+                       backlog items: [BacklogItem]) async -> HTTPServer.Response {
+        let autopilot = entry.autopilot
         // Stamped before the queue moves, not after the execution id arrives a few
         // seconds later: `GET /v1/runs/{id}/log` slices the autopilot's log by this
         // instant, and the opening lines ("Executing: …", the cost-cap line) are
         // written in that gap.
         let startedAt = Date()
         let priorAttempt = autopilot.lastStartOutcome?.attempt ?? 0
-        autopilot.selectedItemIDs = [itemId]
+        autopilot.selectedItemIDs = Set(request.ids)
+        // A list's order rides beside the selection, which is a set and cannot
+        // carry it. A single item hands over none and starts as it always did.
+        autopilot.requestedOrder = request.requestedOrder
         // Asked for and waited on in that order with nothing suspending in
         // between: the wait is registered before the start has run a line, so
         // its decision cannot land unobserved.
@@ -3878,12 +3897,31 @@ final class KiteloopControlServer {
         // them, routinely decide later than any window worth holding a guess to.
         switch await autopilot.awaitStartDecision(afterAttempt: priorAttempt) {
         case .started(let runId):
-            track(RunInfo(runId: runId, projectID: entry.session.project.id, itemId: itemId, title: item.title, startedAt: startedAt))
-            return .json(["runId": runId, "item": itemId, "title": item.title, "status": "running"], status: 202)
+            let inFlight = await autopilot.inFlightRun()?.itemID
+            return runStarted(runId: runId, request: request, inFlight: inFlight, backlog: items,
+                              projectID: entry.session.project.id, startedAt: startedAt)
 
         case .refused(let outcome):
             return .error("Run did not start: \(outcome.detail)", status: Self.httpStatus(for: outcome))
         }
+    }
+
+    /// The 202: the run is tracked under the item its execution belongs to, and
+    /// the reply names that item.
+    ///
+    /// For a single item that is the item asked for. For a list it is the item
+    /// in flight — the first in the order that the pickup gates let through,
+    /// which is the first id unless a gate turned that one away — and `items`
+    /// echoes the order that was posted. The items behind it get executions of
+    /// their own as the run reaches them; `GET /v1/runs` lists each.
+    private func runStarted(runId: String, request: RunRequest, inFlight: String?, backlog: [BacklogItem],
+                            projectID: String, startedAt: Date) -> HTTPServer.Response {
+        let itemID = inFlight.flatMap { request.ids.contains($0) ? $0 : nil } ?? request.ids[0]
+        let title = backlog.first { $0.id == itemID }?.title ?? itemID
+        track(RunInfo(runId: runId, projectID: projectID, itemId: itemID, title: title, startedAt: startedAt))
+        var reply: [String: Any] = ["runId": runId, "item": itemID, "title": title, "status": "running"]
+        if let order = request.requestedOrder { reply["items"] = order }
+        return .json(reply, status: 202)
     }
 
     /// What a refused start is worth as HTTP.

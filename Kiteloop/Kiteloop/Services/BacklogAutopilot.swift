@@ -2136,6 +2136,12 @@ class BacklogAutopilot {
         await startDecisions.decision(afterAttempt: afterAttempt)
     }
 
+    /// The order the next `start()` walks the selection in, when its caller
+    /// chose one (`RunRequest`); nil is lane first, then the file's. It is one
+    /// start's: read as that start begins and nil again once it returns,
+    /// refused or run, so a later plain start is never ordered by an old list.
+    var requestedOrder: [String]?
+
     /// Runs the selected items.
     ///
     /// `initiator` says who asked. An autonomous start is refused once **either**
@@ -2157,7 +2163,11 @@ class BacklogAutopilot {
         // budget. Each records its own refusal before it returns, so "refused,
         // and why" is never guessed at from the outside.
         let entryAttempt = startAttempts
-        defer { settleStartDecision(since: entryAttempt) }
+        let order = requestedOrder
+        defer {
+            requestedOrder = nil
+            settleStartDecision(since: entryAttempt)
+        }
         #if DEBUG
         if let standIn = startStandInForTesting {
             await standIn(self)
@@ -2167,7 +2177,7 @@ class BacklogAutopilot {
         if refusedByHold() || refusedByBudget(initiator: initiator) { return }
         guard let context = startContext() else { return }
         let outcome = await preflight("checking the selected items against the Definition-of-Ready and the repo") {
-            await admitSelection(context: context)
+            await admitSelection(context: context, order: order)
         }
         guard !runQueue.isEmpty else {
             refuseNoRunnableItems(outcome)
@@ -2347,10 +2357,11 @@ class BacklogAutopilot {
     /// Narrows the selection into `runQueue`, a gate at a time: the stages this
     /// project's flow allows, the Definition of Ready, the retry ceiling and the
     /// grounding check. The order the queue is walked in is settled first —
-    /// lane, then the order the file is written in — so every gate sees the run
-    /// order rather than the selection's. Each gate says what it turned away — in the log, on the
+    /// the one the caller asked for (`order`), or else lane, then the order the
+    /// file is written in — so every gate sees the run order rather than the
+    /// selection's. Each gate says what it turned away — in the log, on the
     /// item, and in the outcome the "no runnable items" refusal is built from.
-    private func admitSelection(context: StartContext) async -> PickupOutcome {
+    private func admitSelection(context: StartContext, order: [String]?) async -> PickupOutcome {
         var outcome = PickupOutcome()
         let pickupStages = context.backlogViewModel.workflow.autopilotPickupStages
         let selected = context.file.sections.flatMap(\.items).filter { selectedItemIDs.contains($0.id) }
@@ -2359,8 +2370,9 @@ class BacklogAutopilot {
         // Lane first, document order second — and before the gates, so what
         // they log, refuse and report is in the order the run will walk. A
         // `now` item in the last epic is ahead of every `later` one however far
-        // up the file it sits; within a lane the file still decides.
-        runQueue = BacklogLane.ordered(selected.filter { pickupStages.contains($0.status) })
+        // up the file it sits; within a lane the file still decides. A caller
+        // that handed over an order of its own gets that one instead.
+        runQueue = RunRequest.runOrder(selected.filter { pickupStages.contains($0.status) }, requested: order)
         outcome.notReady = filterNotReady(context: context)
         surfaceVerifySourceDisagreements(for: runQueue)
         outcome.retired = filterRetired(context: context)
@@ -9250,7 +9262,7 @@ extension BacklogAutopilot {
     /// queue it built cannot be read from outside afterwards.
     func admitSelectionForTesting() async {
         guard let context = startContext() else { return }
-        _ = await admitSelection(context: context)
+        _ = await admitSelection(context: context, order: requestedOrder)
     }
     /// The drift half of an item's exit path, over an execution a test builds
     /// by hand rather than one a reviewer ran.

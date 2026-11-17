@@ -12,6 +12,9 @@ import KiteloopCore
 @MainActor
 final class AutopilotLaneOrderTests: XCTestCase {
     private var tempDir: URL!
+    /// What the autopilot holds weakly, kept for the length of a test that
+    /// goes on using the autopilot after the pickup pass.
+    private var retained: [AnyObject] = []
 
     override func setUpWithError() throws {
         tempDir = try makeTemporaryDirectory(prefix: "autopilot-lane-order")
@@ -74,11 +77,54 @@ final class AutopilotLaneOrderTests: XCTestCase {
         XCTAssertEqual(autopilot.runQueue.map(\.id), ["first-later", "last-later"])
     }
 
+    // MARK: - An order the caller chose
+
+    private let contradictingBacklog = """
+        ## Epic: Platform
+
+        - [ ] first-later | A | ready → [detail](backlog/first-later.md)
+        - [ ] second-later | B | ready → [detail](backlog/second-later.md)
+
+        ## Epic: Onboarding
+
+        - [ ] last-now | C | lane:now | ready → [detail](backlog/last-now.md)
+        """
+
+    /// A list handed over in an order of its own runs in that order, against
+    /// both the lane and the file: lane order here is last-now, first-later,
+    /// second-later.
+    func testARequestedOrderIsQueuedAheadOfLaneAndFileOrder() async throws {
+        try writeBacklog(contradictingBacklog)
+
+        let autopilot = try await stagePickup(selecting: ["first-later", "second-later", "last-now"],
+                                              order: ["second-later", "last-now", "first-later"])
+
+        XCTAssertEqual(autopilot.runQueue.map(\.id), ["second-later", "last-now", "first-later"])
+    }
+
+    /// The order belongs to one start. Whatever that start came to — here it
+    /// is refused, the agents having no session — the next selection is
+    /// queued by lane again.
+    func testAnOrderDoesNotOutliveTheStartItWasHandedTo() async throws {
+        try writeBacklog(contradictingBacklog)
+        let ids = ["first-later", "second-later", "last-now"]
+        let autopilot = try await stagePickup(selecting: ids, order: ["second-later", "last-now", "first-later"])
+
+        await autopilot.start()
+
+        XCTAssertEqual(autopilot.lastStartOutcome?.refusal, .noAgentSession)
+        XCTAssertNil(autopilot.requestedOrder)
+        autopilot.selectedItemIDs = Set(ids)
+        await autopilot.admitSelectionForTesting()
+        XCTAssertEqual(autopilot.runQueue.map(\.id), ["last-now", "first-later", "second-later"])
+    }
+
     // MARK: - Fixtures
 
-    /// Drives the pickup pass over the written backlog and hands back the
-    /// autopilot holding the queue it built.
-    private func stagePickup(selecting ids: [String]) async throws -> BacklogAutopilot {
+    /// Drives the pickup pass over the written backlog — in `order`, when the
+    /// caller chose one — and hands back the autopilot holding the queue it
+    /// built.
+    private func stagePickup(selecting ids: [String], order: [String]? = nil) async throws -> BacklogAutopilot {
         for id in ids { try writeDetail(id: id) }
         let vm = BacklogViewModel(globalConfigStore:
             GlobalConfigStore(storageURL: tempDir.appending(path: "global-config.json")))
@@ -91,9 +137,11 @@ final class AutopilotLaneOrderTests: XCTestCase {
                                 estimatesURL: tempDir.appending(path: "task-estimates.jsonl"),
                                 approvalsURL: tempDir.appending(path: "task-approvals.jsonl")),
                             projectPath: tempDir.path(percentEncoded: false), projectName: "demo")
+        retained += [orchestrator, vm]
         autopilot.workerAgentID = "worker"
         autopilot.reviewerAgentID = "reviewer"
         autopilot.selectedItemIDs = Set(ids)
+        autopilot.requestedOrder = order
         await autopilot.admitSelectionForTesting()
         return autopilot
     }
