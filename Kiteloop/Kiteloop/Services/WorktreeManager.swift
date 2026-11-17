@@ -823,6 +823,22 @@ actor WorktreeManager: WorktreeManaging {
         return runGit(["-C", root, "merge-base", "--is-ancestor", head, branch]).status == 1
     }
 
+    /// Merges `base` into the item's branch inside the item's own worktree —
+    /// the catch-up a gate-refresh round makes when the base moved while the
+    /// round was running (`GateCatchUp`). True when the merge went cleanly.
+    ///
+    /// Anything else — a conflict, a refusal — is abandoned with
+    /// `merge --abort`, so the checkout is left with no merge in progress and
+    /// the branch where it was. False when there is no worktree or no base to
+    /// name. Only the worktree is touched, never the project root's checkout.
+    func mergeBaseCleanly(for key: String, base: String) -> Bool {
+        let path = worktreesDir.appending(path: key).path(percentEncoded: false)
+        guard !base.isEmpty, FileManager.default.fileExists(atPath: path) else { return false }
+        if runGit(["-C", path, "merge", "--no-edit", base]).status == 0 { return true }
+        runGit(["-C", path, "merge", "--abort"])
+        return false
+    }
+
     /// The project root's current branch — the base a gate-refresh round merges
     /// into the item's branch. Empty when the checkout is detached or the
     /// question can't be answered, which the caller reads as "name it

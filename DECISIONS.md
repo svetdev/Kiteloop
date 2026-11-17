@@ -359,3 +359,10 @@ Entry format:
 **Why:** A fixed wait is a guess at how long deciding takes, and each time it was short the caller was told "don't know" and left to find out some other way whether a run existed. The pickup gates and the base check routinely decide later than any window worth holding.
 **Evidence:** `AttemptDecisions`, `BacklogAutopilot.awaitStartDecision(afterAttempt:)`, `settleStartDecision(since:)`; `AttemptDecisionsTests`, `KiteloopControlServerStartRunTests`.
 **Status:** holds — a second `start()` refused as `run-in-flight` while the first is still spinning up decides nothing; the first one's outcome answers both callers.
+
+## [2026-11-17] A base that moves during a gate refresh is merged in by the app, not handed to a person
+**Kind:** decision
+**What:** When a gate-refresh round ends with the branch behind the base again, the app merges the base into the branch itself and runs the item's `verify:` on the result, for as many merges as a run gets review rounds (`maxRetries`). A merge that conflicts is aborted and fails the round, as does a failing verify or a base still ahead after the last merge. No second worker turn is spent on it, and a worker turn that merged nothing is covered by the same merge when it is clean.
+**Why:** "Still behind after the round" was filed like a refusal, though nothing had been refused: another commit had landed while the round ran. A clean merge carries no intent, so the verify stands in for review exactly as it does for the round itself. The bound is borrowed because a second number would have to be argued for separately.
+**Evidence:** three items left at the gate in one night, each by a commit landing during its round; `GateCatchUp`, `WorktreeManager.mergeBaseCleanly(for:base:)`, `GateCatchUpTests`.
+**Status:** holds

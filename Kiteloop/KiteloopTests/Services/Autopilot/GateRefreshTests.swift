@@ -38,6 +38,13 @@ final class GateRefreshTests: XCTestCase {
 
     @discardableResult
     private func git(_ args: [String], in url: URL) -> String {
+        Self.runGit(args, in: url)
+    }
+
+    /// Off the main actor and off the instance, so a scripted runtime's turn
+    /// can commit from its own task.
+    @discardableResult
+    private nonisolated static func runGit(_ args: [String], in url: URL) -> String {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
         process.arguments = args
@@ -67,15 +74,50 @@ final class GateRefreshTests: XCTestCase {
         return base
     }
 
+    /// One more commit on the base, in the repository root — the base moving
+    /// on. Names the one file it writes: the item's worktree lives under the
+    /// root, and `git add .` there would stage the checkout itself.
+    private nonisolated static func commitOnBase(_ file: String, content: String, in repo: URL) {
+        try? content.write(to: repo.appending(path: file), atomically: true, encoding: .utf8)
+        runGit(["add", file], in: repo)
+        runGit(["commit", "-m", "the base moved again"], in: repo)
+    }
+
+    /// Makes the base move on every merge into any branch of `repo`: a
+    /// `post-merge` hook that commits on the root's checkout. Hooks are shared
+    /// by a repository's worktrees, so it fires for the worker's merge and for
+    /// each catch-up merge alike — a base that never stands still.
+    private func makeBaseMoveOnEveryMerge(in repo: URL) throws {
+        let root = repo.path(percentEncoded: false)
+        let hook = repo.appending(path: ".git/hooks/post-merge")
+        try FileManager.default.createDirectory(
+            at: hook.deletingLastPathComponent(), withIntermediateDirectories: true)
+        // A hook inherits the merging worktree's GIT_DIR and index; dropped so
+        // the commit lands in the root's checkout, not the item's.
+        try """
+        #!/bin/sh
+        unset $(git rev-parse --local-env-vars)
+        git -C "\(root)" commit -q --allow-empty -m "the base moved again"
+
+        """.write(to: hook, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: hook.path(percentEncoded: false))
+    }
+
     // MARK: - Scripted runtimes
 
     /// A worker whose turn merges `base` into whatever branch its worktree has
     /// checked out — the scripted stand-in for a real worker's Bash tool
-    /// carrying out the merge instruction.
+    /// carrying out the merge instruction. `afterMerge` runs once the merge is
+    /// in, still inside the turn: where a test moves the base during the round.
     private final class MergingAgentRuntime: AgentRuntime, @unchecked Sendable {
         private(set) var lastCwd: URL?
         let base: String
-        init(base: String) { self.base = base }
+        let afterMerge: (@Sendable () -> Void)?
+        init(base: String, afterMerge: (@Sendable () -> Void)? = nil) {
+            self.base = base
+            self.afterMerge = afterMerge
+        }
 
         func startSession(agent: Agent, cwd: URL, strategy: ResumeStrategy) async throws -> AgentSession {
             try await startSession(agent: agent, cwd: cwd, strategy: strategy, options: SessionOptions())
@@ -87,6 +129,7 @@ final class GateRefreshTests: XCTestCase {
         func send(_ message: String, attachments: [ChatAttachment], to session: AgentSession) -> AsyncStream<StreamEvent> {
             let cwd = lastCwd
             let base = self.base
+            let afterMerge = self.afterMerge
             return AsyncStream { continuation in
                 Task {
                     if let cwd {
@@ -99,6 +142,7 @@ final class GateRefreshTests: XCTestCase {
                         try? merge.run()
                         merge.waitUntilExit()
                     }
+                    afterMerge?()
                     continuation.yield(.assistantText("merged and resolved"))
                     continuation.yield(.result(StreamEvent.ResultPayload(
                         text: "merged and resolved", costUSD: 0, durationMs: 0,
@@ -320,6 +364,151 @@ final class GateRefreshTests: XCTestCase {
                           + "from before the round was never recomputed")
     }
 
+    // MARK: - The base moves during the round
+
+    /// (a) The worker merged the base, and the base took one more commit
+    /// before the round was judged. Nothing was refused: the app merges the
+    /// base in once more, the verify runs on that tree, and the round comes
+    /// out refreshed — the verify names the file only the late commit carries.
+    func testBaseMovingOnceDuringTheRoundIsCaughtUpAndRefreshed() async throws {
+        let repo = try makeRepository()
+        let base = makeStaleBranch(itemID: "gate-item", in: repo)
+        let manager = WorktreeManager(projectRoot: repo)
+
+        let tempDir = try makeTemporaryDirectory(prefix: "gate-refresh-vm")
+        let backlogViewModel = try makeBacklogViewModel(
+            itemID: "gate-item", verify: "test -f feature.txt && test -f late.txt", tempDir: tempDir)
+        let runtime = MergingAgentRuntime(base: base) {
+            Self.commitOnBase("late.txt", content: "late", in: repo)
+        }
+        let autopilot = try makeAutopilot(
+            runtime: runtime, projectRoot: repo, backlogViewModel: backlogViewModel)
+
+        let outcome = await autopilot.refreshGateItem(itemID: "gate-item")
+        XCTAssertEqual(outcome, .refreshed)
+
+        let isStaleAfter = await manager.isStale(for: "gate-item")
+        XCTAssertFalse(isStaleAfter, "the catch-up merge must have brought the late commit in")
+        XCTAssertEqual(backlogViewModel.item(withID: "gate-item")?.status, .awaitingApproval,
+                       "a refresh never moves the item off the gate")
+    }
+
+    /// (b) The commit the base took during the round collides with the
+    /// branch's own work. The catch-up merge is abandoned, the round fails
+    /// naming the conflict, and the branch is left where the worker's turn put
+    /// it — no half-made merge on it.
+    func testBaseMovingIntoAConflictFailsTheRoundAndAbortsTheMerge() async throws {
+        let repo = try makeRepository()
+        let base = makeStaleBranch(itemID: "gate-item", in: repo)
+        let branch = WorktreeSession.branchName(for: "gate-item")
+
+        let tempDir = try makeTemporaryDirectory(prefix: "gate-refresh-vm")
+        let backlogViewModel = try makeBacklogViewModel(itemID: "gate-item", verify: nil, tempDir: tempDir)
+        let runtime = MergingAgentRuntime(base: base) {
+            Self.commitOnBase("feature.txt", content: "the base's own idea of it", in: repo)
+        }
+        let autopilot = try makeAutopilot(
+            runtime: runtime, projectRoot: repo, backlogViewModel: backlogViewModel)
+
+        let outcome = await autopilot.refreshGateItem(itemID: "gate-item")
+        guard case .failed(let detail) = outcome else {
+            return XCTFail("expected failed, got \(outcome)")
+        }
+        XCTAssertTrue(detail.contains("conflicted"), detail)
+        XCTAssertEqual(backlogViewModel.item(withID: "gate-item")?.status, .awaitingApproval,
+                       "a failed refresh leaves the item at the gate")
+        XCTAssertEqual(git(["show", "\(branch):feature.txt"], in: repo), "feature",
+                       "the branch must keep its own side — the conflicting merge was abandoned")
+        XCTAssertEqual(git(["log", "--merges", "--oneline", branch], in: repo)
+                           .split(separator: "\n").count, 1,
+                       "only the worker's merge is on the branch")
+    }
+
+    /// The catch-up merge itself, on a checkout that outlives the call: a
+    /// conflicting base answers false and leaves no merge in progress; a base
+    /// that merges answers true. The project root's checkout is not touched
+    /// either way.
+    func testMergeBaseCleanlyAbortsAConflictAndMergesACleanBase() async throws {
+        let repo = try makeRepository()
+        let base = makeStaleBranch(itemID: "gate-item", in: repo)
+        let manager = WorktreeManager(projectRoot: repo)
+        let worktree = try await manager.reopen(
+            for: "gate-item", branch: WorktreeSession.branchName(for: "gate-item"))
+        let rootHeadBefore = git(["rev-parse", "HEAD"], in: repo)
+
+        let cleanMerge = await manager.mergeBaseCleanly(for: "gate-item", base: base)
+        XCTAssertTrue(cleanMerge, "a base that does not collide merges")
+        let isStaleAfter = await manager.isStale(for: "gate-item")
+        XCTAssertFalse(isStaleAfter)
+
+        Self.commitOnBase("feature.txt", content: "the base's own idea of it", in: repo)
+        let rootHeadMoved = git(["rev-parse", "HEAD"], in: repo)
+        let tipBefore = git(["rev-parse", "HEAD"], in: worktree)
+        let conflictingMerge = await manager.mergeBaseCleanly(for: "gate-item", base: base)
+        XCTAssertFalse(conflictingMerge, "a colliding base does not merge cleanly")
+        XCTAssertEqual(git(["rev-parse", "--verify", "--quiet", "MERGE_HEAD"], in: worktree), "",
+                       "the conflicting merge must have been aborted")
+        XCTAssertEqual(git(["status", "--porcelain"], in: worktree), "",
+                       "an aborted merge leaves nothing behind in the checkout")
+        XCTAssertEqual(git(["rev-parse", "HEAD"], in: worktree), tipBefore)
+        XCTAssertNotEqual(rootHeadBefore, rootHeadMoved, "the fixture must have moved the base")
+        XCTAssertEqual(git(["rev-parse", "HEAD"], in: repo), rootHeadMoved,
+                       "the project root's checkout is never merged into")
+
+        let missing = await manager.mergeBaseCleanly(for: "no-such-item", base: base)
+        XCTAssertFalse(missing, "no worktree, nothing to merge into")
+    }
+
+    /// (c) A base that takes a commit on every merge is never caught up with:
+    /// the app stops after `maxRetries` catch-up merges and fails the round
+    /// saying so, rather than chase it.
+    func testBaseThatKeepsMovingFailsTheRoundAfterTheBound() async throws {
+        let repo = try makeRepository()
+        let base = makeStaleBranch(itemID: "gate-item", in: repo)
+        try makeBaseMoveOnEveryMerge(in: repo)
+        let branch = WorktreeSession.branchName(for: "gate-item")
+
+        let tempDir = try makeTemporaryDirectory(prefix: "gate-refresh-vm")
+        let backlogViewModel = try makeBacklogViewModel(itemID: "gate-item", verify: nil, tempDir: tempDir)
+        let autopilot = try makeAutopilot(
+            runtime: MergingAgentRuntime(base: base), projectRoot: repo, backlogViewModel: backlogViewModel)
+
+        let outcome = await autopilot.refreshGateItem(itemID: "gate-item")
+        guard case .failed(let detail) = outcome else {
+            return XCTFail("expected failed, got \(outcome)")
+        }
+        XCTAssertTrue(detail.contains("after \(autopilot.maxRetries) catch-up merges"), detail)
+        // The worker's merge, then one per catch-up — and not one more.
+        XCTAssertEqual(git(["log", "--merges", "--oneline", branch], in: repo)
+                           .split(separator: "\n").count, 1 + autopilot.maxRetries)
+        XCTAssertEqual(backlogViewModel.item(withID: "gate-item")?.status, .awaitingApproval)
+    }
+
+    /// (d) The catch-up merge is clean, but the tree it makes does not pass the
+    /// item's `verify:` — the round fails as any round with a failing verify
+    /// does, and the verify was asked of the final tree.
+    func testCleanCatchUpWithAFailingVerifyStillFailsTheRound() async throws {
+        let repo = try makeRepository()
+        let base = makeStaleBranch(itemID: "gate-item", in: repo)
+        let manager = WorktreeManager(projectRoot: repo)
+
+        let tempDir = try makeTemporaryDirectory(prefix: "gate-refresh-vm")
+        // Passes on what the worker's own merge left, fails once the late
+        // commit is in: only a verify run after the catch-up can fail.
+        let backlogViewModel = try makeBacklogViewModel(
+            itemID: "gate-item", verify: "test ! -f late.txt", tempDir: tempDir)
+        let runtime = MergingAgentRuntime(base: base) {
+            Self.commitOnBase("late.txt", content: "late", in: repo)
+        }
+        let autopilot = try makeAutopilot(
+            runtime: runtime, projectRoot: repo, backlogViewModel: backlogViewModel)
+
+        let outcome = await autopilot.refreshGateItem(itemID: "gate-item")
+        XCTAssertEqual(outcome, .failed(detail: "verify failed on the rebased branch"))
+        let isStaleAfter = await manager.isStale(for: "gate-item")
+        XCTAssertFalse(isStaleAfter, "the catch-up merge itself went in")
+    }
+
     // MARK: - The gate's own preconditions
 
     func testNotAtTheGateAnswersNothingToRefresh() async throws {
@@ -360,10 +549,13 @@ final class GateRefreshTests: XCTestCase {
     // MARK: - The bounded retry
 
     /// Three rounds that leave the branch stale retire the item — a fourth
-    /// round is refused before it starts, without ever leaving the gate.
+    /// round is refused before it starts, without ever leaving the gate. The
+    /// base collides with the branch's own work, so the app's catch-up merge
+    /// cannot stand in for the worker that resolved nothing.
     func testThreeFailedRoundsRetireTheItem() async throws {
         let repo = try makeRepository()
         _ = makeStaleBranch(itemID: "gate-item", in: repo)
+        Self.commitOnBase("feature.txt", content: "the base's own idea of it", in: repo)
 
         let tempDir = try makeTemporaryDirectory(prefix: "gate-refresh-vm")
         let backlogViewModel = try makeBacklogViewModel(itemID: "gate-item", verify: nil, tempDir: tempDir)
