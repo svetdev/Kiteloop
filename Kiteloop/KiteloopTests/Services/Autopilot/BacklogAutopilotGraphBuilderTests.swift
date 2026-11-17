@@ -185,6 +185,27 @@ final class BacklogAutopilotGraphBuilderTests: XCTestCase {
                       "reviewer prompt must tell it to fail, not just to mention the absence")
     }
 
+    /// The one empty diff a reviewer may pass: the worker claimed the item was
+    /// already built and the gate handed the reviewer that claim. The section
+    /// is rendered only then, hands over the evidence as something to check,
+    /// and asks for every Validation line to be met by the code as it stands.
+    func testReviewerPromptPutsAnAlreadyImplementedClaimToTheReviewerAsAClaim() throws {
+        let prompt = try XCTUnwrap(makeGraph().nodes["reviewer"]?.prompt)
+        XCTAssertTrue(prompt.contains("{{#if state.\(ClaimReview.stateKey)}}"), prompt)
+
+        let evidence = ClaimReview.promptBlock(evidence: ["Foo.swift: Foo.bar"])
+        let claimed = WorkflowStateTemplater.render(
+            template: prompt, state: [ClaimReview.stateKey: .string(evidence)]).rendered
+        let flowed = claimed.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        XCTAssertTrue(flowed.contains("- Foo.swift: Foo.bar"), flowed)
+        XCTAssertTrue(flowed.contains("Check every Validation line against the code as it stands"), flowed)
+        XCTAssertTrue(flowed.contains("Pass only if the existing code meets every criterion"), flowed)
+        XCTAssertTrue(flowed.contains("Do not take it as true"), flowed)
+
+        let ordinary = WorkflowStateTemplater.render(template: prompt, state: [:]).rendered
+        XCTAssertFalse(ordinary.contains("already built"), "a run with a diff is told nothing about a claim")
+    }
+
     // MARK: - Rubric 2 (How, before Validation)
 
     /// The travel incident this guards against: a reviewer that checked

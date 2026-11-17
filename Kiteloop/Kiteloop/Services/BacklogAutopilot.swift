@@ -229,6 +229,13 @@ class BacklogAutopilot {
         /// or one a person approved later, which happens long after this
         /// result is written.
         var approval: Approval?
+        /// Where the item was left, for whoever asks that rather than how the
+        /// run is filed: `outcome`, except that a claim the reviewer verified
+        /// (`ClaimReview`) left its item done, not at the gate.
+        var settledOutcome: Outcome {
+            if case .alreadyImplemented = outcome, approval == .automatic { return .done }
+            return outcome
+        }
         /// Whether this run's own merge landed the branch — true, false when
         /// one was attempted and refused, nil when none was attempted: a gate
         /// that waits for a person, or a project that never merges. A merge a
@@ -989,6 +996,20 @@ class BacklogAutopilot {
         case closed(signal: String)
     }
     private var reviewGate: ReviewGate = .pending
+    /// Whether this item's review is of a worker's already-implemented claim
+    /// rather than of a diff, and how that went — see `ClaimReview`. Reset
+    /// with the gate, so it speaks for the item in flight only.
+    private var claimReview: ClaimReview = .none
+    /// What a run the gate ended is blocked on: the signal the pre-review gate
+    /// shut with, or the rejection of a claim the reviewer was handed.
+    private var gateEndedRunSignal: String? {
+        closedReviewGateSignal ?? (claimReview == .rejected ? Self.reviewRejectedReason : nil)
+    }
+    /// The signal the pre-review gate was shut with, or nil while it is not shut.
+    private var closedReviewGateSignal: String? {
+        guard case .closed(let signal) = reviewGate else { return nil }
+        return signal
+    }
     /// What the item's own `verify:` answered on this run's tree, measured by
     /// `measureVerify` — at the pre-review gate, or at the salvage re-check
     /// that decides a cut-short run on its own. Nil until one of them has run,
@@ -1699,10 +1720,25 @@ class BacklogAutopilot {
 
         Run each verify command. Check the acceptance criteria against the actual changes made.
 
-        If nothing was changed — an empty diff, no new files — say so and fail the
-        review. An empty diff is not evidence for any of the criteria above, so
-        "passed" is the one verdict it can never earn, however green the verify
-        commands are on an unchanged tree.
+        {{#if state.alreadyImplementedClaim}}## No diff, on purpose: the worker claims this item is already built
+        This run changed no files. The worker says the code already in the tree
+        satisfies the item, and named this as its evidence:
+        {{state.alreadyImplementedClaim}}
+
+        That is a claim, and nothing has checked it — you are the check. Do not
+        take it as true: the list above is where to start reading, not proof.
+        Check every Validation line against the code as it stands, reading the
+        code itself, and run each verify command. Wherever this prompt says
+        "the diff", read "the code as it stands". Pass only if the existing code
+        meets every criterion, by the means How names. Otherwise fail, with one
+        blocking finding for each criterion that is unmet or that you could not
+        confirm from the code. Change no files yourself.{{/if}}
+
+        If nothing was changed — an empty diff, no new files — and no section
+        above says the diff is empty on purpose, say so and fail the review. An
+        empty diff is not evidence for any of the criteria above, so "passed" is
+        the one verdict it can never earn, however green the verify commands are
+        on an unchanged tree.
 
         Respond with a JSON object:
         {"passed": true/false, "reason": "brief explanation",
@@ -3267,6 +3303,7 @@ class BacklogAutopilot {
             // per item and cleared when it ends, so no other workflow this
             // orchestrator runs is gated by it.
             reviewGate = .pending
+            claimReview = .none
             // Cleared with the gate: a verdict measured on the previous item's
             // tree must never be filed against this one.
             lastVerifyVerdict = nil
@@ -3276,8 +3313,8 @@ class BacklogAutopilot {
             continuationOwed = false
             earlierPassCostUSD = 0
             orchestrator.nodeActivationGate = { [weak self] executionID, nodeID in
-                guard let self, Self.isGatedReviewNode(nodeID) else { return true }
-                return await self.allowReviewerToRun(executionID: executionID, session: session)
+                guard let self else { return true }
+                return await self.allowNodeToRun(nodeID, executionID: executionID, session: session)
             }
             defer { orchestrator.nodeActivationGate = nil }
 
@@ -3396,9 +3433,11 @@ class BacklogAutopilot {
                         itemResult = ItemResult(id: item.id, title: item.title, outcome: .blocked(reason), duration: duration)
                     }
                 case .cancelled:
-                    if case .closed(let signal) = reviewGate {
+                    if let signal = gateEndedRunSignal {
                         // Not a human cancelling: the pre-review gate ended this
-                        // run because there was nothing for the reviewer to read.
+                        // run because there was nothing for the reviewer to read
+                        // — or the reviewer sent back a claim that the item was
+                        // already built, which `settleCheckedClaim` below routes.
                         // Blocked, so teardown keeps the worktree and the
                         // post-teardown check below asks git the same question
                         // again — its answer is what returns the item to Ready and
@@ -3521,7 +3560,12 @@ class BacklogAutopilot {
                 // and skips the coverage check below. A worker that changed
                 // nothing *and said why* is none of those things — its session
                 // plainly answered — so the claim path clears it.
-                var noWorkSignal = workEvidence.missingSignal
+                //
+                // A claim the reviewer was handed is settled first, and clears
+                // it for the same reason whichever way the review went.
+                var noWorkSignal = settleCheckedClaim(
+                    &itemResult, item: item, emptySignal: workEvidence.missingSignal,
+                    reviewPassed: reviewPassed, execution: finalExecution, backlog: backlogViewModel)
                 if let missing = noWorkSignal {
                     // Git says the run left nothing; the worker's own last words
                     // say why, and are the only thing that separates a session
@@ -4152,9 +4196,99 @@ class BacklogAutopilot {
         guard let missing = verdict.missingSignal else {
             return await verifyThenOpenReviewGate(executionID: executionID, session: session)
         }
+        // Nothing to review — unless the worker said the item is already built
+        // and this project lands review-passed work: then the claim is what
+        // the reviewer checks. Through the verify first, like any run.
+        if await putsClaimToReview(executionID: executionID) {
+            return await verifyThenOpenReviewGate(executionID: executionID, session: session)
+        }
         return await closeReviewGate(missing,
                                      cause: "no-work-before-review",
                                      executionID: executionID)
+    }
+
+    /// The gate on every node of the item's graph. The reviewer is let in by
+    /// `allowReviewerToRun`. The worker is always let in, except straight
+    /// after the reviewer sent back a claim that the item was already built:
+    /// that worker has said it would change nothing, so the run ends there
+    /// and the findings go to the item (`ClaimReview`).
+    private func allowNodeToRun(_ nodeID: String, executionID: String,
+                                session: WorktreeSession?) async -> Bool {
+        if Self.isGatedReviewNode(nodeID) {
+            return await allowReviewerToRun(executionID: executionID, session: session)
+        }
+        guard nodeID == "worker", case .underReview = claimReview else { return true }
+        claimReview = .rejected
+        appendLog("The reviewer did not pass the claim that the item is already built; ending the run here")
+        logPhase(.itemAbort, [
+            ("item", runQueue.indices.contains(currentIndex) ? runQueue[currentIndex].id : nil),
+            ("execution", executionID),
+            ("node", nodeID),
+            ("cause", ClaimReview.rejectedCause),
+            ("reason", Self.reviewRejectedReason),
+        ], isError: true)
+        await orchestrator?.cancelWorkflow(executionID: executionID)
+        return false
+    }
+
+    /// Whether an empty run's closing message is a claim the reviewer should
+    /// check (`ClaimReview.evidenceToReview`) — and if so, records that this
+    /// item's review is a claim review and writes the worker's evidence into
+    /// the execution's state for the reviewer's prompt. The reviewer is handed
+    /// it as a claim to check, never as a finding.
+    private func putsClaimToReview(executionID: String) async -> Bool {
+        let closing = await workerClosingMessage(executionID: executionID)
+        guard let evidence = ClaimReview.evidenceToReview(
+            landsReviewPassedWork: approveReviewPassedRuns,
+            claimedEvidence: RunWorkEvidence.AlreadyImplementedClaim.parse(closing)?.evidence,
+            premiseRefuted: PremiseReport.parse(closing)?.isRefuted == true) else { return false }
+        claimReview = .underReview(evidence: evidence)
+        await orchestrator?.workflowEngine.mergeState(
+            executionID: executionID,
+            updates: [ClaimReview.stateKey: .string(ClaimReview.promptBlock(evidence: evidence))])
+        appendLog("No files changed and the worker says the item is already built — "
+                  + "the reviewer checks that claim against the Validation")
+        return true
+    }
+
+    /// Ends a run whose already-implemented claim went to the reviewer, and
+    /// returns the no-work signal the run is left with: nil when the claim was
+    /// settled here — the worker's session answered, so the run is not one
+    /// that achieved nothing — and `emptySignal` untouched for every other run.
+    ///
+    /// Passed: the item is done, approved by the review rather than a person,
+    /// still filed as `.alreadyImplemented`. Rejected: back to Ready with the
+    /// reviewer's reason and findings in its Notes. Verify red: left blocked
+    /// on the verify, as any run is.
+    private func settleCheckedClaim(_ itemResult: inout ItemResult, item: BacklogItem, emptySignal: String?,
+                                    reviewPassed: Bool, execution: WorkflowExecution?,
+                                    backlog: BacklogViewModel) -> String? {
+        guard let ending = claimReview.ending(reviewPassed: reviewPassed, runWasEmpty: emptySignal != nil,
+                                              gateClosedSignal: closedReviewGateSignal) else { return emptySignal }
+        switch ending {
+        case .verified(let evidence):
+            appendLog("Already implemented (reviewer verified): \(item.title) — the reviewer checked "
+                      + "the worker's claim against the Validation and passed it; marked Done")
+            backlog.approve(itemID: item.id, closure: .autoApproved)
+            backlog.appendNote(itemID: item.id, ClaimReview.verifiedNote(evidence: evidence))
+            itemResult.outcome = .alreadyImplemented
+            itemResult.approval = .automatic
+            // Nobody left to summon: this item's gate is closed.
+            pendingGateNotification = nil
+        case .rejected:
+            let review = Self.lastReviewOutput(in: execution)
+            let feedback = ReviewFindings.feedback(ReviewFindings.findings(in: review),
+                                                   reason: review["reason"]?.stringValue)
+            appendLog("Claim rejected: \(item.title) — the reviewer did not find the item already built; "
+                      + "returned to Ready")
+            backlog.updateItemStatus(itemID: item.id, newStatus: .ready)
+            backlog.appendNote(itemID: item.id, ClaimReview.rejectedNote(feedback: feedback))
+        case .verifyFailed(let signal):
+            backlog.appendNote(itemID: item.id, ClaimReview.verifyFailedNote(signal: signal))
+        }
+        itemResult.closingMessage = RunClosingMessage.phrase(
+            RunClosingMessage.rawLastMessage(in: execution?.steps ?? [], node: "worker"))
+        return nil
     }
 
     /// The last gate before the reviewer, and the only place the app itself
@@ -5386,9 +5520,9 @@ class BacklogAutopilot {
     private func recordRunKnowledgeEvent(item: BacklogItem, result: ItemResult, costUSD: Double) {
         let reviewerPassed: Bool = {
             switch result.outcome {
-            // A claim run never reached the reviewer — the pre-review gate ends
-            // a run with nothing to review — so there is no verdict to report as
-            // a pass, and `mergeAttempted` below must not be derived from one.
+            // A claim run has no branch to merge — whether it waited for a
+            // person or the reviewer checked the claim (`ClaimReview`) — so
+            // `mergeAttempted` below must not be derived from a pass.
             case .blocked, .cancelled, .alreadyImplemented, .investigation: return false
             default: return true
             }
@@ -9147,10 +9281,7 @@ extension BacklogAutopilot {
     /// `verify:` — the value `recordMetric` files on the run's metric record.
     var lastVerifyVerdictForTesting: RunVerifyVerdict? { lastVerifyVerdict }
     /// The signal the gate was shut with, or nil while it is not shut.
-    var closedReviewGateSignalForTesting: String? {
-        guard case .closed(let signal) = reviewGate else { return nil }
-        return signal
-    }
+    var closedReviewGateSignalForTesting: String? { closedReviewGateSignal }
     /// What the *next* run does to the last one's evidence: `start()` clears the
     /// in-memory results before it queues anything. Anything that reported a
     /// finished run by reading them has to survive this.

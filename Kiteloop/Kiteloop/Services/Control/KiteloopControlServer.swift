@@ -4041,7 +4041,7 @@ final class KiteloopControlServer {
             // last month's.
             "startedAt": Self.iso.string(from: run.startedAt),
             "state": "finished",
-            "outcome": didNotRunIDs.contains(run.runId) ? "did_not_run" : Self.outcomeLabel(result.outcome),
+            "outcome": didNotRunIDs.contains(run.runId) ? "did_not_run" : Self.outcomeLabel(result.settledOutcome),
             "durationSec": Int(result.duration),
             "itemStatus": backlogStatus,
             "historical": false
@@ -4293,7 +4293,7 @@ final class KiteloopControlServer {
         // ending of its own, so `.blocked` — the only vocabulary a synthetic
         // `ItemResult` here can carry — would misreport a refusal that spent
         // nothing as a run that got stuck.
-        record.outcome = didNotRunIDs.contains(run.runId) ? .didNotRun : Self.persistedOutcome(result.outcome)
+        record.outcome = didNotRunIDs.contains(run.runId) ? .didNotRun : Self.persistedOutcome(result.settledOutcome)
         record.durationSec = Int(result.duration)
         record.itemStatus = itemStatus(entry: entry, itemId: run.itemId)
         if case .blocked(let reason) = result.outcome { record.reason = reason }
@@ -6396,7 +6396,8 @@ final class KiteloopControlServer {
         switch outcome {
         case .done: return .done
         // The wire vocabulary answers "where did the item end up", and a claim
-        // run ends it at the approval gate — which is what a driver has to act
+        // run ends it at the approval gate (one the reviewer verified ended
+        // it done, and arrives here as `.done`) — which is what a driver has to act
         // on, and what `itemStatus` beside it says too. The distinction the
         // claim makes is about the *ledger*, not about the gate: it is
         // `TaskMetricRecord.alreadyImplementedOutcome` that keeps the run out of
