@@ -47,7 +47,7 @@ package enum ProcessTree {
         let alive = pids.filter { kill($0, 0) == 0 }
         guard !alive.isEmpty else { return }
         for pid in alive { kill(pid, SIGTERM) }
-        usleep(500_000)
+        waitOutGracePeriod()
         for pid in alive where kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
@@ -62,7 +62,11 @@ package enum ProcessTree {
     /// synchronous and `Orchestrator` is `@MainActor`: every `usleep` here is a
     /// frozen window. Nothing in this call matches on command text; the
     /// descendants swept are only the pids collected above.
-    package static func terminateAll(_ processes: [Process]) {
+    ///
+    /// `gracePeriod` is the wait between TERM and KILL. Callers leave it alone;
+    /// a test passes its own to count how many this call pays, which a clock
+    /// cannot tell apart from a slow `pgrep` on a busy machine.
+    package static func terminateAll(_ processes: [Process], gracePeriod: () -> Void = waitOutGracePeriod) {
         let roots = processes.filter { $0.isRunning }
         guard !roots.isEmpty else { return }
 
@@ -70,11 +74,17 @@ package enum ProcessTree {
 
         for root in roots { root.terminate() }
         sendSignal(SIGTERM, toAliveIn: descendants)
-        usleep(500_000)
+        gracePeriod()
         for root in roots where root.isRunning {
             kill(root.processIdentifier, SIGKILL)
         }
         sendSignal(SIGKILL, toAliveIn: descendants)
+    }
+
+    /// How long a process handed SIGTERM gets to exit before SIGKILL follows —
+    /// the one grace period both sweeps above wait out.
+    package static func waitOutGracePeriod() {
+        usleep(500_000)
     }
 
     /// Sends `signalNumber` to whichever of `pids` is still alive.

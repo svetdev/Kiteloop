@@ -7,22 +7,28 @@ import XCTest
 /// forked running and reparented.
 final class ProcessTreeTests: XCTestCase {
 
-    /// Every child these tests spawn carries a `sleep 8102xx` or `sleep 8109xx`
-    /// marker. A run under a mutant that disables the kill — mutate-core runs
-    /// exactly those — leaves them alive for nine days, and the next unmutated
-    /// run then finds "the forked child" still there and fails for the wrong
-    /// reason. So the slate is wiped before each test, by marker, with a kill
+    /// Every child these tests spawn sleeps for a number no other test run on
+    /// the machine uses: `81`, this test process's pid, then the case's own two
+    /// digits. Several runs share a machine — a suite beside an item's
+    /// `verify:`, one worktree beside another — and a marker they all spelled
+    /// the same let one run's wipe kill another's children mid-test, and let
+    /// one run's "is it gone" find another's child still alive.
+    private static let runPrefix = String(format: "81%05d", getpid())
+
+    private static func marker(_ testCase: Int) -> String {
+        runPrefix + String(format: "%02d", testCase)
+    }
+
+    /// A run under a mutant that disables the kill — mutate-core runs exactly
+    /// those — would leave these children alive for years, and a later process
+    /// handed the same pid would find "the forked child" already there. So the
+    /// slate is wiped around each test, by this run's prefix alone, with a kill
     /// that does not lean on the code under test.
-    override func setUpWithError() throws {
-        for prefix in ["sleep 8102", "sleep 8109"] {
-            let pkill = Process()
-            pkill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-            pkill.arguments = ["-9", "-f", prefix]
-            pkill.standardOutput = FileHandle.nullDevice
-            pkill.standardError = FileHandle.nullDevice
-            try? pkill.run()
-            pkill.waitUntilExit()
-        }
+    override func setUpWithError() throws { Self.wipeThisRunsChildren() }
+    override func tearDownWithError() throws { Self.wipeThisRunsChildren() }
+
+    private static func wipeThisRunsChildren() {
+        commandOutput("/usr/bin/pkill", ["-9", "-f", "sleep \(runPrefix)"])
     }
 
     // MARK: - A root and everything it forked
@@ -31,21 +37,33 @@ final class ProcessTreeTests: XCTestCase {
     /// child of the shell. `terminateAll` must collect that descendant before
     /// signalling the shell — `descendantPIDs(of:)` can only walk `pgrep -P`
     /// while the child is still reparented under a live shell — so the forked
-    /// child is gone by the time the call returns.
-    func testARootsForkedChildIsGoneWhenTheCallReturns() {
-        let process = spawn(["-lc", "sleep 810201 & wait"])
+    /// child has been signalled by the time the call returns.
+    @MainActor
+    func testARootsForkedChildIsGoneWhenTheCallReturns() async throws {
+        let process = spawn(["-lc", "sleep \(Self.marker(1)) & wait"])
+        try await forkedSleepsToStart(["sleep \(Self.marker(1))"])
         ProcessTree.terminateAll([process])
-        XCTAssertFalse(isProcessRunning(matching: "sleep 810201"),
-                        "the forked child must not survive the call returning")
+        try await eventually("the forked child to be gone") {
+            !Self.isProcessRunning(matching: "sleep \(Self.marker(1))")
+        }
     }
 
     /// A root that traps and ignores SIGTERM must still be gone when the call
     /// returns — the escalation to SIGKILL is what makes that true.
-    func testARootThatIgnoresSIGTERMIsGoneWhenTheCallReturns() {
-        let process = spawn(["-lc", "trap '' TERM; sleep 810202"])
+    ///
+    /// Both tests here wait for the shell to have started its `sleep` first: a
+    /// child born after the `pgrep -P` walk is not a descendant, so a call that
+    /// lands in that window orphans it. And both wait for the processes to be
+    /// gone rather than looking once: SIGKILL has been sent when the call
+    /// returns, and the kernel ends the process when it is next scheduled.
+    @MainActor
+    func testARootThatIgnoresSIGTERMIsGoneWhenTheCallReturns() async throws {
+        let process = spawn(["-lc", "trap '' TERM; sleep \(Self.marker(2))"])
+        try await forkedSleepsToStart(["sleep \(Self.marker(2))"])
         ProcessTree.terminateAll([process])
-        XCTAssertFalse(isProcessRunning(matching: "sleep 810202"),
-                        "a root ignoring SIGTERM must still be killed")
+        try await eventually("the root ignoring SIGTERM, and its sleep, to be gone") {
+            !Self.isProcessRunning(matching: "sleep \(Self.marker(2))")
+        }
     }
 
     /// The sweep only reaches pids collected as descendants of the roots it
@@ -53,14 +71,14 @@ final class ProcessTreeTests: XCTestCase {
     func testABystanderThatOnlySharesTheKilledCommandsTextSurvives() {
         let bystander = Process()
         bystander.executableURL = URL(fileURLWithPath: "/bin/sleep")
-        bystander.arguments = ["810203"]
+        bystander.arguments = [Self.marker(3)]
         try? bystander.run()
         defer {
             bystander.terminate()
             bystander.waitUntilExit()
         }
 
-        let process = spawn(["-lc", "sleep 810203 & wait"])
+        let process = spawn(["-lc", "sleep \(Self.marker(3)) & wait"])
         ProcessTree.terminateAll([process])
 
         XCTAssertTrue(bystander.isRunning,
@@ -69,30 +87,33 @@ final class ProcessTreeTests: XCTestCase {
 
     // MARK: - Batching
 
-    /// The grace period `terminateAll` sleeps out is 500ms, and it must sleep
-    /// it exactly once however many roots and descendants it is handed. This
-    /// bound sits between one grace period and two: the calls below measure
-    /// 0.67s and 0.88s as written — the one sleep, plus a `pgrep` per node of
-    /// the walk — against 1.20s and 1.36s for a sweep that pays a second one,
-    /// the roots first and then their descendants. So that sweep fails here
-    /// rather than passing under a loose bound.
-    private let oneGracePeriod = 0.95
+    /// `terminateAll` must wait out the grace period exactly once however many
+    /// roots and descendants it is handed, so these tests hand it the grace
+    /// period and count the calls. A sweep that pays a second one — the roots
+    /// first and then their descendants — counts two. Timing the call instead
+    /// measured the `pgrep` per node of the walk as well, which on a busy
+    /// machine alone runs past any bound set between one period and two.
+    private final class GracePeriods {
+        private(set) var waited = 0
+        func wait() { waited += 1 }
+    }
 
     /// Two roots handed to one call must both be swept, and the call pays the
     /// grace period once rather than once per root.
     @MainActor
     func testTwoRootsInOneCallAreBothSweptAndPayOneGracePeriod() async throws {
-        let first = spawn(["-lc", Self.rootIgnoringTERMForking("810204")])
-        let second = spawn(["-lc", Self.rootIgnoringTERMForking("810205")])
-        try await forkedSleepsToStart(["sleep 810204", "sleep 810205"])
+        let first = spawn(["-lc", Self.rootIgnoringTERMForking(Self.marker(4))])
+        let second = spawn(["-lc", Self.rootIgnoringTERMForking(Self.marker(5))])
+        try await forkedSleepsToStart(["sleep \(Self.marker(4))", "sleep \(Self.marker(5))"])
 
-        let start = Date()
-        ProcessTree.terminateAll([first, second])
-        let elapsed = Date().timeIntervalSince(start)
+        let gracePeriods = GracePeriods()
+        ProcessTree.terminateAll([first, second], gracePeriod: gracePeriods.wait)
 
-        XCTAssertFalse(isProcessRunning(matching: "sleep 810204"))
-        XCTAssertFalse(isProcessRunning(matching: "sleep 810205"))
-        XCTAssertLessThan(elapsed, oneGracePeriod, "two roots should not each pay their own grace period")
+        XCTAssertEqual(gracePeriods.waited, 1, "two roots should not each pay their own grace period")
+        try await eventually("both roots and their forked sleeps to be gone") {
+            !Self.isProcessRunning(matching: "sleep \(Self.marker(4))")
+                && !Self.isProcessRunning(matching: "sleep \(Self.marker(5))")
+        }
     }
 
     /// A single root that ignores SIGTERM and forks a child pays that same one
@@ -100,28 +121,25 @@ final class ProcessTreeTests: XCTestCase {
     /// it are signalled together, not one set after the other.
     @MainActor
     func testARootAndItsForkedChildPayOneGracePeriodBetweenThem() async throws {
-        let process = spawn(["-lc", Self.rootIgnoringTERMForking("810206")])
-        try await forkedSleepsToStart(["sleep 810206"])
+        let process = spawn(["-lc", Self.rootIgnoringTERMForking(Self.marker(6))])
+        try await forkedSleepsToStart(["sleep \(Self.marker(6))"])
 
-        let start = Date()
-        ProcessTree.terminateAll([process])
-        let elapsed = Date().timeIntervalSince(start)
+        let gracePeriods = GracePeriods()
+        ProcessTree.terminateAll([process], gracePeriod: gracePeriods.wait)
 
+        XCTAssertEqual(gracePeriods.waited, 1,
+                       "a root and its descendants should not each pay their own grace period")
         // `pgrep -f` matches the root shell too: the marker is in its argv.
-        XCTAssertFalse(isProcessRunning(matching: "sleep 810206"),
-                        "neither the TERM-ignoring root nor the child it forked may survive")
-        XCTAssertLessThan(elapsed, oneGracePeriod,
-                          "a root and its descendants should not each pay their own grace period")
+        try await eventually("the TERM-ignoring root and the child it forked to be gone") {
+            !Self.isProcessRunning(matching: "sleep \(Self.marker(6))")
+        }
     }
 
     /// A shell that ignores SIGTERM and forks a child that ignores it too —
     /// the child `exec`s `sleep`, so the ignored disposition survives into a
     /// process whose command line is exactly `sleep <marker>`. Both halves
-    /// have to outlive TERM for the timing to mean anything: `Process`
-    /// launches its child in its own process group and `terminate()` reaches
-    /// that group, so a child taking the default action would already be gone
-    /// before the descendant sweep ran and a second grace period would cost
-    /// nothing to measure.
+    /// have to outlive TERM for the KILL that follows the grace period to be
+    /// what ends them, root and descendant alike.
     private static func rootIgnoringTERMForking(_ marker: String) -> String {
         "trap '' TERM; { trap '' TERM; exec sleep \(marker); } & wait"
     }
@@ -145,14 +163,14 @@ final class ProcessTreeTests: XCTestCase {
     /// nearer generation first, while the root is still running.
     @MainActor
     func testDescendantPIDsListsAForkedChildAndItsGrandchild() async throws {
-        let process = spawn(["-c", "sleep 810901 & /bin/zsh -c 'sleep 810902 & wait' & wait"])
-        defer { Self.reap(process, markers: ["sleep 810901", "sleep 810902"]) }
+        let process = spawn(["-c", "sleep \(Self.marker(11)) & /bin/zsh -c 'sleep \(Self.marker(12)) & wait' & wait"])
+        defer { Self.reap(process, markers: ["sleep \(Self.marker(11))", "sleep \(Self.marker(12))"]) }
 
         let child = try await eventuallyValue("the forked sleep to start") {
-            Self.pidOfExactCommand("sleep 810901")
+            Self.pidOfExactCommand("sleep \(Self.marker(11))")
         }
         let grandchild = try await eventuallyValue("the grandchild sleep to start") {
-            Self.pidOfExactCommand("sleep 810902")
+            Self.pidOfExactCommand("sleep \(Self.marker(12))")
         }
 
         let descendants = ProcessTree.descendantPIDs(of: process.processIdentifier)
@@ -169,8 +187,8 @@ final class ProcessTreeTests: XCTestCase {
     /// A live pid handed to `killDescendants` is gone afterwards.
     @MainActor
     func testKillDescendantsEndsAPidItIsHanded() async throws {
-        let process = spawnSleep("810903")
-        defer { Self.reap(process, markers: ["sleep 810903"]) }
+        let process = spawnSleep(Self.marker(13))
+        defer { Self.reap(process, markers: ["sleep \(Self.marker(13))"]) }
         XCTAssertTrue(process.isRunning)
 
         ProcessTree.killDescendants([process.processIdentifier])
@@ -184,10 +202,10 @@ final class ProcessTreeTests: XCTestCase {
     func testKillDescendantsEscalatesToSIGKILLForAPidThatIgnoresSIGTERM() async throws {
         // `exec` keeps the pid: once the shell has replaced itself with sleep,
         // that one process carries the ignored TERM.
-        let process = spawn(["-c", "trap '' TERM; exec sleep 810904"])
-        defer { Self.reap(process, markers: ["sleep 810904"]) }
+        let process = spawn(["-c", "trap '' TERM; exec sleep \(Self.marker(14))"])
+        defer { Self.reap(process, markers: ["sleep \(Self.marker(14))"]) }
         try await eventually("the shell to have exec'd into sleep") {
-            Self.pidOfExactCommand("sleep 810904") == process.processIdentifier
+            Self.pidOfExactCommand("sleep \(Self.marker(14))") == process.processIdentifier
         }
 
         ProcessTree.killDescendants([process.processIdentifier])
@@ -207,10 +225,10 @@ final class ProcessTreeTests: XCTestCase {
         return process
     }
 
-    /// True while some process anywhere on the machine has `pattern` in its
-    /// command line — used to check a forked child is actually gone, not just
+    /// True while some process has `pattern` — one of this run's own markers —
+    /// in its command line — used to check a forked child is actually gone, not just
     /// the shell that forked it.
-    private func isProcessRunning(matching pattern: String) -> Bool {
+    private static func isProcessRunning(matching pattern: String) -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
         process.arguments = ["-f", pattern]
