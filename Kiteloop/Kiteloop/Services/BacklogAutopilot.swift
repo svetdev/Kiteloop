@@ -3276,11 +3276,8 @@ class BacklogAutopilot {
             do {
                 let firstPass = try await orchestrator.startWorkflow(graph: graph, initialState: initialState)
                 currentExecutionID = firstPass
+                noteExecutionStarted(firstPass)
                 onExecutionStarted?(firstPass)
-                let execID = try await orchestrator.startWorkflow(graph: graph, initialState: initialState)
-                currentExecutionID = execID
-                noteExecutionStarted(execID)
-                onExecutionStarted?(execID)
 
                 // A worker cut short with work in its worktree gets one more
                 // pass here, before anything below judges the run or tears
