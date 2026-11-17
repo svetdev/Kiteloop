@@ -97,9 +97,23 @@ time limit,** until a person answers it:
   and nothing changes.
 - **The log line cannot be written** — the call answers **500** with the
   reason and nothing changes: a change is never applied unrecorded.
-- **The caller hangs up first** — the card stays, so you see what was asked,
-  marked as no longer waiting; answering it applies nothing and is logged as
-  `abandoned`. Give a held call a long client timeout (`curl --max-time 0`).
+- **The caller hangs up first** — a client timeout, a dropped connection —
+  and the change still waits: the card stays, marked as one whose request has
+  ended, and **approving it applies the change just the same**. It is exactly
+  the call you read on the card, logged first. The caller reads what became of
+  it with [`GET /v1/config-changes/{id}`](#get-v1config-changesid), and finds
+  the id with [`GET /v1/config-changes`](#get-v1config-changes), which lists
+  what its own credential asked for. So a caller whose request was cut off
+  reads the change rather than asking again, which would file a second card.
+  A long client timeout (`curl --max-time 0`) still saves the round trip.
+- **Kiteloop quits first** — every card still waiting is logged as
+  `abandoned` and applies nothing; ask again after the restart. A crash or a
+  force quit drops the cards the same way but writes no line.
+
+What became of each answered change — approved with the status and body the
+call answered, declined, or approved but unrecorded — is kept in memory, the
+newest 1000, for the credential that asked and for you; none of it survives a
+restart.
 
 Which calls — the ones that change what agents are allowed to do or what
 Kiteloop does unattended:
@@ -312,6 +326,8 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | GET | `/v1/attention` | Everything waiting on you across every open project, oldest first, each row naming the call that answers it |
 | GET | `/v1/events` | Every open project's inbox notices as one live, resumable SSE stream |
 | POST | `/v1/config-changes/{id}/answer` | Approve or decline a configuration change an agent asked for over this API — a [human gate](#human-gates) |
+| GET | `/v1/config-changes` | The configuration changes the calling credential asked for that waited on a person: the ones still waiting and what became of the ones answered |
+| GET | `/v1/config-changes/{id}` | What became of one of them — waiting, approved (with what the call answered), declined or unrecorded |
 | GET | `/v1/memory/proposals?project=` | List a project's pending memory proposals |
 | POST | `/v1/memory/proposals/approve` | Approve one — applies it to the agent's memory |
 | POST | `/v1/memory/proposals/reject` | Reject one — takes it off the list, writes nothing |
@@ -2694,15 +2710,103 @@ curl -s -X POST -H "$H" -d '{"approve": true}' $B/config-changes/$ID/answer
 {"id": "6F1C…", "decision": "approved"}
 ```
 
-`approve` is required: `true` writes the decision to the change log and lets
-the held call apply; `false` answers it 403. `decision` is `approved`, `denied`
-or `abandoned` — the caller had hung up, so the card was cleared and nothing
-applied, whichever was sent.
+`approve` is required: `true` writes the decision to the change log and then
+applies the held call; `false` answers it 403. `decision` is `approved` or
+`denied`. A change whose caller has hung up is answered the same way: approved,
+it is applied, and the caller reads the result from
+[`GET /v1/config-changes/{id}`](#get-v1config-changesid).
 
 **Status:** 200 · 400 (no boolean `approve`) · 401 · 403 (the
 [operator token](#authentication) or a scoped token) · 404 (no change with that
 id is waiting) · 500 (the approval could not be written to the change log, so
 the change was refused)
+
+---
+
+### GET /v1/config-changes
+
+The [configuration changes held for a person](#configuration-changes-wait-on-a-person)
+that **the calling credential asked for**: the answered ones still kept, then
+the ones waiting, each oldest first. This is how a caller whose held request
+timed out finds its change again. The operator token sees what the operator
+token asked for — every agent with Operator tools shares that one credential —
+and a scoped token sees only its own, by the token's id rather than its name.
+The control token and a paired phone see every change.
+
+```bash
+curl -s -H "$H" $B/config-changes
+```
+
+```json
+{
+  "count": 1,
+  "changes": [
+    {
+      "id": "6F1C…",
+      "state": "waiting",
+      "caller": "operator",
+      "route": "PUT /v1/settings",
+      "summary": "{\"defaultModel\":\"opus\"}",
+      "project": null,
+      "askedAt": "2026-11-17T09:12:44Z",
+      "response": null,
+      "reason": null
+    }
+  ]
+}
+```
+
+Each entry is what [`GET /v1/config-changes/{id}`](#get-v1config-changesid)
+returns for it.
+
+**Status:** 200 · 401
+
+---
+
+### GET /v1/config-changes/{id}
+
+What became of one held change.
+
+```bash
+curl -s -H "$H" $B/config-changes/$ID
+```
+
+```json
+{
+  "id": "6F1C…",
+  "state": "approved",
+  "caller": "operator",
+  "route": "PUT /v1/settings",
+  "summary": "{\"defaultModel\":\"opus\"}",
+  "project": null,
+  "askedAt": "2026-11-17T09:12:44Z",
+  "response": {"status": 200, "body": {"defaultModel": "opus"}},
+  "reason": null
+}
+```
+
+| Field | Meaning |
+|-------|---------|
+| `state` | `waiting` — nobody has answered the card; read again later, do not ask again. `approved` — logged and applied. `declined` — the person said no; nothing changed. `unrecorded` — approved, but the decision could not be written to the change log, so nothing changed |
+| `caller` | The credential that asked — `operator`, or a scoped token's name and scope |
+| `route` / `summary` | The held call's method and path, and its query and body with secrets left out — what the card shows |
+| `project` | The name of the open project the call names; `null` for a change to the app as a whole |
+| `askedAt` | When the call was held, ISO 8601 |
+| `response` | For an `approved` change: `status` and `body`, exactly what the held call answered — the body as JSON when it was JSON, else as a string. A handler that refused the call after approval is reported as it answered, e.g. `status` 400. `null` for the moment the call is still running, and in every other state |
+| `reason` | For an `unrecorded` change: why nothing was applied; else `null` |
+
+Only the credential that asked, the control token or a paired phone reads a
+change. To any other credential it answers 404, as an id that never existed
+does, so an id tells a stranger nothing. `response` carries nothing the caller
+would not have been sent on the request itself, and `summary` is the redacted
+one.
+
+Answered changes are kept in memory — the newest 1000 — and dropped at a
+restart, after which every id answers 404. A change that was still waiting when
+Kiteloop quit was not applied.
+
+**Status:** 200 · 401 · 404 (no change with that id is held or kept for this
+credential)
 
 ---
 

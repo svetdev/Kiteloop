@@ -39,7 +39,10 @@ package actor AppEventFeed {
     private var lastSeq = 0
     private var subscribers: [UUID: AsyncStream<Event>.Continuation] = [:]
 
-    package init(capacity: Int = 1000) {
+    /// How many events the feed holds for a client that reconnects.
+    package static let defaultCapacity = 1000
+
+    package init(capacity: Int = AppEventFeed.defaultCapacity) {
         self.capacity = max(1, capacity)
     }
 

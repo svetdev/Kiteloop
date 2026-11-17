@@ -14,16 +14,22 @@ struct ConfigChangeEndpoints {
     }
 
     /// Holds a configuration change made with the operator token or a scoped
-    /// one until a person answers it. Nil lets the call through to its
-    /// handler: it is not such a change, or it was approved and logged.
-    /// Otherwise the answer the caller gets, with nothing changed.
-    func refusal(_ route: ControlRoute, _ req: HTTPServer.Request,
-                 credential: ControlCredential?, caller: String) async -> HTTPServer.Response? {
+    /// one until a person answers it, then answers for it: what `applying`
+    /// answered once approved and logged, or the refusal, with nothing
+    /// changed. Nil for a call that is not such a change — the caller goes on
+    /// to its handler.
+    ///
+    /// The change does not depend on this request staying open. A caller that
+    /// hangs up leaves its card, an approval applies it just the same, and
+    /// what it answered is kept for `GET /v1/config-changes/{id}`.
+    func held(_ route: ControlRoute, _ req: HTTPServer.Request, credential: ControlCredential?, caller: String,
+              applying: @escaping @MainActor () async -> HTTPServer.Response) async -> HTTPServer.Response? {
         guard holdsAgentChanges,
               ConfigChangeGate.waitsOnAPerson(route: route, method: req.method, credential: credential) else {
             return nil
         }
-        let change = HeldConfigChange(caller: caller, route: "\(req.method) \(req.path)",
+        let change = HeldConfigChange(caller: caller, asker: server.configChangeReader(req).key,
+                                      route: "\(req.method) \(req.path)",
                                       summary: ConfigChangeSummary.text(query: req.query, body: req.body),
                                       project: heldChangeProject(req), askedAt: Date())
         let held = server.configChanges
@@ -31,16 +37,29 @@ struct ConfigChangeEndpoints {
         NotificationService.shared.notifyApprovalNeeded(
             headline: "\(caller) asks to change configuration", detail: change.route,
             gate: "config-change|\(change.id)")
-        switch await held.outcome(of: change) {
-        case .approved:
-            return nil
+        let outcome = await held.outcome(of: change) {
+            let response = await applying()
+            return ConfigChangeOutcome.Applied(status: response.status, headers: response.headers, body: response.body)
+        }
+        return Self.response(to: outcome, of: change)
+    }
+
+    /// What the held request itself is sent.
+    private static func response(to outcome: HeldConfigChanges.Outcome,
+                                 of change: HeldConfigChange) -> HTTPServer.Response {
+        switch outcome {
+        case .approved(let applied):
+            return HTTPServer.Response(status: applied.status, headers: applied.headers, body: applied.body)
         case .declined:
             return .error("declined by the person", status: 403)
         case .callerGone:
-            return .error("the caller hung up before a person answered; nothing was changed", status: 500)
+            return .error("the caller hung up before a person answered; the change still waits — "
+                          + "read GET /v1/config-changes/\(change.id)", status: 500)
         case .unrecorded(let reason):
             return .error("approved, but the decision could not be written to the change log, "
                           + "so nothing was changed: \(reason)", status: 500)
+        case .abandoned:
+            return .error("Kiteloop quit before a person answered; nothing was changed", status: 500)
         }
     }
 
@@ -49,9 +68,31 @@ struct ConfigChangeEndpoints {
     /// write the same log line before anything applies.
     @discardableResult
     func answer(_ id: String, approve: Bool) -> HeldConfigChanges.Answer {
-        server.configChanges.answer(id, approve: approve) { change, record in
+        server.configChanges.answer(id, approve: approve) { _, record in
             try ConfigChangeLog.append(record, to: logURL)
         }
+    }
+
+    /// The app is quitting: every card still waiting gets its `abandoned` line.
+    func abandonWaiting() {
+        server.configChanges.abandonWaiting { _, record in
+            try ConfigChangeLog.append(record, to: logURL)
+        }
+    }
+
+    /// `GET /v1/config-changes`: the changes this reader asked for — every
+    /// one, for the person.
+    func list(for reader: ConfigChangeReader) -> HTTPServer.Response {
+        .json(ConfigChangeReport.list(server.configChanges.outcomes(for: reader)))
+    }
+
+    /// `GET /v1/config-changes/{id}`: what became of one. Another
+    /// credential's change is as unknown as one that never was.
+    func outcome(_ id: String, for reader: ConfigChangeReader) -> HTTPServer.Response {
+        guard let outcome = server.configChanges.outcome(id, for: reader) else {
+            return .error("No configuration change \(id) is held or kept for this credential", status: 404)
+        }
+        return .json(ConfigChangeReport.json(outcome))
     }
 
     /// `POST /v1/config-changes/{id}/answer`: `{"approve": true|false}`.
@@ -64,7 +105,6 @@ struct ConfigChangeEndpoints {
         switch answer(id, approve: approve.boolValue) {
         case .approved: return .json(["id": id, "decision": ConfigChangeLog.Decision.approved.rawValue])
         case .declined: return .json(["id": id, "decision": ConfigChangeLog.Decision.denied.rawValue])
-        case .abandoned: return .json(["id": id, "decision": ConfigChangeLog.Decision.abandoned.rawValue])
         case .unknown: return .error("No configuration change \(id) is waiting", status: 404)
         case .unrecorded(let reason):
             return .error("The approval could not be written to the change log, so the change was refused: \(reason)",

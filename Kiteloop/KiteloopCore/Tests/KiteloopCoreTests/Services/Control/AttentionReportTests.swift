@@ -147,7 +147,7 @@ final class AttentionReportTests: XCTestCase {
         change.callerGone = true
         let row = try XCTUnwrap(WaitingOnYou.capture(projects: [], configChanges: [change]).rows.first)
 
-        XCTAssertEqual(row.detail, "the caller has gone — answering clears this and applies nothing · agent=Ada")
+        XCTAssertEqual(row.detail, "the caller's request has ended — approving still applies this · agent=Ada")
     }
 
     private func reading(gated: [WaitingOnYou.ProjectReading.GatedItem] = [],

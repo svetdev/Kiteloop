@@ -288,7 +288,7 @@ package struct WaitingOnYou: Equatable, Sendable {
             gate: .configChange(requestID: change.id),
             title: change.route,
             detail: change.callerGone
-                ? "the caller has gone — answering clears this and applies nothing · \(change.summary)"
+                ? "the caller's request has ended — approving still applies this · \(change.summary)"
                 : change.summary,
             since: change.askedAt,
             agentName: change.caller
