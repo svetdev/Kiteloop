@@ -1306,7 +1306,7 @@ struct AutopilotView: View {
     /// one of them goes red.
     private func resultRow(_ result: BacklogAutopilot.ItemResult) -> some View {
         HStack(spacing: 6) {
-            switch result.outcome {
+            switch result.settledOutcome {
             case .done:
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 9))

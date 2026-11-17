@@ -220,7 +220,13 @@ Three things now stand between that and a green-looking queue:
 2. **The reviewer is instructed to fail an empty diff outright.** In the shipped
    reviewer prompt: *an empty diff is not evidence for any of the criteria, so
    "passed" is the one verdict it can never earn, however green the verify
-   commands are on an unchanged tree.*
+   commands are on an unchanged tree.* The one exception is a diff that is empty
+   on purpose: where the approval gate is `land`, a worker's claim that the item
+   is already built, naming its evidence, is handed to the reviewer as a claim
+   to check (`ClaimReview`). The reviewer checks every Validation line against
+   the code as it stands; a pass marks the item done, and a rejection ends the
+   run and returns the item to `ready` with the findings in its Notes. Where the
+   gate is `propose` the claim waits for a person, unverified and saying so.
 3. **A circuit breaker.** A streak of items producing no work pauses the run and
    says why, rather than chewing through the backlog restarting agents.
 

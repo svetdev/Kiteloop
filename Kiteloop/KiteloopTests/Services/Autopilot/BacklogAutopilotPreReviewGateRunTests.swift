@@ -11,8 +11,11 @@ import KiteloopCore
 /// end the item before the reviewer is ever triggered, and each ending is
 /// carried through the rest of the item's exit path to the status and the
 /// Notes a person reads. A run that clears the gate and passes review reaches
-/// the approval gate. And, before any of it, the base's own health check
-/// (`noteBaseHealth`), which a start runs once per base tip.
+/// the approval gate. An empty run that closes on the worker's claim that the
+/// item is already built is the one the gate lets through with no diff, where
+/// the project lands review-passed work (`ClaimReview`). And, before any of
+/// it, the base's own health check (`noteBaseHealth`), which a start runs once
+/// per base tip.
 @MainActor
 final class BacklogAutopilotPreReviewGateRunTests: XCTestCase {
 
@@ -88,6 +91,155 @@ final class BacklogAutopilotPreReviewGateRunTests: XCTestCase {
         XCTAssertFalse(triggered.contains("reviewer"), "\(triggered)")
         XCTAssertTrue(try notes().contains("returned to Ready"))
         XCTAssertTrue(autopilot.log.contains { $0.message.hasPrefix("Skipping review — \(reason)") })
+    }
+
+    // MARK: - A claim that the item is already built
+
+    /// Where the gate lands review-passed work, an empty run that closes on
+    /// the worker's already-implemented claim goes to the reviewer, and a
+    /// pass marks the item done — checked by the review, accepted by nobody.
+    func testAClaimTheReviewerPassesMarksTheItemDoneWhereTheGateLands() async throws {
+        let autopilot = try await makeProject(verify: "true", git: true)
+        land(autopilot)
+
+        let result = try await runOneItem(autopilot) { execID in
+            self.complete("worker", in: execID, output: self.claim)
+            try await eventually("the gate to let the reviewer in") { self.triggered.contains("reviewer") }
+            self.complete("reviewer", in: execID, output: ["passed": .string("true"), "reason": .string("all met")])
+        }
+
+        guard case .alreadyImplemented = result.outcome else { return XCTFail("\(result.outcome)") }
+        XCTAssertNil(autopilot.closedReviewGateSignalForTesting)
+        XCTAssertEqual(result.approval, .automatic)
+        XCTAssertEqual(BacklogAutopilot.outcomeString(result.settledOutcome), "done",
+                       "the run's result says where the item was left")
+        XCTAssertEqual(backlog.item(withID: "item-1")?.status, .done)
+        let notes = try notes()
+        XCTAssertTrue(notes.contains("verified by the reviewer"), notes)
+        XCTAssertTrue(notes.contains("Foo.swift: `Foo.bar` already does this"), notes)
+        XCTAssertFalse(notes.contains("Nothing has verified that"), notes)
+        XCTAssertFalse(autopilot.log.contains { $0.message.contains("awaiting your approval") && $0.message.hasPrefix("Already") })
+    }
+
+    /// A claim the reviewer does not pass ends the run there: the item goes
+    /// back to Ready carrying the reviewer's reason, the worker is not sent
+    /// round again, and the run is not one that produced no work.
+    func testAClaimTheReviewerRejectsReturnsTheItemToReadyWithTheReason() async throws {
+        let autopilot = try await makeProject(verify: "true", git: true)
+        land(autopilot)
+
+        let result = try await runOneItem(autopilot) { execID in
+            self.complete("worker", in: execID, output: self.claim)
+            try await eventually("the gate to let the reviewer in") { self.triggered.contains("reviewer") }
+            self.complete("reviewer", in: execID,
+                          output: ["passed": .string("false"), "reason": .string("criterion 1 is not built")])
+        }
+
+        guard case .blocked(let reason) = result.outcome else { return XCTFail("\(result.outcome)") }
+        XCTAssertEqual(reason, BacklogAutopilot.reviewRejectedReason)
+        XCTAssertNil(autopilot.closedReviewGateSignalForTesting)
+        XCTAssertEqual(backlog.item(withID: "item-1")?.status, .ready)
+        let notes = try notes()
+        XCTAssertTrue(notes.contains("claim rejected by the reviewer"), notes)
+        XCTAssertTrue(notes.contains("criterion 1 is not built"), notes)
+        XCTAssertEqual(triggered.filter { $0 == "worker" }.count, 1, "\(triggered)")
+        let messages = autopilot.log.map(\.message)
+        XCTAssertFalse(messages.contains { $0.contains("agent session") || $0.contains("produced no work") },
+                       "a rejected claim is not a no-work run: \(messages)")
+    }
+
+    /// A claim whose item's own verify is red on the unchanged tree ends at
+    /// the verify, before the reviewer, as any run does.
+    func testAClaimWithARedVerifyEndsAtTheVerifyBeforeTheReviewer() async throws {
+        let autopilot = try await makeProject(verify: "false", git: true)
+        land(autopilot)
+
+        let result = try await runOneItem(autopilot) { execID in
+            self.complete("worker", in: execID, output: self.claim)
+        }
+
+        guard case .blocked(let reason) = result.outcome else { return XCTFail("\(result.outcome)") }
+        XCTAssertEqual(reason, "verify failed (exit 1)")
+        XCTAssertEqual(autopilot.closedReviewGateSignalForTesting, reason)
+        XCTAssertFalse(triggered.contains("reviewer"), "\(triggered)")
+        XCTAssertEqual(backlog.item(withID: "item-1")?.status, .blocked)
+        XCTAssertTrue(try notes().contains("claim not reviewed"))
+    }
+
+    /// Where the gate only proposes, the same claim waits for a person as it
+    /// always has: no reviewer, and Notes that say nothing checked it.
+    func testAClaimWaitsForAPersonWhereTheGateProposes() async throws {
+        let autopilot = try await makeProject(verify: "true", git: true)
+        XCTAssertEqual(autopilot.approvalGate, .propose)
+
+        let result = try await runOneItem(autopilot) { execID in
+            self.complete("worker", in: execID, output: self.claim)
+        }
+
+        guard case .alreadyImplemented = result.outcome else { return XCTFail("\(result.outcome)") }
+        XCTAssertNil(result.approval)
+        XCTAssertEqual(BacklogAutopilot.outcomeString(result.settledOutcome),
+                       TaskMetricRecord.alreadyImplementedOutcome)
+        XCTAssertFalse(triggered.contains("reviewer"), "\(triggered)")
+        XCTAssertEqual(backlog.item(withID: "item-1")?.status, .awaitingApproval)
+        XCTAssertTrue(try notes().contains("Nothing has verified that"))
+    }
+
+    /// A claim that names no evidence is no claim: where the gate lands, the
+    /// run still ends before the reviewer and the item returns to Ready.
+    func testAClaimWithNoEvidenceIsStillAnEmptyRunWhereTheGateLands() async throws {
+        let autopilot = try await makeProject(verify: "true", git: true)
+        land(autopilot)
+
+        let result = try await runOneItem(autopilot) { execID in
+            self.complete("worker", in: execID, output: self.closing(
+                #"{"outcome": "already-implemented", "evidence": []}"#))
+        }
+
+        guard case .blocked(let reason) = result.outcome else { return XCTFail("\(result.outcome)") }
+        XCTAssertEqual(autopilot.closedReviewGateSignalForTesting, reason)
+        XCTAssertEqual(backlog.item(withID: "item-1")?.status, .ready)
+        XCTAssertFalse(triggered.contains("reviewer"), "\(triggered)")
+    }
+
+    /// A refuted premise is a person's to read, whichever gate the project
+    /// has and even beside a claim: an investigation, never reviewed.
+    func testARefutedPremiseStillWaitsForAPersonWhereTheGateLands() async throws {
+        try await assertARefutedPremiseWaitsForAPerson(landing: true)
+    }
+
+    func testARefutedPremiseStillWaitsForAPersonWhereTheGateProposes() async throws {
+        try await assertARefutedPremiseWaitsForAPerson(landing: false)
+    }
+
+    private func assertARefutedPremiseWaitsForAPerson(landing: Bool) async throws {
+        let autopilot = try await makeProject(verify: "true", git: true)
+        if landing { land(autopilot) }
+        let message = "- refuted: the route the item says is missing is in `Router.table`\n\n"
+            + #"{"outcome": "already-implemented", "evidence": ["Router.swift: the route"]}"#
+
+        let result = try await runOneItem(autopilot) { execID in
+            self.complete("worker", in: execID, output: self.closing(message))
+        }
+
+        guard case .investigation = result.outcome else { return XCTFail("\(result.outcome)") }
+        XCTAssertFalse(triggered.contains("reviewer"), "\(triggered)")
+        XCTAssertEqual(backlog.item(withID: "item-1")?.status, .awaitingApproval)
+    }
+
+    /// The gate that lands review-passed work, as the Settings page sets it.
+    private func land(_ autopilot: BacklogAutopilot) {
+        autopilot.approvalGate = .land
+        autopilot.autoMergeVerifyCommand = "true"
+    }
+
+    /// A worker's closing message that is a well-formed claim.
+    private var claim: [String: AnyCodable] {
+        closing(#"Nothing to change. {"outcome": "already-implemented", "evidence": ["Foo.swift: `Foo.bar` already does this"]}"#)
+    }
+
+    private func closing(_ message: String) -> [String: AnyCodable] {
+        [RunClosingMessage.outputKey: .string(message)]
     }
 
     // MARK: - A cut-short worker is continued once
