@@ -304,3 +304,10 @@ Entry format:
 **Why:** The minor was climbing with nearly every release, so it had stopped saying anything about the size of a change.
 **Evidence:** 0.5.0, 0.6.0 and 0.7.0 shipped within five days; the release after 0.7.0 is 0.7.1.
 **Status:** holds — supersedes "patch for fixes, minor for new capability" in `CLAUDE.md` and `docs/release-runbook.md`.
+
+## [2026-11-16] Control token scopes nest
+**Kind:** decision
+**What:** A scoped control token's scope is one of `read`, `operate` and `configure`, and they nest: `configure` includes `operate`, which includes `read`. No scoped token resolves a human gate or manages `/v1/tokens`; only the full control token mints, lists or revokes them.
+**Why:** Driving work needs to see what it drives, and setting a team up needs to try it, so separate scopes would have every useful token hold two or three. Keeping token management to the control token stops a scoped token minting a wider one.
+**Evidence:** `ControlScope.includes`, `ControlRoute.scope`, `KiteloopControlServer.scopeRefusal`; `ControlRouterTests.testScopesNest`.
+**Status:** holds

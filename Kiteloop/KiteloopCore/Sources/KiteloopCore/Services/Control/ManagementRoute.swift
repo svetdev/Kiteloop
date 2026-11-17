@@ -48,6 +48,23 @@ package enum ManagementRoute: Equatable, Sendable {
     case deleteMCPServer(name: String)
     case getSettings
     case setSettings
+
+    /// The scope a scoped token needs: reads are `read`, a session's start,
+    /// stop and chats are `operate`, and every edit is `configure`.
+    package var scope: ControlScope {
+        switch self {
+        case .listAgentChats, .getProjectSettings, .getAgentMemory, .getSharedMemory,
+             .listClaudeMemory, .listKnowledge, .getKnowledgeFile, .listMCPServers, .getSettings:
+            return .read
+        case .startAgent, .stopAgent, .restartAgent, .newAgentChat, .openAgentChat:
+            return .operate
+        case .deleteAgentChat, .closeProject, .setProjectSettings, .updateBacklogItem, .deleteBacklogItem,
+             .addMemoryFact, .rewriteMemoryFact, .archiveMemoryFact, .setSharedMemory,
+             .putClaudeMemoryNote, .deleteClaudeMemoryNote, .putKnowledgeFile,
+             .putMCPServer, .deleteMCPServer, .setSettings:
+            return .configure
+        }
+    }
 }
 
 /// What each `ManagementRoute` accepts and returns. One function per route,

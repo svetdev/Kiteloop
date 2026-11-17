@@ -41,14 +41,16 @@ pairing QR's one-time code stands in for it — requires a bearer token:
 Authorization: Bearer <token>
 ```
 
-There are **two** shared tokens, and a token per paired phone, all accepted on
-the same header, differing only in what they authorize:
+There are **two** shared tokens, a token per paired phone, and any scoped
+tokens you mint, all accepted on the same header, differing only in what they
+authorize:
 
 | Token | File | Authorized for |
 |---|---|---|
 | **Control token** | `~/.kiteloop/control-token` | The whole API. This is the operator's own credential. |
 | **Operator token** | `~/.kiteloop/operator-token` | The whole API **except** the endpoints that resolve a human gate: [`POST /v1/backlog/approve`](#post-v1backlogapprove), [`POST /v1/runs/{runId}/approve`](#post-v1runsrunidapprove) and [`POST /v1/backlog/land`](#post-v1backlogland), the merge half of an approval taken later. All three answer **403** for this token. |
 | **Phone token** | `~/.kiteloop/control-devices.json` (its SHA-256 only) | The whole API, as the control token. Minted for that one phone when it claims the one-time code **Pair a phone** shows ([`POST /v1/pair`](#post-v1pair)); revoked alone under **Settings → Control API → Paired phones**, leaving the other phones and the control token working. |
+| **Scoped token** | `~/.kiteloop/control-scoped-tokens.json` (its SHA-256 only) | The routes inside its scope: `read`, `operate` or `configure`. Scopes nest — `configure` includes `operate`, which includes `read`. A route outside the scope answers **403** naming the scope the token lacks, e.g. `this token's scope is read; POST /v1/runs needs operate`. No scoped token resolves a human gate or calls `/v1/tokens`: both answer **403**. Minted and revoked with the control token over [`/v1/tokens`](#post-v1tokens). |
 
 Both are minted the same way, at first use, `0600`: `cat ~/.kiteloop/control-token`
 / `cat ~/.kiteloop/operator-token`. The Settings pane shows the control token's
@@ -239,6 +241,9 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | DELETE | `/v1/routines/{id}` | Remove a routine |
 | POST | `/v1/routines/{id}/run` | Send a routine's prompt now |
 | GET | `/v1/routines/runs` | The ledger of firings, newest first |
+| GET | `/v1/tokens` | The scoped tokens: id, name, scope, when minted (control token only) |
+| POST | `/v1/tokens` | Mint a scoped token; the token is in this answer only (control token only) |
+| DELETE | `/v1/tokens/{id}` | Revoke a scoped token (control token only) |
 
 Throughout the examples:
 
@@ -3118,6 +3123,62 @@ before codes.
 
 **Status:** 200 · 400 (no `code`) · 403 (the code is not on offer: used,
 withdrawn or never shown) · 404 (this Mac keeps no paired phones)
+
+### GET /v1/tokens
+
+The scoped tokens minted and not revoked, oldest first — never a token or its
+hash. Only the control token may call this; a phone, operator or scoped token
+gets **403**.
+
+```bash
+curl -s -H "$H" $B/tokens
+```
+
+```json
+{ "tokens": [ { "id": "8B2E…", "name": "dashboard", "scope": "read", "createdAt": "2026-11-16T09:12:03Z" } ] }
+```
+
+**Status:** 200 · 403 (not the control token) · 503 (this Kiteloop keeps no
+scoped tokens)
+
+### POST /v1/tokens
+
+Mints a token accepted only on the routes inside `scope`. Which scope each
+route needs is in the router (`ControlRoute.scope`): reads are `read`; driving
+work — a message, a run, a backlog move, pause and resume — is `operate`;
+setting up — hiring, settings, autopilot config, routines, device registration
+— is `configure`. Scopes nest, so a `configure` token may also operate and
+read. No scoped token resolves a human gate or manages tokens. The token is
+in this answer only; the Mac keeps its SHA-256, `0600`. Only the control token
+may call this, so no narrower credential can mint a wider one.
+
+```bash
+curl -s -H "$H" -d '{"name":"dashboard","scope":"read"}' $B/tokens
+```
+
+```json
+{ "token": "<shown this once>", "id": "8B2E…", "name": "dashboard", "scope": "read", "createdAt": "2026-11-16T09:12:03Z" }
+```
+
+**Status:** 200 · 400 (no `name`, or a `scope` that is not `read`, `operate`
+or `configure`) · 403 (not the control token) · 503 (this Kiteloop keeps no
+scoped tokens)
+
+### DELETE /v1/tokens/{id}
+
+Revokes the scoped token with this `id`, at once: it answers **401** from the
+next request. Only the control token may call this.
+
+```bash
+curl -s -X DELETE -H "$H" $B/tokens/8B2E…
+```
+
+```json
+{ "revoked": true }
+```
+
+**Status:** 200 · 403 (not the control token) · 404 (no scoped token has this
+id) · 503 (this Kiteloop keeps no scoped tokens)
 
 ### GET /v1/quick-replies
 

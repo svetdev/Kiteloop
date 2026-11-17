@@ -672,6 +672,7 @@
 		709982B651144040796CE0FD /* PushRelayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E06054E1C30015012CF0D535 /* PushRelayTests.swift */; };
 		28E2B76B86015E051FBC1BE3 /* PairedPhonesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4FE41187AB3E4523785BA8 /* PairedPhonesSection.swift */; };
 		FE3537DAB31A097BA5E11DB2 /* KiteloopControlServerPairedPhoneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC4D0CC9D277D2CF9642971F /* KiteloopControlServerPairedPhoneTests.swift */; };
+		5C0F7E0A1B2C3D4E5F600001 /* KiteloopControlServerScopedTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C0F7E0A1B2C3D4E5F600002 /* KiteloopControlServerScopedTokenTests.swift */; };
 		D7DE27303A37B11546D82CDE /* QuickRepliesSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF03AC86FCCC9B24C366F632 /* QuickRepliesSection.swift */; };
 		F63E28F00E315004BD259CA9 /* KiteloopControlServerQuickRepliesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0577EEB4EA91D2D8FE1C1447 /* KiteloopControlServerQuickRepliesTests.swift */; };
 		7814670E498E8C1413C52B5E /* WorkflowEngineConditionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22EA38F16EE721E40FE0F2EF /* WorkflowEngineConditionTests.swift */; };
@@ -1375,6 +1376,7 @@
 		E06054E1C30015012CF0D535 /* PushRelayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRelayTests.swift; sourceTree = "<group>"; };
 		5D4FE41187AB3E4523785BA8 /* PairedPhonesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairedPhonesSection.swift; sourceTree = "<group>"; };
 		BC4D0CC9D277D2CF9642971F /* KiteloopControlServerPairedPhoneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerPairedPhoneTests.swift; sourceTree = "<group>"; };
+		5C0F7E0A1B2C3D4E5F600002 /* KiteloopControlServerScopedTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerScopedTokenTests.swift; sourceTree = "<group>"; };
 		DF03AC86FCCC9B24C366F632 /* QuickRepliesSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickRepliesSection.swift; sourceTree = "<group>"; };
 		0577EEB4EA91D2D8FE1C1447 /* KiteloopControlServerQuickRepliesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerQuickRepliesTests.swift; sourceTree = "<group>"; };
 		22EA38F16EE721E40FE0F2EF /* WorkflowEngineConditionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEngineConditionTests.swift; sourceTree = "<group>"; };
@@ -2328,6 +2330,7 @@
 			children = (
 				0577EEB4EA91D2D8FE1C1447 /* KiteloopControlServerQuickRepliesTests.swift */,
 				BC4D0CC9D277D2CF9642971F /* KiteloopControlServerPairedPhoneTests.swift */,
+				5C0F7E0A1B2C3D4E5F600002 /* KiteloopControlServerScopedTokenTests.swift */,
 				E06054E1C30015012CF0D535 /* PushRelayTests.swift */,
 				987D541FF3270CA9B1F1CAE8 /* KiteloopControlServerWorkspaceTests.swift */,
 				5E0E1F3829D674C882B19D8A /* KiteloopControlServerAgentSteeringTests.swift */,
@@ -2863,6 +2866,7 @@
 				7814670E498E8C1413C52B5E /* WorkflowEngineConditionTests.swift in Sources */,
 				F63E28F00E315004BD259CA9 /* KiteloopControlServerQuickRepliesTests.swift in Sources */,
 				FE3537DAB31A097BA5E11DB2 /* KiteloopControlServerPairedPhoneTests.swift in Sources */,
+				5C0F7E0A1B2C3D4E5F600001 /* KiteloopControlServerScopedTokenTests.swift in Sources */,
 				709982B651144040796CE0FD /* PushRelayTests.swift in Sources */,
 				72342798D992FA41029D8A10 /* KiteloopControlServerWorkspaceTests.swift in Sources */,
 				B672B9743B2073764A137A59 /* KiteloopControlServerAgentSteeringTests.swift in Sources */,

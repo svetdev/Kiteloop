@@ -119,12 +119,59 @@ final class ControlRouterTests: XCTestCase {
             ("GET",  "/v1/routines/runs",       .listRoutineRuns),
             ("PUT",  "/v1/routines/brief",      .putRoutine(id: "brief")),
             ("DELETE", "/v1/routines/brief",    .deleteRoutine(id: "brief")),
-            ("POST", "/v1/routines/brief/run",  .runRoutine(id: "brief"))
+            ("POST", "/v1/routines/brief/run",  .runRoutine(id: "brief")),
+            ("GET",  "/v1/tokens",              .listTokens),
+            ("POST", "/v1/tokens",              .mintToken),
+            ("DELETE", "/v1/tokens/tok-1",      .revokeToken(id: "tok-1"))
         ]
         for (method, path, route) in expected {
             XCTAssertEqual(ControlRouter.match(method: method, path: path), route,
                            "\(method) \(path) resolved to the wrong route")
         }
+    }
+
+    // MARK: - Scopes
+
+    /// A route of each kind carries the scope a scoped token needs for it.
+    func testEachKindOfRouteCarriesItsScope() {
+        let expected: [(ControlRoute, ControlScope)] = [
+            (.listBacklog, .read),
+            (.runStatus(runID: "r"), .read),
+            (.agentTranscript, .read),
+            (.startRun, .operate),
+            (.messageAgent, .operate),
+            (.pauseAutopilot, .operate),
+            (.setAutopilot, .configure),
+            (.hireAgent, .configure),
+            (.putRoutine(id: "r"), .configure),
+            (.mintToken, .configure),
+            (.manage(.getSettings), .read),
+            (.manage(.startAgent), .operate),
+            (.manage(.setSettings), .configure),
+            // The human gates are operate, and still refused to every scoped token.
+            (.approveBacklogItem, .operate),
+            (.approveRun(runID: "r"), .operate),
+            (.landBacklogItem, .operate)
+        ]
+        for (route, scope) in expected {
+            XCTAssertEqual(route.scope, scope, "\(route)")
+        }
+    }
+
+    /// Scopes nest: configure includes operate, which includes read.
+    func testScopesNest() {
+        XCTAssertTrue(ControlScope.configure.includes(.operate))
+        XCTAssertTrue(ControlScope.configure.includes(.read))
+        XCTAssertTrue(ControlScope.operate.includes(.read))
+        XCTAssertFalse(ControlScope.read.includes(.operate))
+        XCTAssertFalse(ControlScope.operate.includes(.configure))
+    }
+
+    /// Only the /v1/tokens routes are kept to the full control token.
+    func testOnlyTheTokenRoutesAreTokenManagement() {
+        let managed = ControlRouter.endpoints.filter(\.route.isTokenManagement).map(\.templatedPath)
+        XCTAssertEqual(Set(managed), ["/v1/tokens", "/v1/tokens/{id}"])
+        XCTAssertEqual(ControlRouter.endpoints.first { $0.route == .mintToken }?.scope, .configure)
     }
 
     // MARK: - Run id capture

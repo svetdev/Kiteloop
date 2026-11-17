@@ -1,5 +1,30 @@
 import Foundation
 
+/// What a scoped control token may do. Every route carries one. They nest:
+/// `configure` includes `operate`, which includes `read` — a token that may
+/// change how the team is set up may also drive it and look at it.
+package enum ControlScope: String, Codable, Sendable, CaseIterable {
+    /// Look, change nothing: lists, details, diffs, transcripts, events.
+    case read
+    /// Drive the work: message an agent, start a run, move an item, pause.
+    case operate
+    /// Set the team and project up: hire, settings, autopilot, routines.
+    case configure
+
+    private var rank: Int {
+        switch self {
+        case .read: return 0
+        case .operate: return 1
+        case .configure: return 2
+        }
+    }
+
+    /// Whether a token of this scope may call a route that needs `needed`.
+    package func includes(_ needed: ControlScope) -> Bool {
+        rank >= needed.rank
+    }
+}
+
 /// Every request the control API can answer, as a value. Only what the method and
 /// path say — query and body stay on the request, since the handlers read them.
 package enum ControlRoute: Equatable {
@@ -133,6 +158,14 @@ package enum ControlRoute: Equatable {
     case cancelRun(runID: String)
     case steerRun(runID: String)
 
+    // Scoped tokens
+    /// `GET /v1/tokens` — the scoped tokens, never their hashes.
+    case listTokens
+    /// `POST /v1/tokens` — mint one; its plaintext is in this answer only.
+    case mintToken
+    /// `DELETE /v1/tokens/{id}` — revoke one.
+    case revokeToken(id: String)
+
     /// `/health` is the liveness probe a driver hits before it has a token — or to
     /// find out whether the one it has is stale — and `POST /v1/pair` is how a
     /// phone gets one, its one-time code standing in for the token. Everything
@@ -154,6 +187,48 @@ package enum ControlRoute: Equatable {
         switch self {
         case .approveBacklogItem, .approveRun, .landBacklogItem: return true
         default: return false
+        }
+    }
+
+    /// Whether this route mints, lists or revokes scoped tokens — which only
+    /// the full control token may do, so no narrower credential can mint a
+    /// wider one.
+    package var isTokenManagement: Bool {
+        switch self {
+        case .listTokens, .mintToken, .revokeToken: return true
+        default: return false
+        }
+    }
+
+    /// The scope a scoped token needs to call this route. Exhaustive with no
+    /// `default:`, so a route added without a scope is a compile error.
+    package var scope: ControlScope {
+        switch self {
+        case .health, .listProjects, .listAgents, .agentTranscript, .agentEvents,
+             .listQuickReplies, .workspaceChanges, .workspaceFile, .previewScreenshot,
+             .listAgentTasks, .backlogItemDetail, .backlogItemDiff, .listTemplates,
+             .listBacklog, .listMetrics, .listEstimates, .listGrooming, .portfolioReport,
+             .getAutopilot, .fleetStatus, .usage, .listMemoryProposals,
+             .getCoordinatorRefill, .getCoordinatorScheduling, .listProposals,
+             .listRoutines, .listRoutineRuns, .openAPIDocument,
+             .listRuns, .runStatus, .runResult, .runEvents, .runLog:
+            return .read
+        case .openProject, .askAboutProject, .messageAgent, .interruptAgent,
+             .answerAgentPlan, .answerAgentQuestion, .answerAgentPermission, .answerAgentChoices,
+             .setAgentMode, .stopAgentTask,
+             .approveBacklogItem, .landBacklogItem, .releaseBacklogItem, .refreshBacklogItem,
+             .groomBacklogItem, .moveBacklogItem, .setBacklogItemLane, .fileBacklogItem,
+             .pauseAutopilot, .resumeAutopilot, .quiesceFleet, .resumeFleet,
+             .approveMemoryProposal, .rejectMemoryProposal, .approveProposal, .dismissProposal,
+             .runRoutine, .startRun, .approveRun, .cancelRun, .steerRun:
+            return .operate
+        case .reorderProjects, .pinProjectDocument, .hireAgent, .updateAgent, .removeAgent,
+             .claimPairingCode, .registerPushDevice, .registerLiveActivity, .stampTemplate,
+             .setAutopilot, .resetAutopilot, .setCoordinatorRefill, .setCoordinatorScheduling,
+             .putRoutine, .deleteRoutine, .listTokens, .mintToken, .revokeToken:
+            return .configure
+        case .manage(let managed):
+            return managed.scope
         }
     }
 }
@@ -223,6 +298,9 @@ package enum ControlRouter {
         }
 
         package var requiresAuth: Bool { route.requiresAuth }
+
+        /// The scope a scoped token needs to call this endpoint.
+        package var scope: ControlScope { route.scope }
     
         /// The memberwise init, spelled out: a `package` type's synthesised one is
         /// internal to the package, and the app constructs this.
@@ -356,7 +434,11 @@ package enum ControlRouter {
         Row("GET",  "/v1/runs/:id/log")         { .runLog(runID: $0[0]) },
         Row("POST", "/v1/runs/:id/approve")     { .approveRun(runID: $0[0]) },
         Row("POST", "/v1/runs/:id/cancel")      { .cancelRun(runID: $0[0]) },
-        Row("POST", "/v1/runs/:id/note")        { .steerRun(runID: $0[0]) }
+        Row("POST", "/v1/runs/:id/note")        { .steerRun(runID: $0[0]) },
+
+        Row("GET",  "/v1/tokens")               { _ in .listTokens },
+        Row("POST", "/v1/tokens")               { _ in .mintToken },
+        Row("DELETE", "/v1/tokens/:id")         { .revokeToken(id: $0[0]) }
     ]
 
     /// One row of the table: a method, a path pattern whose `:` segments capture,

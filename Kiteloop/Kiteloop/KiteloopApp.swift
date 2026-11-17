@@ -127,6 +127,8 @@ struct KiteloopApp: App {
             runRecords: .shared,
             // A token per paired phone, beside the control token every other client uses.
             deviceTokens: ControlDeviceTokens(url: ControlDeviceTokens.defaultURL),
+            // Tokens narrowed to read, operate or configure, minted over `/v1/tokens`.
+            scopedTokens: ControlScopedTokens(url: ControlScopedTokens.defaultURL),
             // What was driven remotely, readable afterwards: never a body or a token.
             accessLog: ControlAccessLog(url: ControlAccessLog.defaultURL))
         // The scheduler records its own runs through the server, so a night of
