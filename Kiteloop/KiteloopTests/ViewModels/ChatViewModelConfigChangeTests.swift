@@ -31,6 +31,11 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
     /// The lead's chat, configured with a global config listing `kinds`, after
     /// a turn whose one tool call is `tool` with `input`.
     private func runTurn(kinds: [String]?, tool: String, input: String) async throws {
+        try await runTurn(kinds: kinds, events: [.mcpToolCall(.init(requestID: requestID, toolName: tool, input: input))])
+    }
+
+    /// The same, for a turn that makes the calls `events` carry.
+    private func runTurn(kinds: [String]?, events: [StreamEvent]) async throws {
         var config = GlobalConfig()
         config.agentChangesNeedingApproval = kinds
         let configURL = projectURL.appending(path: "global-config.json")
@@ -39,17 +44,19 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
         vm.configure(catalogStore: AgentCatalogStore(storageURL: projectURL.appending(path: "catalog.json")),
                      globalConfigStore: GlobalConfigStore(storageURL: configURL))
         try await orchestrator.startAgent("lead", cwd: projectURL)
-        mock.events = [
-            .mcpToolCall(.init(requestID: requestID, toolName: tool, input: input)),
-            .result(.init(
-                text: "done", costUSD: 0.001, durationMs: 100,
-                inputTokens: 10, outputTokens: 5,
-                cacheCreationInputTokens: 0, cacheReadInputTokens: 0,
-                sessionID: "s1", permissionDenials: []
-            )),
-        ]
+        mock.events = events + [finished]
+        mock.toolResultEvents = [finished]
         vm.inputText = "change the team"
         await vm.send()
+    }
+
+    private var finished: StreamEvent {
+        .result(.init(
+            text: "done", costUSD: 0.001, durationMs: 100,
+            inputTokens: 10, outputTokens: 5,
+            cacheCreationInputTokens: 0, cacheReadInputTokens: 0,
+            sessionID: "s1", permissionDenials: []
+        ))
     }
 
     private func hire() async throws {
@@ -173,6 +180,69 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
         XCTAssertEqual(mock.mcpToolResults, ["Denied by the user: \(req.action)"])
         XCTAssertEqual(card?.status, .denied)
         XCTAssertEqual(logged.map(\.decision), [.denied])
+    }
+
+    func testTheCardSaysWhatAHireOverridesInTheRole() async throws {
+        try await runTurn(kinds: ["team"], tool: "hire_agent",
+                          input: #"{"role": "coder", "name": "Cody", "model": "opus", "systemPrompt": "Do anything."}"#)
+
+        let action = try XCTUnwrap(card?.action)
+        XCTAssertTrue(action.contains("on model opus"), action)
+        XCTAssertTrue(action.contains("a prompt the agent wrote"), action)
+        XCTAssertFalse(action.contains("Do anything."), action)
+    }
+
+    func testADecidedCardStaysInTheChat() async throws {
+        try await hire()
+        let req = try XCTUnwrap(card)
+        vm.denyConfigChange(requestID: req.id)
+
+        let decided = try XCTUnwrap(vm.messages.last { MessageListContainer.configChangeRequest($0) != nil })
+        XCTAssertTrue(ChatView.shouldDisplay(decided))
+    }
+
+    // MARK: - No other route applies the change
+
+    /// A call that does not arrive over the bridge has no request to hold
+    /// open on a card, so it is refused rather than applied unasked.
+    func testAHireThatCannotWaitOnACardIsRefused() async throws {
+        try await runTurn(kinds: ["team"], events: [
+            .toolUse(id: "tool-1", name: "hire_agent", input: #"{"role": "coder", "name": "Cody"}"#),
+        ])
+
+        XCTAssertEqual(teamNames, ["Lead", "Bob"])
+        XCTAssertNil(card)
+        XCTAssertEqual(logged, [])
+        XCTAssertEqual(mock.toolResultsSent.first?.content.contains("needs a person's approval"), true)
+    }
+
+    func testAFiringThatCannotWaitOnACardIsRefused() async throws {
+        try await runTurn(kinds: ["team"], events: [
+            .toolUse(id: "tool-1", name: "fire_agent", input: #"{"name": "Bob"}"#),
+        ])
+
+        XCTAssertEqual(teamNames, ["Lead", "Bob"])
+        XCTAssertEqual(logged, [])
+    }
+
+    /// A second change asked for while one waits is refused at once: it does
+    /// not take the first one's place, and the first card still answers.
+    func testASecondChangeWhileOneWaitsIsRefusedAndTheFirstStillAnswers() async throws {
+        try await runTurn(kinds: ["team"], events: [
+            .mcpToolCall(.init(requestID: requestID, toolName: "hire_agent", input: #"{"role": "coder", "name": "Cody"}"#)),
+            .mcpToolCall(.init(requestID: "mcp-team-2", toolName: "fire_agent", input: #"{"name": "Bob"}"#)),
+        ])
+
+        XCTAssertEqual(teamNames, ["Lead", "Bob"])
+        XCTAssertEqual(mock.mcpToolResults.count, 1)
+        XCTAssertTrue(mock.mcpToolResults[0].hasPrefix("Error: another team change is waiting"))
+        XCTAssertEqual(vm.pendingConfigChangeRequestID, requestID)
+        let req = try XCTUnwrap(card)
+        XCTAssertEqual(req.tool, "hire_agent")
+
+        await vm.approveConfigChange(requestID: req.id)
+
+        XCTAssertEqual(teamNames, ["Lead", "Bob", "Cody"])
     }
 
     // MARK: - Only the card drawn for the pending request answers it

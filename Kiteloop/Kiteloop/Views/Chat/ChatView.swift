@@ -771,7 +771,8 @@ struct MessageListContainer: View {
         case .approval(let req):
             // A question stays where it was asked, marked answered; a decided
             // permission request leaves the chat.
-            return req.tool == "ask_human" || req.status == .pending
+            // A team change stays too, showing what was decided.
+            return req.tool == "ask_human" || req.status == .pending || MessageListContainer.configChangeRequest(message) != nil
         default:
             return true
         }

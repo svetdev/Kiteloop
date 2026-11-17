@@ -380,3 +380,10 @@ Entry format:
 **Why:** A routine can do only what its agent could already be asked to, in its project; a folder anywhere on the Mac would let a file dropped by anything start a turn. A watcher cannot say who changed a file, so the only bound on a routine that writes where it watches is when the change happened — the same idea as an event raised inside a routine's turn.
 **Evidence:** `WatchedFolder.resolve`, `RoutineTurnWindows`, `RoutineRunner.folderChanged`; `WatchedFolderTests`, `RoutineRunnerTests`.
 **Status:** holds — a prompt queued behind a busy agent's turn is not tracked as a routine's turn, so a change it makes is bounded by the budgets alone.
+
+## [2026-11-17] A team change that waits on a person is applied only from its approved card
+**Kind:** rule
+**What:** While `agentChangesNeedingApproval` lists `team`, an agent's `hire_agent` or `fire_agent` takes effect only from the card a person approved. A call that reaches the tools by any other route, and so has no request to hold open, is refused, and a second change asked for while one waits is refused rather than replacing it. The control API's `POST` and `DELETE /v1/agents` are not covered: a caller holding the operator token still changes the team with no card.
+**Why:** A gate checked at one entry point holds only until a second entry point appears, so the refusal sits where the tools are dispatched and the approval is the single place that applies the change. The log records the team the approval left, since a hire can still fail after it is approved.
+**Evidence:** `ChatViewModel.teamChangeWithoutCard`, `applyTeamChange`, `holdConfigChange`; `ChatViewModelConfigChangeTests`.
+**Status:** holds

@@ -2231,7 +2231,7 @@ class ChatViewModel {
             await pauseForHuman(id: call.requestID, input: call.input)
             return
         }
-        if teamChangesNeedApproval, let change = proposedTeamChange(call) {
+        if let change = teamChangeNeedingApproval(requestID: call.requestID, tool: call.toolName, input: call.input) {
             holdConfigChange(change)
             return
         }
@@ -2679,10 +2679,26 @@ class ChatViewModel {
         switch name {
         case "message_agent": return await handleMessageAgent(input: input)
         case "broadcast_agents": return await handleBroadcastAgents(input: input)
-        case "hire_agent": return await handleHireAgent(input: input)
-        case "fire_agent": return handleFireAgent(input: input)
+        case "hire_agent", "fire_agent": return await teamChangeWithoutCard(tool: name, input: input)
         default: return nil
         }
+    }
+
+    /// A hire or a firing asked for anywhere but on an approved card. While
+    /// team changes wait on a person, one that would take effect is refused
+    /// here, so no route to these tools applies a change nobody approved; a
+    /// call that would only fail still gets the error it always got.
+    private func teamChangeWithoutCard(tool: String, input: String) async -> String {
+        if teamChangeNeedingApproval(requestID: "", tool: tool, input: input) != nil {
+            return "Error: \(tool) needs a person's approval here, and this call cannot wait for one."
+        }
+        return await applyTeamChange(tool: tool, input: input)
+    }
+
+    /// Carries out a hire or a firing: at once when none waits on a person,
+    /// otherwise only from the card a person approved.
+    private func applyTeamChange(tool: String, input: String) async -> String {
+        tool == "hire_agent" ? await handleHireAgent(input: input) : handleFireAgent(input: input)
     }
 
     /// Tools that read or write the project's shared record — the event bus, the
@@ -3878,22 +3894,23 @@ class ChatViewModel {
     /// The team names, in order, joined for a card and the log.
     private var teamRoster: [String] { orchestrator.teamAgents.map(\.name) }
 
-    /// The change a `hire_agent` or `fire_agent` call asks for, or nil when it
-    /// is some other call or one that would only fail — that one is answered
+    /// The change a `hire_agent` or `fire_agent` call asks for while team
+    /// changes wait on a person, or nil when they do not, when it is some
+    /// other call, or when it is one that would only fail — that one is answered
     /// at once, with the error it gets today, since there is nothing to approve.
-    private func proposedTeamChange(_ call: StreamEvent.MCPToolCallPayload) -> PendingConfigChange? {
-        guard let data = call.input.data(using: .utf8),
+    private func teamChangeNeedingApproval(requestID: String, tool: String, input: String) -> PendingConfigChange? {
+        guard teamChangesNeedApproval, let data = input.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         let before = teamRoster
         let proposal: (action: String, after: [String])?
-        switch call.toolName {
+        switch tool {
         case "hire_agent": proposal = proposedHire(json, roster: before)
         case "fire_agent": proposal = proposedFire(json, roster: before)
         default: proposal = nil
         }
         guard let proposal else { return nil }
         return PendingConfigChange(
-            requestID: call.requestID, cardID: UUID().uuidString, tool: call.toolName, input: call.input,
+            requestID: requestID, cardID: UUID().uuidString, tool: tool, input: input,
             action: proposal.action, before: before.joined(separator: ", "),
             after: proposal.after.joined(separator: ", ")
         )
@@ -3906,7 +3923,13 @@ class ChatViewModel {
               let template = agentCatalogStore?.find(handle: role) ?? AgentTemplate.catalog[role] else { return nil }
         let name = json["name"] as? String ?? template.name
         guard !orchestrator.agents.contains(where: { $0.name.lowercased() == name.lowercased() }) else { return nil }
-        return ("Hire '\(name)' (\(role))", roster + [name])
+        // The card says what the call overrides in the role, so a person
+        // approving a hire sees that it comes with a model or a prompt of the
+        // asking agent's choosing.
+        var action = "Hire '\(name)' (\(role))"
+        if let model = json["model"] as? String { action += ", on model \(model)" }
+        if json["systemPrompt"] is String { action += ", with a prompt the agent wrote in place of the role's" }
+        return (action, roster + [name])
     }
 
     /// A firing `handleFireAgent` would carry out: someone on the team, not
@@ -3920,7 +3943,18 @@ class ChatViewModel {
 
     /// Holds the call open on a card. The CLI waits on the answer for as long
     /// as a person takes, so the card goes to disk as soon as it is drawn.
+    ///
+    /// One change waits at a time. A second asked for meanwhile is refused at
+    /// once rather than taking the first one's place, which would leave the
+    /// first call unanswered and its card answering nothing.
     private func holdConfigChange(_ change: PendingConfigChange) {
+        guard pendingConfigChange == nil else {
+            orchestrator.respondToMCPToolCall(
+                requestID: change.requestID,
+                result: "Error: another team change is waiting on a person's answer. Ask again once it is decided.",
+                agentID: agentID)
+            return
+        }
         pendingConfigChange = change
         messages.append(Message(
             id: UUID(), timestamp: .now, sender: .agent(agentID),
@@ -3943,21 +3977,24 @@ class ChatViewModel {
 
     func approveConfigChange(requestID cardID: String) async {
         guard let change = takeAnswerableConfigChange(cardID: cardID) else { return }
-        let result = await handleCustomTool(name: change.tool, input: change.input) ?? "Error: unhandled tool"
+        let result = await applyTeamChange(tool: change.tool, input: change.input)
         orchestrator.respondToMCPToolCall(requestID: change.requestID, result: result, agentID: agentID)
-        settleConfigChange(change, decision: .approved)
+        // The log holds the team the approval left, not the one it was asked
+        // for: a hire that failed after it was approved changed nothing.
+        settleConfigChange(change, decision: .approved, after: teamRoster.joined(separator: ", "))
     }
 
     func denyConfigChange(requestID cardID: String) {
         guard let change = takeAnswerableConfigChange(cardID: cardID) else { return }
         orchestrator.respondToMCPToolCall(requestID: change.requestID,
                                           result: "Denied by the user: \(change.action)", agentID: agentID)
-        settleConfigChange(change, decision: .denied)
+        settleConfigChange(change, decision: .denied, after: change.after)
     }
 
     /// Marks the card with the decision and writes the decision to the
     /// project's `ConfigChangeLog`.
-    private func settleConfigChange(_ change: PendingConfigChange, decision: ConfigChangeLog.Decision) {
+    private func settleConfigChange(_ change: PendingConfigChange, decision: ConfigChangeLog.Decision,
+                                    after: String) {
         if let idx = messages.lastIndex(where: {
             if case .approval(let req) = $0.content { return req.id == change.cardID }
             return false
@@ -3967,7 +4004,7 @@ class ChatViewModel {
         }
         let record = ConfigChangeLog.Record(
             requestedBy: agentName, kind: "team", tool: change.tool, before: change.before,
-            after: change.after, decision: decision, at: .now
+            after: after, decision: decision, at: .now
         )
         do {
             try ConfigChangeLog.append(record, to: ConfigChangeLog.url(projectPath: projectURL.path(percentEncoded: false)))
