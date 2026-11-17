@@ -3276,10 +3276,11 @@ class ChatViewModel {
         )
         let result = await debate.run(contract: contract)
 
-        messages.append(Message(
-            id: UUID(), timestamp: .now, sender: .system,
-            content: .text("Debate completed in \(result.rounds) round(s) — \(result.terminated.rawValue)")
-        ))
+        // A debate that never began says why — an agent missing, or one the
+        // person stopped — rather than "completed in 0 rounds".
+        postSystem(result.rounds == 0
+            ? "Debate not started: \(result.finalArtifact)"
+            : "Debate completed in \(result.rounds) round(s) — \(result.terminated.rawValue)")
 
         return result.finalArtifact
     }
@@ -3388,6 +3389,12 @@ class ChatViewModel {
 
         if let denial = accessDenial(from: caller, to: targetAgent) {
             return .refused(denial)
+        }
+        // The person's Stop is not another agent's to undo: the caller is told
+        // so, and so is the person, here in the chat the message came from.
+        if let stopped = orchestrator.teammateRefusal(sendingTo: targetAgent.id) {
+            postSystem(stopped)
+            return .refused(stopped)
         }
         return .resolved(targetAgent)
     }
@@ -3556,9 +3563,10 @@ class ChatViewModel {
 
         let prefixed = "[\(senderName)]: \(message)"
         let orch = self.orchestrator
-        let results = await Self.broadcastOffMain(
+        let (running, refused) = setAsideStoppedAgents(targets)
+        let replies = await Self.broadcastOffMain(
             prefixed: prefixed,
-            targets: targets,
+            targets: running,
             senderName: senderName,
             message: message,
             orchestrator: orch
@@ -3566,11 +3574,29 @@ class ChatViewModel {
             await self?.handleToolForTarget(name: name, input: input, targetAgentID: targetID)
         }
 
+        let results = refused + replies
         var response = "## Responses (\(results.count) agents)\n\n"
         for (name, text) in results.sorted(by: { $0.0 < $1.0 }) {
             response += "### \(name)\n\(text)\n\n"
         }
         return response
+    }
+
+    /// Splits a broadcast's targets into the agents it is sent to and the ones
+    /// the person stopped, each with the line the sender gets in place of a
+    /// reply — shown in this chat too, so nothing is dropped unseen.
+    private func setAsideStoppedAgents(_ targets: [Agent]) -> (running: [Agent], refused: [(String, String)]) {
+        var running: [Agent] = []
+        var refused: [(String, String)] = []
+        for target in targets {
+            if let stopped = orchestrator.teammateRefusal(sendingTo: target.id) {
+                postSystem(stopped)
+                refused.append((target.name, stopped))
+            } else {
+                running.append(target)
+            }
+        }
+        return (running, refused)
     }
 
     private static nonisolated func broadcastOffMain(
@@ -5183,6 +5209,12 @@ class ChatViewModel {
 
     /// Runs one turn of the goal loop. Returns false when the goal was cancelled while the turn ran.
     private func runGoalTurn(prompt: String) async -> Bool {
+        // The person asked for the goal or the loop in this chat, so a stopped
+        // agent is started for it, as it is for a message they type.
+        guard await ensureSession() else {
+            activeGoal = nil
+            return false
+        }
         activeGoal?.turns += 1
         isStreaming = true
 

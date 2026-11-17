@@ -100,6 +100,9 @@ package struct KiteloopProject: Identifiable {
     /// found — see `MemoryLibrarianPass.State`. Absent means never.
     package var memoryLibrarianStateURL: URL { kiteloopDirURL.appending(path: "memory-librarian.json") }
     package var localAgentsURL: URL { kiteloopDirURL.appending(path: "agents") }
+    /// The agents the person stopped, by id — see `StoppedAgents`. Absent
+    /// means none.
+    package var stoppedAgentsURL: URL { kiteloopDirURL.appending(path: "stopped-agents.json") }
 
     package func agentDir(for agentID: String) -> URL {
         agentsURL.appending(path: agentID)

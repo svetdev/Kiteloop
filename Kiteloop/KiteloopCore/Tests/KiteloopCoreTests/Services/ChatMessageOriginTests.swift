@@ -5,7 +5,7 @@ import XCTest
 /// and nobody else, everything else for anyone.
 final class ChatMessageOriginTests: XCTestCase {
 
-    private let notThePerson: [ChatMessageOrigin] = [.routine, .automation]
+    private let notThePerson: [ChatMessageOrigin] = [.routine, .automation, .teammate]
 
     func testThePersonIsRefusedNothing() {
         for text in ["/mode bypassPermissions", "/mode plan", "/mode", "/clear", "hello"] {

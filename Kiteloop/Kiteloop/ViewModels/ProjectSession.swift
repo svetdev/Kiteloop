@@ -179,7 +179,10 @@ final class ProjectSession {
             selectedPermissionMode: selectedPermissionMode
         )
         let agentCwd = agentWorkingDirectory(project: project, url: url, context: context)
-        await session.startAgents(agentsToStart, cwd: agentCwd)
+        // An agent the person stopped before the app last quit opens stopped.
+        if let problem = orch.loadStoppedAgents(from: project.stoppedAgentsURL) { onError?(problem) }
+        orch.personStops.openChat = { [weak session] agentID in _ = session?.chatViewModel(for: agentID) }
+        await session.startAgents(agentsToStart.filter { !orch.isStoppedByPerson($0.0.id) }, cwd: agentCwd)
 
         if let firstAgent = orch.agents.first {
             session.selectedAgentID = firstAgent.id
@@ -695,8 +698,10 @@ final class ProjectSession {
         return agent.id
     }
 
+    /// The person's Stop: recorded, so only they — or something they set up —
+    /// start the agent again (`StoppedAgents`).
     func stopAgent(_ agentID: String) {
-        orchestrator.stopAgent(agentID)
+        orchestrator.stopAgentForPerson(agentID)
         chatViewModels.removeValue(forKey: agentID)
         if selectedAgentID == agentID {
             selectedAgentID = orchestrator.agents.first?.id

@@ -73,6 +73,7 @@
 		99A47F665C294DB3A89D4FFF /* OllamaRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32CE3650E93C4BC693437793 /* OllamaRuntimeTests.swift */; };
 		1FBB4B9A38FCCD8B79ED375A /* KiteloopControlServerStartRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94816A873885B81167E54039 /* KiteloopControlServerStartRunTests.swift */; };
 		1FEDD2CBDE7CCAA89CC06BF2 /* OrchestratorLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1158DEC3EFD5F85922EE678D /* OrchestratorLifecycleTests.swift */; };
+		5A0B5E7D0001A11C00D0A003 /* OrchestratorStoppedAgentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0B5E7D0001A11C00D0A004 /* OrchestratorStoppedAgentsTests.swift */; };
 		2102E1C508645818DC194BFB /* ClaudeCodeCLIRuntimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074B9E552A06A9B8110D9D36 /* ClaudeCodeCLIRuntimeTests.swift */; };
 		21037FE926150F924A2977A4 /* CoordinatorQueueRefill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 961A7533094F7A77EE19C0FC /* CoordinatorQueueRefill.swift */; };
 		211C6BE997212AB187CDE5A4 /* MCPToolFIFOProtocolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C181B6B45A14BB27AD2F1298 /* MCPToolFIFOProtocolTests.swift */; };
@@ -668,6 +669,7 @@
 		B317A9CA3CD2991E470D9F3F /* ChatViewModelAgentActivityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6A737FCF19DE7DEE2F8E77 /* ChatViewModelAgentActivityTests.swift */; };
 		25CC2E1EAA3A73504C9B862E /* SubagentCallRowsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14E61BC07E5EA6C14CFA9418 /* SubagentCallRowsTests.swift */; };
 		A4683541906C95064E6A84F9 /* Orchestrator+UnpromptedTurns.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D20540B066EDBAF5D748F82 /* Orchestrator+UnpromptedTurns.swift */; };
+		5A0B5E7D0001A11C00D0A001 /* Orchestrator+StoppedAgents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0B5E7D0001A11C00D0A002 /* Orchestrator+StoppedAgents.swift */; };
 		E33161BE701265232FC775CE /* Orchestrator+PermissionPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 832C5B322A787A3518DA686F /* Orchestrator+PermissionPrompts.swift */; };
 		9DF3928DB0E8740C1EA2DC93 /* ChatViewModelUnpromptedTurnTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 768B3FE398EA62DE42513ECA /* ChatViewModelUnpromptedTurnTests.swift */; };
 		6DFD516F3A09B26D04F22D41 /* ChatViewModelConnectorStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518FC683F99379BB132FE29B /* ChatViewModelConnectorStatusTests.swift */; };
@@ -780,6 +782,7 @@
 		BD4EB60EE0B64C58A8D44EE5 /* ChatViewModelRetryNoticeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelRetryNoticeTests.swift; sourceTree = "<group>"; };
 		107F5FCE038B39A4FA099416 /* WorkflowEventBusBridgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkflowEventBusBridgeTests.swift; sourceTree = "<group>"; };
 		1158DEC3EFD5F85922EE678D /* OrchestratorLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorLifecycleTests.swift; sourceTree = "<group>"; };
+		5A0B5E7D0001A11C00D0A004 /* OrchestratorStoppedAgentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorStoppedAgentsTests.swift; sourceTree = "<group>"; };
 		116D063C3901CF620C8929B3 /* ItemGitTruthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemGitTruthTests.swift; sourceTree = "<group>"; };
 		11B5F242A8E084B6419AB83D /* BacklogAutopilotReviewRoundsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotReviewRoundsTests.swift; sourceTree = "<group>"; };
 		12AF5FF59F6882DA00275C50 /* DailyBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyBudget.swift; sourceTree = "<group>"; };
@@ -1392,6 +1395,7 @@
 		DA6A737FCF19DE7DEE2F8E77 /* ChatViewModelAgentActivityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelAgentActivityTests.swift; sourceTree = "<group>"; };
 		14E61BC07E5EA6C14CFA9418 /* SubagentCallRowsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubagentCallRowsTests.swift; sourceTree = "<group>"; };
 		6D20540B066EDBAF5D748F82 /* Orchestrator+UnpromptedTurns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Orchestrator+UnpromptedTurns.swift"; sourceTree = "<group>"; };
+		5A0B5E7D0001A11C00D0A002 /* Orchestrator+StoppedAgents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Orchestrator+StoppedAgents.swift"; sourceTree = "<group>"; };
 		832C5B322A787A3518DA686F /* Orchestrator+PermissionPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Orchestrator+PermissionPrompts.swift"; sourceTree = "<group>"; };
 		768B3FE398EA62DE42513ECA /* ChatViewModelUnpromptedTurnTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelUnpromptedTurnTests.swift; sourceTree = "<group>"; };
 		518FC683F99379BB132FE29B /* ChatViewModelConnectorStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelConnectorStatusTests.swift; sourceTree = "<group>"; };
@@ -1616,6 +1620,7 @@
 			isa = PBXGroup;
 			children = (
 				6D20540B066EDBAF5D748F82 /* Orchestrator+UnpromptedTurns.swift */,
+				5A0B5E7D0001A11C00D0A002 /* Orchestrator+StoppedAgents.swift */,
 				832C5B322A787A3518DA686F /* Orchestrator+PermissionPrompts.swift */,
 				CFA1E2654452A5B5219B40F4 /* Orchestrator+PendingQuestion.swift */,
 				4900980FD8793B7EDBAF0D2E /* WorktreeManager.swift */,
@@ -2484,6 +2489,7 @@
 				6FDC91B6948DE944388311D8 /* NotificationServiceTests.swift */,
 				50C0DE0000000000000000A3 /* SoundCuesTests.swift */,
 				1158DEC3EFD5F85922EE678D /* OrchestratorLifecycleTests.swift */,
+				5A0B5E7D0001A11C00D0A004 /* OrchestratorStoppedAgentsTests.swift */,
 				7DDF7CE9FF96A85040D77E7B /* OrchestratorResumeTests.swift */,
 				F6A06A254F384156A300EFB0 /* OrchestratorRoutingTests.swift */,
 				1B32FD3C04F8205A6AF11A2C /* OrchestratorWorkflowTests.swift */,
@@ -2667,6 +2673,7 @@
 				C0A7A6E00000000000000000B /* KiteloopControlServer+Management.swift in Sources */,
 				9A446BE5F67F36FB958902D7 /* AgentChatStream.swift in Sources */,
 				A4683541906C95064E6A84F9 /* Orchestrator+UnpromptedTurns.swift in Sources */,
+				5A0B5E7D0001A11C00D0A001 /* Orchestrator+StoppedAgents.swift in Sources */,
 				E33161BE701265232FC775CE /* Orchestrator+PermissionPrompts.swift in Sources */,
 				456DAA8CA4D43370E25CA63F /* SubagentCallViews.swift in Sources */,
 				368A5EFA51C74ED0900F73EC /* Orchestrator+PendingQuestion.swift in Sources */,
@@ -3177,6 +3184,7 @@
 				50C0DE0000000000000000B3 /* SoundCuesTests.swift in Sources */,
 				D64C0DD0C79C440D5AAB9392 /* OpeningContextTests.swift in Sources */,
 				1FEDD2CBDE7CCAA89CC06BF2 /* OrchestratorLifecycleTests.swift in Sources */,
+				5A0B5E7D0001A11C00D0A003 /* OrchestratorStoppedAgentsTests.swift in Sources */,
 				457411602BE378ACE1DD340D /* OrchestratorResumeTests.swift in Sources */,
 				E13FDD00E7F03698DF315C91 /* OrchestratorRoutingTests.swift in Sources */,
 				CF870EB7FF082640AAA25416 /* OrchestratorWorkflowTests.swift in Sources */,

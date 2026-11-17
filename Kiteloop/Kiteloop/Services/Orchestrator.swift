@@ -39,6 +39,8 @@ class Orchestrator {
     /// the complexity ratchet.
     var sessions: [String: ManagedSession] = [:]
     private(set) var agents: [Agent] = []
+    /// The agents the person stopped — `Orchestrator+StoppedAgents.swift`.
+    var personStops = PersonStops()
     /// Settable beyond this file only for `beginUnpromptedTurn`.
     var isStreaming = false
     private(set) var workflowEventBridge: WorkflowEventBridge?
@@ -214,7 +216,7 @@ class Orchestrator {
     }
 
     func triggerAgent(agentID: String, message: String, chainDepth: Int = 0) {
-        guard sessions[agentID] != nil else { return }
+        guard sessions[agentID] != nil || reopenChatOfStoppedAgent(agentID) else { return }
         NotificationCenter.default.post(
             name: .agentTriggered,
             object: self,

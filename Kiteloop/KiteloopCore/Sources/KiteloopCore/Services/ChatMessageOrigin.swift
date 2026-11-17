@@ -1,8 +1,9 @@
 import Foundation
 
-/// Where the text a chat is asked to send came from. A chat runs what it is
-/// sent as typed — slash commands included — so the commands that only a
-/// person may give are decided on this.
+/// Where the text an agent is sent came from. A chat runs what it is sent as
+/// typed — slash commands included — so the commands that only a person may
+/// give are decided on this, and so is who may start an agent the person
+/// stopped (`StoppedAgents`).
 package enum ChatMessageOrigin: Equatable, Sendable {
     /// The person: the app's input box, a card they answered, or a message
     /// sent with their own control token or from a paired phone.
@@ -13,6 +14,9 @@ package enum ChatMessageOrigin: Equatable, Sendable {
     /// Text the app's own machinery sends: a workflow node's prompt, or an
     /// event the agent subscribes to.
     case automation
+    /// Another agent on the team: `message_agent`, a broadcast, a `/delegate`
+    /// hand-over or a debate turn.
+    case teammate
 
     /// The key an `.agentSummoned` notification carries the origin under, so
     /// a specialist summoned by a message is sent it on that message's terms.
@@ -24,6 +28,7 @@ package enum ChatMessageOrigin: Equatable, Sendable {
         case .person: return "you"
         case .routine: return "a routine"
         case .automation: return "a workflow or an event"
+        case .teammate: return "another agent"
         }
     }
 

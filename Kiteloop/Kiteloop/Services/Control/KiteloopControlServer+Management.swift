@@ -120,7 +120,7 @@ extension KiteloopControlServer {
         let (entry, agent) = try agent(fields)
         try refuseIfARunUses(agent, in: entry)
         let wasRunning = entry.session.orchestrator.hasSession(for: agent.id)
-        entry.session.orchestrator.stopAgent(agent.id)
+        entry.session.orchestrator.stopAgentForPerson(agent.id)
         return .json(["agent": agent.id, "running": false, "stopped": wasRunning])
     }
 
