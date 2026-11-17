@@ -203,6 +203,7 @@ Legend: `[x]` = implemented + tested, `[~]` = implemented, no test, `[ ]` = plan
 | [x] | Template store (CRUD persistence layer) | `Services/AgentCatalogStore.swift` | `AgentCatalogStoreTests.swift` |
 | [x] | Agent catalog store (task specialists) | `Services/AgentCatalogStore.swift` | `AgentCatalogStoreTests.swift` |
 | [x] | Pack inspection (File > Inspect Pack…: what a `pack.json` folder would add and be allowed to do, read-only, secret names never values) | `Models/PackManifest.swift`, `Services/PackInspector.swift` | `Services/PackInspectorTests.swift` |
+| [x] | Pack install (File > Install Pack…: into the front project, after a person reads and confirms the plan in the app; all or nothing; agents join stopped, routines disarmed, connector env and header values never taken, files copied not linked, one line in the configuration change log; no control API route, no uninstall — a pack is removed by hand, entry by entry) | `Services/PackInstallPlan.swift`, `ViewModels/ProjectSession+PackInstall.swift`, `Views/PackInstallSheet.swift` | `Services/PackInstallPlanTests.swift` |
 | [~] | Agent catalog UI | `Views/Settings/AgentCatalogView.swift` | — |
 | [~] | Template editor UI | `Views/Settings/AgentCatalogView.swift` | — |
 | [x] | Multi-project support (recent projects, switching) | `Services/ProjectStore.swift` | `Services/ProjectStoreTests.swift` |

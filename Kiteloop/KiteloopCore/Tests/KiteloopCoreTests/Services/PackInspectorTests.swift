@@ -108,7 +108,7 @@ final class PackInspectorTests: XCTestCase {
         XCTAssertEqual(inspection.description, "A daily brief.")
         XCTAssertEqual(inspection.agents, [
             .init(path: "agents/scout", handle: "@scout", name: "Scout", permissionMode: "acceptEdits",
-                  tools: ["Read", "Bash"], mcpServers: ["tracker"])
+                  tools: ["Read", "Bash"], mcpServers: ["tracker"], operatorTools: false, controlAccess: nil)
         ])
         XCTAssertEqual(inspection.routines, [
             .init(path: "routines/brief.json", id: "morning-brief", name: "Morning brief", agent: "Scout",

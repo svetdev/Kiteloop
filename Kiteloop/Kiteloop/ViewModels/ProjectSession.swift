@@ -52,6 +52,9 @@ final class ProjectSession {
     private(set) var chatViewModels: [String: ChatViewModel] = [:]
     var selectedAgentID: String?
     var allSkills: [Skill] = []
+    /// The pack folder File > Install Pack… chose for this project; the
+    /// window shows its confirmation while this is set.
+    var offeredPack: OfferedPack?
 
     /// Reports user-facing failures (agent start, team save) to the window's alert.
     var onError: ((String) -> Void)?
