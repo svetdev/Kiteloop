@@ -313,7 +313,8 @@ struct MainWindow: View {
             orgManifestLoader: orgManifestLoader,
             repoCloneService: repoCloneService,
             metricStore: taskMetricStore,
-            groomingLedger: .shared
+            groomingLedger: .shared,
+            spendLedger: dailySpendLedger.spendLedger
         )
     }
 

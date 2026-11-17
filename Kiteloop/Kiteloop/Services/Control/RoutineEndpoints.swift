@@ -158,14 +158,19 @@ extension KiteloopControlServer {
                 let countBefore = chat.messages.count
                 let costBefore = chat.costUSD
                 chat.inputText = text
+                // Only a turn this send starts is the routine's: text that joins
+                // a running turn's queue is charged as the chat it ends up in.
+                if !wasStreaming { chat.routineTurnInFlight = routine.id }
                 await chat.send()
+                chat.routineTurnInFlight = nil
                 guard !wasStreaming else { return RoutineTurn(reply: "", costUSD: 0) }
                 let reply = Self.lastAgentReply(in: chat.messages, since: countBefore)
                 if chat.waitingStatus == nil {
                     PushRelay.shared.turnFinished(project: project.lastPathComponent, agentID: agent.id,
                                                   agentName: agent.name, reply: reply)
                 }
-                return RoutineTurn(reply: reply, costUSD: max(0, chat.costUSD - costBefore))
+                return RoutineTurn(reply: reply, costUSD: max(0, chat.costUSD - costBefore),
+                                   agentID: agent.id, model: chat.resolvedModel)
             },
             startFresh: { await chat.startNewChat() }
         ))

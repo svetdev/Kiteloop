@@ -154,6 +154,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/fleet/quiesce` | Stop the whole fleet taking new work, and wait for it to drain |
 | POST | `/v1/fleet/resume` | Lift the hold and pick the held queues back up |
 | GET | `/v1/usage` | How close the agents are to their rate limit, and the last day's spend per project |
+| GET | `/v1/spend` | What was spent over the last days, grouped by agent, project, routine, model or day |
 | GET | `/v1/attention` | Everything waiting on you across every open project, oldest first, each row naming the call that answers it |
 | GET | `/v1/events` | Every open project's inbox notices as one live, resumable SSE stream |
 | GET | `/v1/memory/proposals?project=` | List a project's pending memory proposals |
@@ -2277,6 +2278,47 @@ curl -s -H "$H" $B/usage
 | `spend` | The last 24 hours — the day the shared daily budget covers — per project, busiest first, from the same report as [`GET /v1/report`](#get-v1report), capped as it is, with the rest named in `omittedProjects`. On a subscription these are token-equivalent dollars. `null` on a build that keeps no metrics |
 
 **Status:** 200
+
+---
+
+### GET /v1/spend
+
+What was spent over a window, read off the **spend ledger** and grouped the way
+the caller asks. Every chat turn a person starts, every routine turn, autopilot
+run and Planner pass adds one row to the ledger (`~/.kiteloop/spend-ledger.jsonl`);
+a turn a run or a routine owns is counted once, by that run or routine.
+
+| Query | Default | Notes |
+|---|---|---|
+| `by` | — | **Required**: `agent`, `project`, `routine`, `model` or `day`. Anything else is 400 |
+| `days` | `7` | Days back from today's local midnight — `1` is today alone. Clamped to 1…90 |
+
+```bash
+curl -s -H "$H" "$B/spend?by=project&days=1"
+```
+
+```json
+{
+  "by": "project",
+  "from": "2026-11-17T08:00:00Z",
+  "to": "2026-11-17T19:42:10Z",
+  "basis": "token-equivalent",
+  "totalUSD": 6.4,
+  "rows": [
+    { "key": "/Users/me/code/kiteloop", "costUSD": 5.1, "count": 12 },
+    { "key": "/Users/me/code/travel", "costUSD": 1.3, "count": 4 }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `from`, `to` | The window, ISO 8601: local midnight `days − 1` days ago, through now |
+| `basis` | What kind of figure the dollars are: `usd` (billed spend), `token-equivalent` (a subscription login, where the CLI's figure is not a bill) or `mixed` when the window holds both |
+| `totalUSD` | The sum of every row in the window |
+| `rows` | One per key, costliest first: `key`, `costUSD` and `count` (how many ledger rows it sums). A row with nothing to group by — no routine, no model — is under `unknown` |
+
+**Status:** 200; 400 when `by` is missing or not one of the five; 503 on a build that keeps no ledger.
 
 ---
 

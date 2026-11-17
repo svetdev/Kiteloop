@@ -23,6 +23,9 @@ struct RoutineAgent {
 struct RoutineTurn: Equatable {
     var reply: String
     var costUSD: Double
+    /// The agent's id and the model the turn ran on, for the turn's ledger row.
+    var agentID: String? = nil
+    var model: String? = nil
 }
 
 /// The loop that sends routines' prompts when they fall due.
@@ -59,8 +62,8 @@ final class RoutineRunner {
     /// Why the day's budget refuses an autonomous turn in this project's
     /// folder; nil when it does not.
     var budgetRefusal: (@MainActor (URL) -> String?)?
-    /// Files a finished turn's cost against the day.
-    var charge: (@MainActor (_ costUSD: Double, _ folder: URL) -> Void)?
+    /// Files a finished turn's cost against the day, attributed to the routine.
+    var charge: (@MainActor (_ costUSD: Double, _ folder: URL, _ attribution: SpendAttribution) -> Void)?
 
     private let store: RoutineStore
     private let clock: () -> Date
@@ -303,7 +306,8 @@ final class RoutineRunner {
         run.reply = turn.reply.split(separator: "\n").first.map(String.init)
         if turn.costUSD > 0 {
             run.costUSD = turn.costUSD
-            charge?(turn.costUSD, folder)
+            charge?(turn.costUSD, folder, SpendAttribution(source: .routine, agent: turn.agentID,
+                                                           routine: run.routine, model: turn.model))
         }
         record(run)
     }

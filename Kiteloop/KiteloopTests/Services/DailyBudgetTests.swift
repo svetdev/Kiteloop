@@ -93,6 +93,44 @@ final class DailyBudgetTests: XCTestCase {
         XCTAssertEqual(charge.basis, .measured)
     }
 
+    // MARK: - The spend ledger
+
+    /// An attributed charge writes one row of exactly what was charged — here
+    /// the stand-in, since no cost was reported — beside the day's totals.
+    @MainActor
+    func testAnAttributedChargeWritesOneRowOfTheChargedAmount() throws {
+        let dir = try makeTemporaryDirectory(prefix: "daily-spend")
+        let ledger = DailySpendLedger(storageURL: dir.appendingPathComponent("spend.json"))
+        ledger.spendBasis = { .tokenEquivalent }
+
+        let charge = ledger.charge(costUSD: 0, estimateUSD: 3.5, project: "/p/a",
+                                   attribution: SpendAttribution(source: .autopilot, agent: "worker", model: "opus"))
+
+        let rows = ledger.spendLedger.rows()
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.costUSD, charge.amountUSD)
+        XCTAssertEqual(rows.first?.source, .autopilot)
+        XCTAssertEqual(rows.first?.project, "/p/a")
+        XCTAssertEqual(rows.first?.agent, "worker")
+        XCTAssertEqual(rows.first?.model, "opus")
+        XCTAssertEqual(rows.first?.basis, .tokenEquivalent)
+        XCTAssertEqual(ledger.spendLedger.url, dir.appendingPathComponent("spend-ledger.jsonl"))
+    }
+
+    /// No attribution, no row — and the day's totals read exactly as before.
+    @MainActor
+    func testAnUnattributedChargeWritesNoRowAndKeepsTheTotals() throws {
+        let dir = try makeTemporaryDirectory(prefix: "daily-spend")
+        let ledger = DailySpendLedger(storageURL: dir.appendingPathComponent("spend.json"))
+
+        ledger.charge(costUSD: 1.25, project: "/p/a")
+        ledger.charge(costUSD: 2, project: "/p/a", attribution: SpendAttribution(source: .planner))
+
+        XCTAssertEqual(ledger.spendLedger.rows().map(\.costUSD), [2])
+        XCTAssertEqual(ledger.spentTodayUSD, 3.25, accuracy: 0.0001)
+        XCTAssertEqual(ledger.spentTodayUSD(inProject: "/p/a"), 3.25, accuracy: 0.0001)
+    }
+
     // MARK: - The day this was found
 
     /// 2026-08-08 replayed: 31 real runs measured at $244.99, and ~230 dead

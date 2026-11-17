@@ -25,6 +25,9 @@ struct ProjectSessionContext {
     /// the queue still says how much of it is groomed, only not what the
     /// grounding check and the retry ceiling last refused.
     var groomingLedger: GroomingLedger?
+    /// Where a person's chat turns write their spend. Nil writes none — what a
+    /// test that doesn't measure spend gets.
+    var spendLedger: SpendLedger?
 }
 
 /// Everything one open project owns: its orchestrator, per-agent chat view
@@ -605,6 +608,8 @@ final class ProjectSession {
             knowledgeIndex: knowledgeIndex,
             globalConfigStore: context.globalConfigStore
         )
+        vm.spendLedger = context.spendLedger
+        vm.spendProject = project.rootURL.path(percentEncoded: false)
         // An aside's chat lives in memory only: no session record, no
         // messages.json under `.kiteloop/sessions/`. Without a session the
         // save/load paths short-circuit, which is what "dies with the app"

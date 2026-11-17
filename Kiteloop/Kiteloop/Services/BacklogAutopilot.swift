@@ -3938,7 +3938,8 @@ class BacklogAutopilot {
         let charge = dailySpendLedger.charge(costUSD: cost,
                                              estimateUSD: predictedCostUSD(for: item),
                                              evidence: evidence,
-                                             project: projectPath)
+                                             project: projectPath,
+                                             attribution: SpendAttribution(source: .autopilot, agent: workerAgentID))
         let budget = dailyBudget
         var line = "Daily spend: \(budget.text)"
         if let note = charge.note { line += " (\(note))" }

@@ -17,6 +17,7 @@ final class RoutineRunnerTests: XCTestCase {
     private var turn = RoutineTurn(reply: "Three things today.\nFirst…", costUSD: 0.25)
     private var unreachable: String?
     private var charged: [Double] = []
+    private var attributions: [SpendAttribution] = []
     /// What the agent was asked to do, in order: `fresh` for a new chat,
     /// `send` for a prompt.
     private var calls: [String] = []
@@ -58,7 +59,10 @@ final class RoutineRunnerTests: XCTestCase {
                 },
                 startFresh: { self.calls.append("fresh") }))
         }
-        runner.charge = { [unowned self] cost, _ in self.charged.append(cost) }
+        runner.charge = { [unowned self] cost, _, attribution in
+            self.charged.append(cost)
+            self.attributions.append(attribution)
+        }
         runner.start()
         for routine in routines { try runner.put(routine) }
         return runner
@@ -129,6 +133,18 @@ final class RoutineRunnerTests: XCTestCase {
 
         XCTAssertEqual(second.routines.map(\.id), ["brief"])
         XCTAssertEqual(sent.count, 1)
+    }
+
+    func testATurnIsChargedToItsRoutineOnce() async throws {
+        turn = RoutineTurn(reply: "Done.", costUSD: 0.4, agentID: "chief-1", model: "opus")
+        let runner = try runner([brief()])
+        now = date(16, 7)
+
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(charged, [0.4])
+        XCTAssertEqual(attributions, [SpendAttribution(source: .routine, agent: "chief-1",
+                                                       routine: "brief", model: "opus")])
     }
 
     func testATurnThatReportedNoCostChargesNothing() async throws {

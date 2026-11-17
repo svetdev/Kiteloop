@@ -94,6 +94,7 @@ final class ControlRouterTests: XCTestCase {
             ("POST", "/v1/fleet/quiesce",       .quiesceFleet),
             ("POST", "/v1/fleet/resume",        .resumeFleet),
             ("GET",  "/v1/usage",               .usage),
+            ("GET",  "/v1/spend",               .spend),
             ("GET",  "/v1/attention",           .attention),
             ("GET",  "/v1/events",              .appEvents),
             ("GET",  "/v1/memory/proposals",    .listMemoryProposals),

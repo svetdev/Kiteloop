@@ -149,6 +149,31 @@ final class KiteloopControlServerRoutinesTests: XCTestCase {
         XCTAssertEqual(none?.count, 0)
     }
 
+    /// A routine's turn is one ledger row, the routine's — the chat it ran in
+    /// writes none of its own, so the turn is not counted twice.
+    func testARoutineTurnIsOneSpendRowTheRoutines() async throws {
+        let spend = SpendLedger(url: tempDir.appendingPathComponent("spend-ledger.jsonl"))
+        let daily = DailySpendLedger(storageURL: tempDir.appendingPathComponent("spend.json"), spendLedger: spend)
+        routines.charge = { cost, folder, attribution in
+            daily.charge(costUSD: cost, project: folder.path(percentEncoded: false), attribution: attribution)
+        }
+        let session = try registerProject(named: "vault", spendLedger: spend)
+        let agentID = addAgent(named: "Chief", to: session)
+        runtime.events = [.assistantText("Done."), .result(Self.done("Done."))]
+        _ = await send("PUT", "/v1/routines/brief", brief)
+
+        _ = await send("POST", "/v1/routines/brief/run")
+        try await eventually("the turn ended") { self.routines.lastRun(of: "brief")?.finishedAt != nil }
+
+        let rows = spend.rows()
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.source, .routine)
+        XCTAssertEqual(rows.first?.routine, "brief")
+        XCTAssertEqual(rows.first?.agent, agentID)
+        XCTAssertEqual(rows.first?.costUSD, 0.01)
+        XCTAssertEqual(rows.first?.project, session.project.rootURL.path(percentEncoded: false))
+    }
+
     func testRunNowForAnIdNobodyHasIs404() async {
         let response = await send("POST", "/v1/routines/nobody/run")
 
@@ -342,7 +367,7 @@ final class KiteloopControlServerRoutinesTests: XCTestCase {
     }
 
     @discardableResult
-    private func registerProject(named name: String) throws -> ProjectSession {
+    private func registerProject(named name: String, spendLedger: SpendLedger? = nil) throws -> ProjectSession {
         let root = tempDir.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let rootURL = URL(fileURLWithPath: root.path(percentEncoded: false), isDirectory: false)
@@ -364,7 +389,8 @@ final class KiteloopControlServerRoutinesTests: XCTestCase {
                 packageResolver: nil,
                 globalConfigStore: GlobalConfigStore(storageURL: tempDir.appendingPathComponent("global.json")),
                 orgManifestLoader: OrgManifestLoader(),
-                repoCloneService: RepoCloneService()))
+                repoCloneService: RepoCloneService(),
+                spendLedger: spendLedger))
         registry.register(session: session, autopilot: BacklogAutopilot())
         return session
     }

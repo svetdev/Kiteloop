@@ -209,6 +209,7 @@ struct KiteloopApp: App {
         let ledger = dailySpendLedger
         let configStore = globalConfigStore
         controlServer.routines = runner
+        controlServer.spendLedger = ledger.spendLedger
         controlServer.settings = configStore
         controlServer.updater = softwareUpdater
         runner.agent = { [weak controlServer] routine in
@@ -219,8 +220,8 @@ struct KiteloopApp: App {
             controlServer?.routineBudgetRefusal(folder: folder, ledger: ledger,
                                                 portfolioBudgetUSD: configStore.config.dailyBudgetUSD)
         }
-        runner.charge = { cost, folder in
-            ledger.charge(costUSD: cost, project: folder.path(percentEncoded: false))
+        runner.charge = { cost, folder, attribution in
+            ledger.charge(costUSD: cost, project: folder.path(percentEncoded: false), attribution: attribution)
         }
         controlRegistry.projectOpened = { [weak runner] in runner?.look() }
         runner.start()
