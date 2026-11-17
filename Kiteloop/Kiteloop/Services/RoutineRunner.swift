@@ -50,6 +50,12 @@ struct RoutineTurn: Equatable {
 ///   when its own agent raised the event, or when the event was raised by an
 ///   agent inside a turn a routine started — so a routine's turn cannot fire
 ///   itself again, nor two routines each other, through what the turn files.
+/// * **A watched folder is the project's own.** A `watch` trigger names a
+///   folder inside the routine's project; one that resolves outside it —
+///   through `..` or a symbolic link — is never watched and never fires. A
+///   change made while a routine's turn was running in that project is taken
+///   for the turn's own and refused, so a routine that writes into the folder
+///   it watches does not fire itself again.
 /// * **Nothing is dropped in silence.** Every firing — started, queued behind
 ///   a turn, skipped by its check, refused — is a line in
 ///   `~/.kiteloop/routine-runs.jsonl` with its reason.
@@ -93,6 +99,14 @@ final class RoutineRunner {
     /// The latest turn a routine started for each agent, by the agent's id:
     /// when it began and, once it is over, when it ended.
     private var routineTurns: [String: (from: Date, to: Date?)] = [:]
+    /// When routines' turns ran, by project folder: what tells a watched
+    /// folder's change apart from one a routine's own turn made.
+    private var turns = RoutineTurnWindows()
+    /// The watcher each armed routine with a `watch` trigger has, by routine
+    /// id, with the trigger's text it was made for.
+    private var watchers: [String: (watch: String, watcher: DirectoryWatcher)] = [:]
+    /// The routines whose watched-folder firing has not returned yet.
+    private var watchFirings: Set<String> = []
     private var isStarted = false
 
     init(store: RoutineStore = RoutineStore(), clock: @escaping () -> Date = Date.init,
@@ -216,6 +230,7 @@ final class RoutineRunner {
                 fired.append(Task { await self.fire(routine, from: .schedule(occurrence), target: target) })
             }
         }
+        syncWatchers()
         syncWake(now: now)
         return fired
     }
@@ -288,6 +303,85 @@ final class RoutineRunner {
         }
     }
 
+    // MARK: - A watched folder
+
+    /// Why a change to a watched folder fires nothing: it came while a
+    /// routine's turn was running in the folder's project.
+    static let ownChange = "the folder changed while a routine's turn was running in its project"
+
+    /// Sends `id` its prompt because the folder its trigger watches changed at
+    /// `changed` — now, when nobody says. Autonomous, as a scheduled firing is.
+    /// Nil for an id nobody has, a routine that is not armed or watches
+    /// nothing, and one whose previous such firing has not returned.
+    @discardableResult
+    func folderChanged(_ id: String, at changed: Date? = nil) -> Task<Void, Never>? {
+        guard let routine = routines.first(where: { $0.id == id }), routine.armed,
+              let watch = routine.trigger.watch, !watchFirings.contains(id) else { return nil }
+        watchFirings.insert(id)
+        let moment = changed ?? clock()
+        return Task {
+            await self.fire(routine, watching: watch, changedAt: moment)
+            self.watchFirings.remove(id)
+        }
+    }
+
+    private func fire(_ routine: Routine, watching watch: String, changedAt moment: Date) async {
+        let refused = RoutineRun(routine: routine.id, scheduledFor: nil, at: clock(), outcome: .refused, watch: watch)
+        switch resolve(routine) {
+        case .failure(let refusal):
+            record(refused, refused: refusal.reason)
+        case .success(let target):
+            // Resolved again here: a link can replace the folder after the
+            // routine was saved and its watcher made.
+            guard WatchedFolder.resolve(watch, in: target.folder) != nil else {
+                return record(refused, refused: "\"watch\" is not a folder inside the project")
+            }
+            guard !turns.covers(moment, in: Self.project(target)) else { return noteOwnChange(refused) }
+            await fire(routine, from: .watch(watch), target: target)
+        }
+    }
+
+    /// One refusal for a stretch of a turn's own changes, however many times
+    /// the folder is seen to change in it.
+    private func noteOwnChange(_ refused: RoutineRun) {
+        let last = lastRun(of: refused.routine)
+        guard last?.outcome != .refused || last?.reason != Self.ownChange else { return }
+        record(refused, refused: Self.ownChange)
+    }
+
+    /// The project a routine's turn runs in, as `turns` names it.
+    private static func project(_ target: RoutineAgent) -> String {
+        KiteloopProject.canonicalPath(target.folder.resolvingSymlinksInPath().path(percentEncoded: false))
+    }
+
+    /// One watcher per armed routine with a `watch` trigger: dropped when the
+    /// routine is disarmed, removed or watches something else, and made when
+    /// its project can be found and the folder is there, inside it. Until
+    /// then the next look tries again.
+    private func syncWatchers() {
+        let wanted = Dictionary(routines.filter(\.armed).compactMap { routine in
+            routine.trigger.watch.map { (routine.id, $0) }
+        }, uniquingKeysWith: { first, _ in first })
+        watchers = watchers.filter { wanted[$0.key] == $0.value.watch }
+        guard isStarted else { return }
+        for routine in routines where wanted[routine.id] != nil && watchers[routine.id] == nil {
+            guard let watch = wanted[routine.id], case .success(let target) = resolve(routine),
+                  let folder = WatchedFolder.resolve(watch, in: target.folder) else { continue }
+            watchers[routine.id] = (watch, watcher(of: folder, for: routine.id))
+        }
+    }
+
+    /// A watcher that tells the runner `id`'s folder changed, and when: it is
+    /// told once the folder has been still for the watcher's debounce, so the
+    /// change itself was that long before.
+    private func watcher(of folder: URL, for id: String) -> DirectoryWatcher {
+        let settle = DirectoryWatcher.defaultDebounceInterval
+        return DirectoryWatcher(directories: [folder], debounceInterval: settle) { [weak self] in
+            let changed = Date().addingTimeInterval(-settle)
+            Task { @MainActor in self?.folderChanged(id, at: changed) }
+        }
+    }
+
     /// What started a firing.
     private enum Source {
         /// The occurrence the schedule owed.
@@ -298,6 +392,8 @@ final class RoutineRunner {
         case hook(String, body: Data)
         /// An event of the kind the routine's trigger names.
         case event(AppEventFeed.Event)
+        /// A change in the folder the routine's trigger watches.
+        case watch(String)
 
         var scheduledFor: Date? {
             if case .schedule(let occurrence) = self { return occurrence }
@@ -319,6 +415,11 @@ final class RoutineRunner {
             return nil
         }
 
+        var watch: String? {
+            if case .watch(let folder) = self { return folder }
+            return nil
+        }
+
         /// Whether the day's budget and the check have a say: everything but
         /// a person's own start.
         var isAutonomous: Bool {
@@ -329,7 +430,7 @@ final class RoutineRunner {
 
     private func fire(_ routine: Routine, from source: Source, target: RoutineAgent) async {
         var run = RoutineRun(routine: routine.id, scheduledFor: source.scheduledFor, at: clock(), outcome: .refused,
-                             hook: source.hook, event: source.event?.kind)
+                             hook: source.hook, event: source.event?.kind, watch: source.watch)
         if source.isAutonomous, let refusal = budgetRefusal(for: routine, in: target.folder) {
             return record(run, refused: refusal)
         }
@@ -342,7 +443,7 @@ final class RoutineRunner {
         }
         let text = { (note: String?) in
             Self.text(prompt: routine.prompt, command: routine.precheck, output: check.output,
-                      body: source.body, event: source.event, note: note)
+                      body: source.body, event: source.event, watch: source.watch, note: note)
         }
         guard !target.isBusy() else {
             run.outcome = .queued
@@ -354,8 +455,10 @@ final class RoutineRunner {
         run.outcome = .started
         record(run)
         if let agent = target.agentID { routineTurns[agent] = (run.at, nil) }
+        turns.begin(in: Self.project(target), at: run.at)
         let turn = await target.send(text(note))
         if let agent = target.agentID { routineTurns[agent] = (run.at, clock()) }
+        turns.end(in: Self.project(target), from: run.at, at: clock())
         finish(run, with: turn, in: target.folder)
     }
 
@@ -447,15 +550,17 @@ final class RoutineRunner {
 
     /// What the agent is sent: the note of the last run above the prompt, if
     /// there is one, under the prompt what the check printed, and under that
-    /// the body of the webhook call or the event that fired it, if one did.
+    /// the body of the webhook call, the event or the watched folder that
+    /// fired it, if one did.
     static func text(prompt: String, command: String?, output: String, body: Data? = nil,
-                     event: AppEventFeed.Event? = nil, note: String? = nil) -> String {
+                     event: AppEventFeed.Event? = nil, watch: String? = nil, note: String? = nil) -> String {
         var text = note.map { $0 + "\n\n" + prompt } ?? prompt
         if let command, !output.isEmpty {
             text += "\n\nOutput of this routine's check (`\(command)`):\n\n```\n\(output)\n```"
         }
         if let body { text += "\n\n" + hookBody(body) }
         if let event { text += "\n\n" + eventBlock(event) }
+        if let watch { text += "\n\n" + WatchedFolder.block(watch) }
         return text
     }
 

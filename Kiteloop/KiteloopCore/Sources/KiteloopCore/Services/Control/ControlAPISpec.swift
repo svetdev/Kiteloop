@@ -256,6 +256,10 @@ package enum ControlAPISpec {
             "on": described(string, """
                 An event kind — approval, question, complete, error or event — that fires the routine when its \
                 project publishes one on GET /v1/events. Instead of `at` or `every`.
+                """),
+            "watch": described(string, """
+                A folder inside the routine's project, relative to it, that fires the routine when one of its \
+                direct entries is added, removed or replaced. Instead of `at`, `every` or `on`.
                 """)
         ], required: [])
     }

@@ -373,3 +373,10 @@ Entry format:
 **Why:** "Still behind after the round" was filed like a refusal, though nothing had been refused: another commit had landed while the round ran. A clean merge carries no intent, so the verify stands in for review exactly as it does for the round itself. The bound is borrowed because a second number would have to be argued for separately.
 **Evidence:** three items left at the gate in one night, each by a commit landing during its round; `GateCatchUp`, `WorktreeManager.mergeBaseCleanly(for:base:)`, `GateCatchUpTests`.
 **Status:** holds
+
+## [2026-11-17] A routine's watched folder is inside its project, and a change during a routine's turn is the turn's own
+**Kind:** rule
+**What:** A `watch` trigger names a folder relative to the routine's project; an absolute path, `~` or `..` is refused when the routine is written, and the folder is resolved through its symbolic links again before a watcher is made and before every firing, so one that leads outside the project never fires. A change that falls inside a routine-started turn in the same project is refused as that turn's own, once per stretch.
+**Why:** A routine can do only what its agent could already be asked to, in its project; a folder anywhere on the Mac would let a file dropped by anything start a turn. A watcher cannot say who changed a file, so the only bound on a routine that writes where it watches is when the change happened — the same idea as an event raised inside a routine's turn.
+**Evidence:** `WatchedFolder.resolve`, `RoutineTurnWindows`, `RoutineRunner.folderChanged`; `WatchedFolderTests`, `RoutineRunnerTests`.
+**Status:** holds — a prompt queued behind a busy agent's turn is not tracked as a routine's turn, so a change it makes is bounded by the budgets alone.
