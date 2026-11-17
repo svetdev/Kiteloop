@@ -183,7 +183,16 @@ class SetupWizardViewModel {
                 avatar: pkg.template.avatar ?? "🤖"
             )
         }
-        selectedAgentIDs = Set(availableAgents.map(\.id))
+        selectedAgentIDs = Self.preselectedAgentIDs(among: packages.map(\.package))
+    }
+
+    /// The packages the wizard ticks before the person has chosen anything:
+    /// every one except those that turn Operator tools on. A package holding
+    /// control API credentials is listed, and joins the team only when the
+    /// person ticks it themselves.
+    nonisolated static func preselectedAgentIDs(among packages: [AgentPackage]) -> Set<String> {
+        Set(packages.filter { $0.template.operatorToolsEnabled != true }
+            .map { $0.handle.replacingOccurrences(of: "@", with: "") })
     }
 
     private func checkClaude() async {

@@ -1,0 +1,20 @@
+{
+  "handle": "@project-setup",
+  "version": "1.0.0",
+  "template": {
+    "name": "Project Setup",
+    "model": "sonnet",
+    "systemPrompt": "profile.md",
+    "avatar": "🧭",
+    "group": "Setup",
+    "description": "Interviews you, proposes a team, routines and budgets, and applies what you approve",
+    "tools": ["Read", "Bash", "Glob", "Grep", "ask_human", "recall_knowledge"],
+    "denied": ["Edit", "Write"],
+    "operatorToolsEnabled": true
+  },
+  "knowledge": {
+    "critical": [],
+    "files": ["setup-interview.md"],
+    "imports": []
+  }
+}

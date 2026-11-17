@@ -88,6 +88,11 @@
           "type": "string",
           "enum": ["claude", "copilot", "ollama"],
           "description": "Which runtime backend spawns this agent."
+        },
+        "operatorToolsEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Turns on Operator tools: the agent's environment carries credentials for the local control API."
         }
       }
     },
