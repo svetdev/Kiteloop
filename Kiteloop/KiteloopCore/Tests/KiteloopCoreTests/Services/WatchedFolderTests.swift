@@ -116,4 +116,46 @@ final class WatchedFolderTests: XCTestCase {
         XCTAssertTrue(turns.covers(at(105), in: "/vault"))
         XCTAssertFalse(turns.covers(at(40), in: "/vault"))
     }
+
+    func testATurnIsFoundByItsAgentAndCarriesTheRoutinesThatLedToIt() {
+        var turns = RoutineTurnWindows()
+        turns.begin(in: "/vault", at: at(10), agent: "chief", chain: ["brief"])
+        XCTAssertEqual(turns.chain(at: at(15), agent: "chief"), ["brief"])
+        XCTAssertEqual(turns.chain(at: at(15), in: "/vault"), ["brief"])
+        XCTAssertNil(turns.chain(at: at(15), agent: "scout"), "another agent was in no routine's turn")
+        XCTAssertNil(turns.chain(at: at(9), agent: "chief"))
+
+        turns.end(in: "/vault", from: at(10), at: at(30), agent: "chief")
+        XCTAssertEqual(turns.chain(at: at(30), agent: "chief"), ["brief"])
+        XCTAssertNil(turns.chain(at: at(31), agent: "chief"))
+    }
+
+    func testAMomentInsideTwoTurnsCarriesTheChainsOfBoth() {
+        var turns = RoutineTurnWindows()
+        turns.begin(in: "/vault", at: at(10), agent: "chief", chain: ["brief"])
+        turns.begin(in: "/vault", at: at(20), agent: "scout", chain: ["brief", "triage"])
+        XCTAssertEqual(turns.chain(at: at(15), in: "/vault"), ["brief"])
+        XCTAssertEqual(turns.chain(at: at(25), in: "/vault"), ["brief", "triage"])
+        XCTAssertEqual(turns.chain(at: at(25), agent: "chief"), ["brief"], "an agent's turn carries its own chain only")
+
+        turns.end(in: "/vault", from: at(20), at: at(40), agent: "scout")
+        turns.end(in: "/vault", from: at(10), at: at(50), agent: "chief")
+        XCTAssertEqual(turns.chain(at: at(12), in: "/vault"), ["brief", "triage"],
+                       "finished turns that overlapped are one stretch with the chains of both")
+        XCTAssertEqual(turns.chain(at: at(45), agent: "chief"), ["brief"])
+    }
+
+    func testAnAgentsSecondTurnBehindItsFirstKeepsBothInOneStretch() {
+        // A queued prompt's turn begins and ends inside the wait on the turn
+        // it queued behind, which is told it ended only afterwards.
+        var turns = RoutineTurnWindows()
+        turns.begin(in: "/vault", at: at(10), agent: "chief", chain: ["brief"])
+        turns.begin(in: "/vault", at: at(20), agent: "chief", chain: ["inbox"])
+        turns.end(in: "/vault", from: at(20), at: at(30), agent: "chief")
+        turns.end(in: "/vault", from: at(10), at: at(31), agent: "chief")
+
+        XCTAssertEqual(turns.chain(at: at(15), agent: "chief"), ["brief", "inbox"])
+        XCTAssertEqual(turns.chain(at: at(25), agent: "chief"), ["brief", "inbox"])
+        XCTAssertNil(turns.chain(at: at(32), agent: "chief"))
+    }
 }

@@ -164,6 +164,8 @@ extension KiteloopControlServer {
                 if !wasStreaming { chat.routineTurnInFlight = routine.id }
                 await chat.send(from: .routine)
                 chat.routineTurnInFlight = nil
+                // Text that did not join the queue leaves nothing to follow.
+                chat.queuedTurnObserver = nil
                 guard !wasStreaming else { return RoutineTurn(reply: "", costUSD: 0) }
                 let reply = Self.lastAgentReply(in: chat.messages, since: countBefore)
                 if chat.waitingStatus == nil {
@@ -174,7 +176,8 @@ extension KiteloopControlServer {
                                    agentID: agent.id, model: chat.resolvedModel)
             },
             startFresh: { await chat.startNewChat() },
-            agentID: agent.id
+            agentID: agent.id,
+            whenQueuedTurnRuns: { chat.queuedTurnObserver = $0 }
         ))
     }
 

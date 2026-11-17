@@ -5802,12 +5802,69 @@ alone: a prompt names what it is about.
   day or calendar month. Once the routine's own turns have cost that much in
   the current window, a scheduled or webhook firing is refused with a reason
   naming the routine's budget; `POST /v1/routines/{id}/run` is not.
+- **A routine is in a chain once.** What a routine's turn does may fire
+  another routine, and that one a third, but never one already in the chain —
+  see [routines firing routines](#routines-firing-routines).
 - **A Mac that was asleep.** A daily routine missed while the Mac slept runs
   when it wakes, with `scheduledFor` saying when it was due. A poll (`every`)
   is owed only until the next one would have come.
 - **An agent that cannot be reached** — its project is not open, the fleet is
   held for a restart — leaves the occurrence `waiting`, written down once, and
   it runs when the project opens.
+
+### Routines firing routines
+
+A routine's turn can set off another routine: its agent raises an event a
+routine's `on` names, or it writes into a folder a routine's `watch` names.
+That is allowed as far as it is finite, and no further. There is no count to
+tune; two rules decide it, and both end in a `refused` line in
+[`GET /v1/routines/runs`](#get-v1routinesruns).
+
+**A routine is in a chain once.** Every routine turn carries its *chain*: the
+routines that led to it, its own included. A routine fired by its schedule,
+Run now or its webhook starts a chain of one. An event raised by the agent of
+a routine's turn while that turn runs, or a folder change made while a
+routine's turn is running in the project, is taken for that turn's doing. It
+fires a routine that is not yet in the chain, and that routine's turn carries
+the chain with itself added; a routine already in the chain is refused. So a
+morning brief (clock) whose turn raises an `error` fires the routine on
+`error`, and brief → A → B runs through each once — but when B's turn raises
+the event that would fire A again, A is refused. The longest chain is every
+routine once. A prompt that waited in a busy agent's queue (`queued`) is
+followed into the turn it eventually gets, so what that later turn raises or
+writes belongs to the routine's chain too; a queued prompt handed back to the
+input box by Stop gets no turn of its own.
+
+**Where the chain is not known, everything since the last outside cause counts
+as one.** An event or change that falls inside no routine turn Kiteloop saw
+may come from you or from outside the app — or from a routine's turn by a path
+nobody followed: another agent it asked for help, a process it left running.
+So the routines that fired on an `on` or `watch` trigger in a project, since a
+schedule, Run now or a webhook last fired a routine there, are treated as one
+chain: a routine that has fired in it is refused once **another** routine has
+fired after it. Two routines that take turns firing therefore stop at the
+first one's second firing, whether or not anyone saw how one reached the
+other. The next scheduled firing, Run now or webhook call for any routine in
+the project starts the counting again. One routine fired again and again with
+no other between — an inbox that keeps filling — is not two routines firing
+each other and is not refused by this rule; the budgets bound it. Nothing is
+kept across a restart of the app.
+
+| `reason` on the refused run | What happened |
+|---|---|
+| `the routine's own agent raised the event` | The event's subject is the agent the routine sends to. Written for every such event |
+| `the event was raised inside a turn this routine started or led to` | The routine is already in the chain of the turn that raised the event |
+| `the folder changed inside a turn this routine started or led to` | The routine is already in the chain of a turn that was running in the project when the folder changed |
+| `it fired on its trigger, another routine did after it, and no schedule, Run now or webhook has fired a routine in its project since` | The second rule. Press Run now on any routine in the project, or wait for a scheduled one, to let it fire again |
+
+The last three are written **once for a stretch**: while a routine's newest
+line already carries the reason, further causes refused for the same reason
+add no line.
+
+An event names its subject as the backlog item when it has one, and the agent
+otherwise; only an event whose subject is an agent can be placed in that
+agent's turn, so an event about an item always counts as one whose chain is
+not known.
 
 ### GET /v1/routines
 
@@ -5841,7 +5898,7 @@ letters, digits and hyphens.
 | `project` | yes | The project the agent is in, as every endpoint names one |
 | `agent` | yes | The agent the prompt goes to, by name or id |
 | `prompt` | yes | What the agent is sent |
-| `trigger` | yes | Either `{"at": "07:00"}` — a time of day in the Mac's time zone — or `{"every": 30, "from": "08:00", "until": "18:00"}`, minutes between occurrences inside those hours (the whole day when absent). `"days": ["mon", …]` narrows either. Or `{"on": "error"}` — an event kind (`approval`, `question`, `complete`, `error`, `event`) that fires the armed routine when its project publishes one on [`GET /v1/events`](#get-v1events), with the event's kind, subject, title and time under the prompt. `on` takes neither `at` nor `every`; events from before it was armed, or while the app was closed, fire nothing. Only the kind and the project choose the routine — nothing in an event's text does — and an event the routine's own agent raised, or one an agent raised inside a turn a routine started, is refused, so a routine cannot fire itself through what its turn files. Or `{"watch": "notes/inbox"}` — a folder inside the routine's project, written relative to it, that fires the armed routine when one of its direct entries is added, removed, renamed or saved by being replaced, with the folder's name under the prompt as data. Only the folder's own entries are watched, not folders beneath it, and an edit made in place that does not replace the file is not seen. `watch` takes none of `at`, `every`, `from`, `until`, `days` or `on`, and a path that is absolute, starts with `~` or contains `..` is refused; a folder that a symbolic link leads out of the project is never watched and a firing for it is refused. Watching starts when the project is open and the folder exists — a folder made afterwards is picked up when a project next opens, a routine is next saved or a scheduled routine next falls — and changes made while the app was closed fire nothing. A firing is autonomous: the day's budget and the routine's own can refuse it and the check can skip it. A change made while a routine's turn was running in that project is taken for the turn's own and refused, so a routine that writes into the folder it watches does not fire itself again, and a change that arrives while the routine's previous watch firing is still going is not counted |
+| `trigger` | yes | Either `{"at": "07:00"}` — a time of day in the Mac's time zone — or `{"every": 30, "from": "08:00", "until": "18:00"}`, minutes between occurrences inside those hours (the whole day when absent). `"days": ["mon", …]` narrows either. Or `{"on": "error"}` — an event kind (`approval`, `question`, `complete`, `error`, `event`) that fires the armed routine when its project publishes one on [`GET /v1/events`](#get-v1events), with the event's kind, subject, title and time under the prompt. `on` takes neither `at` nor `every`; events from before it was armed, or while the app was closed, fire nothing. Only the kind and the project choose the routine — nothing in an event's text does — and an event the routine's own agent raised, or one an agent raised inside a turn this routine started or led to, is refused, so a routine cannot fire itself through what its turn files ([routines firing routines](#routines-firing-routines)). Or `{"watch": "notes/inbox"}` — a folder inside the routine's project, written relative to it, that fires the armed routine when one of its direct entries is added, removed, renamed or saved by being replaced, with the folder's name under the prompt as data. Only the folder's own entries are watched, not folders beneath it, and an edit made in place that does not replace the file is not seen. `watch` takes none of `at`, `every`, `from`, `until`, `days` or `on`, and a path that is absolute, starts with `~` or contains `..` is refused; a folder that a symbolic link leads out of the project is never watched and a firing for it is refused. Watching starts when the project is open and the folder exists — a folder made afterwards is picked up when a project next opens, a routine is next saved or a scheduled routine next falls — and changes made while the app was closed fire nothing. A firing is autonomous: the day's budget and the routine's own can refuse it and the check can skip it. A change made while a routine's turn was running in that project is taken for that turn's doing: it is refused when the turn is one this routine started or led to, so a routine that writes into the folder it watches does not fire itself again, and fires the routine when the turn was another routine's ([routines firing routines](#routines-firing-routines)). A change that arrives while the routine's previous watch firing is still going is not counted |
 | `name` | no | What a person calls it; the id when absent |
 | `precheck` | no | A shell command run in the project's folder before the turn. Failing, or printing nothing, skips the turn at no model cost; what it prints goes to the agent under the prompt. It has until the routine next falls |
 | `conversation` | no | `continues` (the default, and what a routine saved without the field reads as) sends the prompt into the agent's open chat; `fresh` starts the agent a new chat before each run, opened with a line giving the last started run's time and the first line of its reply. An agent mid-turn gets the prompt in its running chat either way. Absent on a replace keeps the routine's choice; any other value is refused with 400. Every routine is returned with it |
@@ -5918,13 +5975,13 @@ curl -s -H "$H" "$B/routines/runs?routine=pr-watch&limit=5"
 | `started` | The turn began; `finishedAt`, `reply` (the agent's first line) and `costUSD` are filled in when it ends. A start with no `finishedAt` is a turn the app did not see end |
 | `queued` | The agent was mid-turn, so the prompt waits behind that turn |
 | `skipped` | The check failed, timed out or printed nothing; `reason` says which |
-| `refused` | The day's budget, or a Run now or webhook call with nobody to send it to. Final |
+| `refused` | The day's budget or the routine's own, a Run now or webhook call with nobody to send it to, or an event or folder change that would have a routine fire itself or two fire each other ([routines firing routines](#routines-firing-routines)). Final |
 | `waiting` | The agent could not be reached. The occurrence stays owed and a later line records it running |
 
 **Status:** 200 · 401 · 503
 
 A run a webhook fired carries `hook`, the hook's name, whatever its outcome. A run an event fired carries
-`event`, the event's kind — also when it was refused because a routine's own turn raised the event. A run a
+`event`, the event's kind — also when it was refused because a turn the routine started or led to raised the event. A run a
 watched folder fired carries `watch`, the folder as the trigger writes it, whatever its outcome.
 
 ### POST /v1/hooks/{name}
