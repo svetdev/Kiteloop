@@ -2811,8 +2811,30 @@ curl -s -X PATCH -H "$H" -d '{"project":"kiteloop","agent":"Builder","model":"op
 | `maxBudgetUSD` | number or null | What one session may spend; null for no ceiling |
 
 ```json
-{"agent": "…", "name": "Builder", "model": "opus", "applies": "restarted"}
+{"agent": "…", "name": "Builder", "model": "opus", "applies": "restarted",
+ "firstTurn": {"bytes": 9412, "sections": [
+   {"name": "prompt", "bytes": 1180},
+   {"name": "projectInstructions", "bytes": 5210},
+   {"name": "memory", "bytes": 640},
+   {"name": "skill:review", "bytes": 2382}]}}
 ```
+
+`firstTurn` is what the saved configuration puts in the agent's context before
+anyone speaks: the system prompt Kiteloop composes for it, part by part, in the
+order the parts are joined. A part with no text is left out. The names are
+`prompt` (the agent's own), `projectInstructions` (the project's `CLAUDE.md`
+files), `projectContext` (the shared project context), `identity` and
+`knowledgeIndex` (or `domainKnowledge`, for an agent whose knowledge is given
+whole), `memory` (its memory index) and one `skill:<name>` per skill that
+resolves; a skill named in `skills` that is not installed has no entry.
+
+The sizes are measured, in bytes of UTF-8 text, and `firstTurn.bytes` is their
+sum. They are not token counts: Kiteloop has no tokenizer, so it does not guess
+one. What a session really holds is `contextTokens` on
+[`GET /v1/agents`](#get-v1agents), after its first turn. Not counted here: the
+tool schemas of the agent's MCP servers, the built-in tools, the operator-tools
+note and the Claude CLI's own system prompt, all of which are added when the
+process starts.
 
 `applies` says when the change reaches the agent's session. Everything but the
 name and the avatar is read when the session's process starts, so:

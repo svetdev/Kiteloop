@@ -589,6 +589,42 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
         XCTAssertEqual(projectSession.orchestrator.agents.first { $0.id == agentID }?.effort, "high")
     }
 
+    /// The reply measures the prompt the saved agent will be given, so a skill
+    /// the edit just set is in it and the keys a driver already reads are not moved.
+    func testAnEditReportsWhatTheAgentsConfigurationPutsInItsFirstTurn() async throws {
+        let skillsDir = tempDir.appending(path: "skills")
+        let skillDir = skillsDir.appending(path: "review")
+        try FileManager.default.createDirectory(at: skillDir, withIntermediateDirectories: true)
+        let skill = "---\nname: review\ndescription: Reads a diff\n---\nRead the diff twice.\n"
+        try skill.write(to: skillDir.appending(path: "SKILL.md"), atomically: true, encoding: .utf8)
+        let skills = SkillRegistry(scanPaths: [skillsDir])
+        await skills.reload()
+        let projectSession = try registerProject(named: "alpha", skillRegistry: skills)
+        let agentID = addAgent(named: "Builder", to: projectSession)
+
+        let (status, body) = try await patch([
+            "project": "alpha", "agent": agentID, "systemPrompt": "Build boats.", "skills": ["review"]
+        ])
+
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(body["agent"] as? String, agentID)
+        XCTAssertEqual(body["name"] as? String, "Builder")
+        XCTAssertEqual(body["model"] as? String, "sonnet")
+        XCTAssertNotNil(body["applies"] as? String)
+        let firstTurn = try XCTUnwrap(body["firstTurn"] as? [String: Any])
+        let sections = try XCTUnwrap(firstTurn["sections"] as? [[String: Any]])
+        let sizes = sections.compactMap { $0["bytes"] as? Int }
+        XCTAssertEqual(sections.compactMap { $0["name"] as? String }, ["prompt", "skill:review"])
+        XCTAssertEqual(sizes.first, "Build boats.".utf8.count)
+        XCTAssertEqual(firstTurn["bytes"] as? Int, sizes.reduce(0, +))
+        let saved = try XCTUnwrap(projectSession.orchestrator.agents.first { $0.id == agentID })
+        let composed = await projectSession.orchestrator.memoryManager
+            .composeSystemContext(agent: saved, skillRegistry: skills)
+        let separators = (sections.count - 1) * "\n\n---\n\n".utf8.count
+        XCTAssertEqual(firstTurn["bytes"] as? Int, composed.utf8.count - separators,
+                       "the sections are the composed prompt, less what joins them")
+    }
+
     // MARK: - Removing an agent
 
     func testRemovingAnAgentStopsItAndTakesItOffTheTeamFile() async throws {
@@ -655,7 +691,8 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
     /// Builds a real `ProjectSession` over a throwaway directory and registers it,
     /// which is all any control route needs to resolve the project.
     @discardableResult
-    private func registerProject(named name: String, appDefaultModel: String? = nil) throws -> ProjectSession {
+    private func registerProject(named name: String, appDefaultModel: String? = nil,
+                                 skillRegistry: SkillRegistry = SkillRegistry(scanPaths: [])) throws -> ProjectSession {
         let root = tempDir.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let rootURL = URL(fileURLWithPath: root.path(percentEncoded: false), isDirectory: false)
@@ -667,7 +704,8 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
             runtime: MockAgentRuntime(),
             eventBus: eventBus,
             subscriptionEngine: SubscriptionEngine(eventBus: eventBus),
-            memoryManager: MemoryManager(project: project)
+            memoryManager: MemoryManager(project: project),
+            skillRegistry: skillRegistry
         )
         let session = ProjectSession(
             project: project,
