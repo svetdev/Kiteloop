@@ -44,6 +44,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - The Autopilot tab no longer lists the project's routines; they are on the Routines page.
 
 ### Fixes
+- Starting a run over the control API (`POST /v1/runs`) now always answers with the run's id or with the reason it did not start. The request is held until the autopilot has decided, so it no longer answers "accepted and still spinning up" with no id, and a start that ends before any workflow is created is reported as such instead of being left unanswered.
 - The environment values and remote-server headers of a connector set up in Settings → MCP Servers (or through `PUT /v1/mcp-servers`) are kept in the login keychain instead of in plain text in `~/.kiteloop/global-config.json`, which now holds only their names; values already in the file move to the keychain the next time Kiteloop starts, and leaving a value blank when saving keeps the stored one.
 - A table in a chat reply lines up when a cell holds ✅/❌, another emoji or CJK text, honours `:---`, `:---:` and `---:` column alignment, and is drawn as a table when written without the outer pipes.
 - A chat follows the conversation again. The list stays on the newest line as a reply is written, as a call's result comes in and when the turn ends, instead of leaving the end of a reply below the window; it still stays put for a reader who scrolled up. Sending a message always takes you to the bottom.

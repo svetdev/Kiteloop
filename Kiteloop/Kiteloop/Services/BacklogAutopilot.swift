@@ -146,6 +146,12 @@ class BacklogAutopilot {
             /// unlike the fleet-wide hold above; lifted the same way, by a
             /// resume.
             case paused = "paused"
+            /// Every gate let the queue through and the run still ended with
+            /// no workflow execution created — the item failed before its
+            /// workflow began, or the queue was held at its first item. Not a
+            /// gate's verdict but the absence of a run, said so that a caller
+            /// waiting for an id is told there will not be one.
+            case workflowDidNotStart = "workflow-did-not-start"
         }
 
         /// Which `start()` this answers. Monotonic per autopilot, so a caller
@@ -159,6 +165,17 @@ class BacklogAutopilot {
         let detail: String
 
         var isAccepted: Bool { refusal == nil }
+    }
+
+    /// What a `start()` came to, for a caller that has to answer for it: the
+    /// execution it created, or why there is none. Never "not yet" — a start
+    /// that is still deciding has no value of this type, and
+    /// `awaitStartDecision(afterAttempt:)` is suspended until it does.
+    enum StartDecision: Equatable {
+        /// The workflow exists; this is the id it is addressable by.
+        case started(executionID: String)
+        /// No execution was created, in the words of whatever decided that.
+        case refused(StartOutcome)
     }
 
     struct LogEntry: Identifiable {
@@ -2014,6 +2031,19 @@ class BacklogAutopilot {
             + "verify is made runnable in a cold worktree; the items are not at fault"
     }
 
+    /// Each `start()`'s decision, handed to whoever is suspended waiting for
+    /// it. Not observed: nothing draws from it, and a view invalidated by a
+    /// waiter registering would be redrawn over nothing.
+    @ObservationIgnored private let startDecisions = AttemptDecisions<StartDecision>()
+    /// The attempt whose queue was accepted and whose execution has not been
+    /// created yet — the start a waiter is owed an answer about. Nil once that
+    /// start is decided, either way.
+    @ObservationIgnored private var undecidedAcceptedAttempt: Int?
+    #if DEBUG
+    /// See `stageStartForTesting`.
+    @ObservationIgnored private var startStandInForTesting: StartStandIn?
+    #endif
+
     /// Writes down what this `start()` decided, in the deciding gate's words.
     ///
     /// Every exit from `start()` goes through here — the refusals and the
@@ -2023,7 +2053,73 @@ class BacklogAutopilot {
     /// report itself as never started.
     private func recordStartOutcome(_ refusal: StartOutcome.Refusal?, _ detail: String) {
         startAttempts += 1
-        lastStartOutcome = StartOutcome(attempt: startAttempts, refusal: refusal, detail: detail)
+        let outcome = StartOutcome(attempt: startAttempts, refusal: refusal, detail: detail)
+        lastStartOutcome = outcome
+        guard let refusal else {
+            // An acceptance is not an answer yet: there is no execution to
+            // name until the workflow has been created, so the waiters stay
+            // suspended until `noteExecutionStarted` or the end of `start()`.
+            undecidedAcceptedAttempt = startAttempts
+            return
+        }
+        // A refusal is the whole answer — except "a run is already executing"
+        // said to a second `start()` while the first is still spinning up.
+        // That is about the bystander, and whoever is waiting is waiting on
+        // the first; what it comes to answers them both.
+        if refusal == .runInFlight, undecidedAcceptedAttempt != nil { return }
+        startDecisions.decide(attempt: startAttempts, .refused(outcome))
+    }
+
+    /// The execution this start was waited on for now exists.
+    ///
+    /// Only the first execution of a start decides it: a queue of several
+    /// items creates one per item, and the answer to "did it start, and as
+    /// what?" is the first.
+    private func noteExecutionStarted(_ executionID: String) {
+        guard undecidedAcceptedAttempt != nil else { return }
+        undecidedAcceptedAttempt = nil
+        startDecisions.decide(attempt: startAttempts, .started(executionID: executionID))
+    }
+
+    /// Closes the decision of a `start()` that is returning, if nothing has
+    /// yet — so a caller suspended on it is always resumed.
+    ///
+    /// Two ways to get here undecided. The queue was accepted and the loop
+    /// ended without creating an execution: the item failed before its
+    /// workflow began, or the queue was held at its first item. Or — which no
+    /// path does today — `start()` returned having recorded nothing at all, in
+    /// which case the refusal is recorded as the start's outcome too.
+    ///
+    /// - Parameter entryAttempt: the attempt count when this `start()` was
+    ///   entered. An acceptance at or before it belongs to a start that was
+    ///   already under way, and is that start's to close.
+    private func settleStartDecision(since entryAttempt: Int) {
+        let detail = "the queue was accepted but the run ended before a workflow execution was created"
+        guard let accepted = undecidedAcceptedAttempt else {
+            if startAttempts == entryAttempt { recordStartOutcome(.workflowDidNotStart, detail) }
+            return
+        }
+        guard accepted > entryAttempt else { return }
+        undecidedAcceptedAttempt = nil
+        // `results` was emptied when this start was accepted, so a blocked
+        // ending in it is this queue's own — the reason nothing was created.
+        var reason = ""
+        if case .blocked(let why)? = results.last?.outcome { reason = ": \(why)" }
+        startDecisions.decide(attempt: startAttempts, .refused(
+            StartOutcome(attempt: startAttempts, refusal: .workflowDidNotStart, detail: detail + reason)))
+    }
+
+    /// What the first `start()` past `afterAttempt` came to — the execution
+    /// it created, or the refusal that means there is none.
+    ///
+    /// Suspends until that is known rather than for any length of time, and
+    /// `settleStartDecision` runs on every way out of `start()`, so it always
+    /// returns. A caller notes `lastStartOutcome?.attempt` before it asks for
+    /// the start and passes it here, so an earlier start's refusal is never
+    /// mistaken for this one's. Called from the main actor it is registered
+    /// before it suspends: ask first, then start.
+    func awaitStartDecision(afterAttempt: Int) async -> StartDecision {
+        await startDecisions.decision(afterAttempt: afterAttempt)
     }
 
     /// Runs the selected items.
@@ -2046,6 +2142,14 @@ class BacklogAutopilot {
         // order a caller meets them over `POST /v1/runs`: a hold, then a spent
         // budget. Each records its own refusal before it returns, so "refused,
         // and why" is never guessed at from the outside.
+        let entryAttempt = startAttempts
+        defer { settleStartDecision(since: entryAttempt) }
+        #if DEBUG
+        if let standIn = startStandInForTesting {
+            await standIn(self)
+            return
+        }
+        #endif
         if refusedByHold() || refusedByBudget(initiator: initiator) { return }
         guard let context = startContext() else { return }
         let outcome = await preflight("checking the selected items against the Definition-of-Ready and the repo") {
@@ -2538,7 +2642,7 @@ class BacklogAutopilot {
     }
 
     /// Opens the run: the status the UI reads, the record the history keeps and
-    /// the start outcome a caller waiting on `POST /v1/runs` polls for.
+    /// the start outcome that says the queue was accepted.
     ///
     /// The outcome is recorded here — past every gate, before the queue is
     /// awaited — because this is the instant the answer to "did it start?"
@@ -3155,6 +3259,7 @@ class BacklogAutopilot {
             do {
                 let execID = try await orchestrator.startWorkflow(graph: graph, initialState: initialState)
                 currentExecutionID = execID
+                noteExecutionStarted(execID)
                 onExecutionStarted?(execID)
 
                 let result = await awaitWorkflowCompletion(executionID: execID)
@@ -8823,11 +8928,28 @@ extension BacklogAutopilot {
     func settleStatusAfterRunForTesting() { settleStatusAfterRun() }
     /// What a `start()` decided, without one having to be driven all the way to
     /// the gate that decides it — the state `POST /v1/runs` reads to tell a
-    /// refused start from one still spinning up. Goes through the same recorder
+    /// refused start from one that was accepted. Goes through the same recorder
     /// production does, so the attempt counter advances the way it really would.
     func stageStartOutcomeForTesting(refusal: StartOutcome.Refusal?, detail: String) {
         recordStartOutcome(refusal, detail)
     }
+    /// The instant the run loop reaches when `startWorkflow` returns: the
+    /// execution id is set and the start is decided as started. The loop
+    /// itself needs a workflow engine and two live sessions to get there.
+    func stageStartedExecutionForTesting(_ id: String) {
+        currentExecutionID = id
+        noteExecutionStarted(id)
+    }
+    /// Replaces what `start()` does between entering and returning, so a test
+    /// can hold a start undecided for as long as it likes and then decide it
+    /// — which the real gates, deciding in microseconds, never allow. The
+    /// decision bookkeeping around the body is the production one.
+    typealias StartStandIn = @MainActor (BacklogAutopilot) async -> Void
+    func stageStartForTesting(_ body: @escaping StartStandIn) {
+        startStandInForTesting = body
+    }
+    /// How many callers are suspended in `awaitStartDecision`.
+    var startDecisionWaiterCountForTesting: Int { startDecisions.waiterCount }
     func stageResultForTesting(_ result: ItemResult) { results.append(result) }
     /// Drives the pre-review gate's verify — the last thing between a run's diff
     /// and the reviewer — without the live workflow execution that is otherwise

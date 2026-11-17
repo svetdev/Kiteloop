@@ -4454,25 +4454,30 @@ Behaviour worth knowing:
   [`POST /v1/autopilot/pause`](#post-v1autopilotpause). This holds whether the
   project is paused by its own autopilot or by the fleet board's paused switch;
   [`GET /v1/projects`](#get-v1projects) reports either as `paused: true`.
-- After kicking off the workflow it waits up to **4 s** for the execution ID, then
-  answers one of three things — and which one depends on what the autopilot
-  *decided*, never on the clock:
-  - the id, as above (**202**, `status: running`);
-  - a refusal, in the refusing gate's own words (**409** or **422**, below);
-  - **202 with `status: "starting"` and no `runId`** — nothing refused the run, it
-    is simply still spinning up. Read the id from
-    [`GET /v1/autopilot?project=`](#get-v1autopilot) (`run.runId`) or
-    [`GET /v1/projects`](#get-v1projects), or post the item again: while it is in
-    flight the 409 names the run rather than starting it a second time. A pickup
-    gate that refuses the item *after* this reply — the grounding check decides
-    late on a large tree — is not lost: the server keeps watching, closes a
-    `did-not-run-…` record with the gate's reason (in `GET /v1/runs?project=`
-    and its `/result`), and writes `run did not start: …` to the item's Notes.
+- The request is **held until the autopilot has decided**, and answers one of two
+  things — which one depends on what the autopilot decided, never on how long the
+  request has waited:
+  - the id, as above (**202**, `status: running`), once the workflow execution
+    exists;
+  - the reason no run will exist (**409** or **422**, below), in the words of
+    whatever decided that.
 
-  ```json
-  { "item": "docs-control-api", "title": "Document the control API",
-    "status": "starting", "detail": "The run was accepted and is spinning up; …" }
-  ```
+  There is no third answer and no window to fall out of: a 202 always carries a
+  `runId`, and the request is not answered while the start is still undecided.
+  That means it stays open through the pickup gates (Definition-of-Ready, and the
+  grounding check, which reads the tree), through agent spin-up, and — on a
+  project that lands its own work — through the base merge-verify check, which
+  runs the project's own verify. **Set the client timeout for that**, not for a
+  quick acknowledgement. A client that gives up first has not cancelled anything:
+  [`run.state`](#run-state) reads `starting` while the start's checks are still
+  running and `running` once the queue is accepted, with `runId` as soon as the
+  execution exists. Wait for it to leave `starting` before posting the item
+  again — then the answer is a 409 naming the run if it began, or the same
+  refusal if it did not.
+- A start whose queue was accepted and which then **ended without creating a
+  workflow execution** — the item failed before its workflow began, or the queue
+  was held at its first item — answers **409** saying so, rather than leaving the
+  request open, with the item's blocked reason when it has one.
 
 - **422 means the item, not the moment.** It is returned when the pickup gates take
   every selected item: the item isn't `ready`, or it fails the Definition-of-Ready
@@ -4493,14 +4498,15 @@ Behaviour worth knowing:
   [`POST /v1/autopilot/resume`](#post-v1autopilotresume), which opens a fresh
   session budget; nothing else does.
 - Every refusal reason comes from the gate that refused. It is **never** read off
-  the autopilot's log: the log is a narration, and its last line four seconds into a
+  the autopilot's log: the log is a narration, and its last line early in a
   start is the cost governor's informational `Cost cap: …` statement — the ceiling
   the run is *allowed* to spend. That line reported as a cause, with a 422 behind it,
   is what silently dropped live runs from a headless queue.
 
-**Status:** 202 (started, or accepted and starting) · 400 (malformed body) · 401 ·
+**Status:** 202 (started — `runId` names the execution) · 400 (malformed body) · 401 ·
 404 (no such item in this project) · 409 (project not open; autopilot still busy;
-worker/reviewer not configured; start refused by a condition of the moment) · 422
+worker/reviewer not configured; start refused by a condition of the moment; queue
+accepted but no workflow execution created) · 422
 (the pickup gates refused this item).
 
 ---

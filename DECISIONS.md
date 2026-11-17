@@ -318,3 +318,10 @@ Entry format:
 **Why:** The inspection is what a person reads before letting someone else's setup in, and it is shown on screen and will be returned over the API, so a value in it is a value leaked. Listing every part by path means a pack holds exactly what its manifest says and cannot reach a file beside it.
 **Evidence:** `PackManifest`, `PackInspector.resolve`, `PackInspectorTests.testNoSecretValueAppearsAnywhereInTheInspection`, `testAListedPathThatLeavesThePackThroughASymlinkIsRefused`.
 **Status:** holds — a secret written into a connector's command line or URL is still shown, as part of what the connector runs.
+
+## [2026-11-17] Starting a run is answered by the autopilot's decision, not by a wait
+**Kind:** decision
+**What:** `POST /v1/runs` is held until the start is decided and has two answers: 202 with the execution's id, or 409/422 with the reason no run exists. The 202 `starting` reply with no id, and the background watch behind it, are gone. A start whose queue was accepted and which returns without creating an execution is decided as a refusal, `workflow-did-not-start`.
+**Why:** A fixed wait is a guess at how long deciding takes, and each time it was short the caller was told "don't know" and left to find out some other way whether a run existed. The pickup gates and the base check routinely decide later than any window worth holding.
+**Evidence:** `AttemptDecisions`, `BacklogAutopilot.awaitStartDecision(afterAttempt:)`, `settleStartDecision(since:)`; `AttemptDecisionsTests`, `KiteloopControlServerStartRunTests`.
+**Status:** holds — a second `start()` refused as `run-in-flight` while the first is still spinning up decides nothing; the first one's outcome answers both callers.
