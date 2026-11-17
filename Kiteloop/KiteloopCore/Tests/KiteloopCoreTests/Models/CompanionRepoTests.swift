@@ -81,4 +81,47 @@ final class CompanionRepoTests: XCTestCase {
         let saved = try JSONDecoder().decode(ProjectConfig.self, from: JSONEncoder().encode(with))
         XCTAssertEqual(saved.companions, with.companions)
     }
+
+    // MARK: - The settings page's rows
+
+    func testRowsAreTrimmedAndABlankBaseIsNil() {
+        let edit = CompanionRepo.edit(fromRows: [
+            .init(name: "  library ", path: " ../library\t", baseBranch: "  "),
+            .init(name: "client", path: "../client", baseBranch: " develop "),
+        ])
+
+        XCTAssertEqual(edit, .store([
+            CompanionRepo(name: "library", path: "../library", baseBranch: nil),
+            CompanionRepo(name: "client", path: "../client", baseBranch: "develop"),
+        ]))
+    }
+
+    func testAFullyBlankRowIsSkipped() {
+        let edit = CompanionRepo.edit(fromRows: [
+            .init(name: " ", path: "", baseBranch: "main"),
+            .init(name: "library", path: "../library"),
+        ])
+
+        XCTAssertEqual(edit, .store([CompanionRepo(name: "library", path: "../library")]))
+    }
+
+    func testNoRowsLeftStoresNil() {
+        XCTAssertEqual(CompanionRepo.edit(fromRows: []), .store(nil))
+        XCTAssertEqual(CompanionRepo.edit(fromRows: [.init(name: "", path: "  ")]), .store(nil))
+    }
+
+    func testAListWithProblemsIsRefusedWithThem() {
+        let rows: [CompanionRepo.Row] = [
+            .init(name: "two words", path: "../a"),
+            .init(name: "library", path: "../library"),
+            .init(name: "library", path: "../other"),
+            .init(name: "client", path: " "),
+        ]
+
+        XCTAssertEqual(CompanionRepo.edit(fromRows: rows), .refused([
+            "companion name \"two words\" takes letters, digits, - _ and . only",
+            "companion \"library\" is listed twice",
+            "companion \"client\" has no path",
+        ]))
+    }
 }

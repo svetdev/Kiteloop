@@ -479,6 +479,7 @@
 		E090287FE42FE81FEC941648 /* WebPreviewTargetBridgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DBB217E9E551DF1E9B713A1 /* WebPreviewTargetBridgeTests.swift */; };
 		E0CE596A3D3E6AC90FDE7327 /* StaleActiveItemsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E871E363C41224081ED4890 /* StaleActiveItemsTests.swift */; };
 		E13FDD00E7F03698DF315C91 /* OrchestratorRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A06A254F384156A300EFB0 /* OrchestratorRoutingTests.swift */; };
+		FB8BBEBC7132E50CFBDB552E /* CompanionReposSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C148F764433165819B2B7351 /* CompanionReposSettingsView.swift */; };
 		E15AE5C7E587CF8B313A28EC /* HookConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7C5ED9A7978BD415B6F8885 /* HookConfigView.swift */; };
 		E1FA73AD3DD1E54D4A218B8F /* WorkflowResumeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A28C2B58CB8593CEBE3C687C /* WorkflowResumeService.swift */; };
 		E3ED5013E33C559E0C32C4F3 /* AutopilotHistorySummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365939BE5640DA3F77F6012E /* AutopilotHistorySummary.swift */; };
@@ -1191,6 +1192,7 @@
 		C721B3E08BD1392E51CCE3CC /* KiteloopControlServerAskProjectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerAskProjectTests.swift; sourceTree = "<group>"; };
 		C7517800D36E56DEA9EB98E0 /* StrandedWorkSweep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrandedWorkSweep.swift; sourceTree = "<group>"; };
 		C77873CBC6991FFCFBC8656D /* MainWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindow.swift; sourceTree = "<group>"; };
+		C148F764433165819B2B7351 /* CompanionReposSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionReposSettingsView.swift; sourceTree = "<group>"; };
 		C7C5ED9A7978BD415B6F8885 /* HookConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookConfigView.swift; sourceTree = "<group>"; };
 		C831EFDB78C1D0D42C39ACDB /* KiteloopControlServerTemplatesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerTemplatesTests.swift; sourceTree = "<group>"; };
 		C8C37B089E4847C27A649B2F /* WebScreenshotToolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebScreenshotToolTests.swift; sourceTree = "<group>"; };
@@ -1820,6 +1822,7 @@
 				7C1D4E20A5F3B8C1D2E4F601 /* SettingsEditGuard.swift */,
 				1A78B917F6FA58D165C9B9AD /* BacklogFlowSettingsView.swift */,
 				E74783B752DC9BEA58D47B79 /* GitIntegrationView.swift */,
+				C148F764433165819B2B7351 /* CompanionReposSettingsView.swift */,
 				C7C5ED9A7978BD415B6F8885 /* HookConfigView.swift */,
 				69A6F09E4E887D8D55340D77 /* MCPServerConfigView.swift */,
 				57590EC4BACF6A1BCA3CC81E /* PluginManagerView.swift */,
@@ -2703,6 +2706,7 @@
 				74396668E2290681CF01470F /* GlobalConfigStore.swift in Sources */,
 				027715F5B9F7412514BFBF39 /* HeadlessAgentRunner.swift in Sources */,
 				73360EEBC054D15B1C961EBA /* HealthMonitor.swift in Sources */,
+				FB8BBEBC7132E50CFBDB552E /* CompanionReposSettingsView.swift in Sources */,
 				E15AE5C7E587CF8B313A28EC /* HookConfigView.swift in Sources */,
 				E54C7A9BB10B4E72386E5CB7 /* ImageContentView.swift in Sources */,
 				B0E5258D58DAE37B1271ED00 /* InputBar.swift in Sources */,
