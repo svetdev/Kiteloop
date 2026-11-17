@@ -471,3 +471,11 @@ Entry format:
 **Why:** Before this only a chat send restarted a stopped agent; every other sender got an empty stream and reported "(no response)" with a log line, and the autopilot refused. Stop is the one thing the person does to an agent's process on purpose, so it has to mean the same to every sender, and a sender that is refused has to be told. The record is kept on disk because opening a project gives every agent a session, so without it a relaunch would hand a stopped agent to the first teammate that messaged it. Only the person's Stop is recorded: a restart, a run moving the agent to a worktree and a watchdog end sessions too and are not decisions.
 **Evidence:** `StoppedAgents` and `StoppedAgentsTests` (core); `Orchestrator+StoppedAgents.swift`, `OrchestratorStoppedAgentsTests`.
 **Status:** holds — a workflow an agent started with a tool is not told apart from one the person started, so its nodes start a stopped agent too; an agent with no session that the person did not stop (a failed start, a watchdog) is still answered "(no response)".
+
+## [2026-11-17] A part of the first turn is measured, reported or unmeasured — never estimated
+**Kind:** rule
+**What:** `firstTurn` sizes only text Kiteloop writes itself: the composed prompt, the operator-tools note and the JSON its tool bridge answers `tools/list` with. An MCP server a session has started is `reported` with the state and tool names the CLI gave and no size; a server no session has started, and the CLI's own prompt and tools, are `unmeasured` with a reason. The servers listed are the ones a session is started with, not the ones the agent's `mcpServers` allows.
+**Why:** The CLI's init line carries tool names and no schemas, so any size for a server would be invented. Every configured server is handed to the session whatever the agent's list says — the list only allows tools — so its schemas are in the context either way.
+**Evidence:** `FirstTurnCost`, `AgentFirstTurn`, `ConnectorStatus.fromInitPayload`, `ClaudeCodeCLIRuntime.appendMCPConfigArguments`; `FirstTurnCostTests`.
+**Status:** holds — extends [2026-11-17] What a configuration costs before its first turn is reported in bytes, not tokens.
+

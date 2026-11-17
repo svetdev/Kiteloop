@@ -1006,14 +1006,32 @@ package enum ControlAPISpec {
     /// `FirstTurnCost.json`.
     private static var firstTurnSchema: [String: Any] {
         let section = object([
-            "name": described(string, "prompt, projectInstructions, projectContext, identity, knowledgeIndex, domainKnowledge, memory or skill:<name>."),
+            "name": described(string, "prompt, projectInstructions, projectContext, identity, knowledgeIndex, domainKnowledge, memory, skill:<name>, operatorTools or kiteloopTools."),
             "bytes": integer
         ], required: ["name", "bytes"])
+        let reported = object([
+            "name": described(string, "mcp:<server>."),
+            "state": described(string, "connected, failed, needs-auth, pending — as the CLI said."),
+            "tools": described(array(of: string), "The server's tool names as reported. Their schemas are not reported, so there is no size."),
+            "reportedAt": described(string, "When a session last reported the server, ISO 8601.")
+        ], required: ["name", "state", "tools", "reportedAt"])
+        let unmeasured = object([
+            "name": described(string, "mcp:<server> for a server no session has reported; cli for the Claude CLI's own prompt and built-in tools."),
+            "reason": string
+        ], required: ["name", "reason"])
         return described(object([
-            "bytes": described(integer, "The sections' sum."),
-            "sections": described(array(of: section), "The parts that have text, in the order they are joined.")
-        ], required: ["bytes", "sections"]),
-        "The system prompt Kiteloop composes for the saved agent, part by part, measured in bytes of UTF-8 text.")
+            "bytes": described(integer, "The sections' sum. Nothing reported or unmeasured is in it."),
+            "sections": described(array(of: section), "The parts Kiteloop writes and so measures, those that have text."),
+            "reported": described(array(of: reported), "The MCP servers the agent's sessions start with that a session has reported."),
+            "unmeasured": described(array(of: unmeasured), "What is in the context and cannot be sized.")
+        ], required: ["bytes", "sections", "reported", "unmeasured"]),
+        "What the agent's configuration puts in its context before anyone speaks, measured in bytes of UTF-8 text where Kiteloop can measure it.")
+    }
+
+    /// `contextTokens` and `contextWindow` beside a `firstTurn`.
+    private static var measuredContextSchema: [String: Any] {
+        ["contextTokens": described(integer, "Tokens in the context window after the last turn — input, cache read and cache creation. Absent until the agent's chat is open, and on an Ollama or Copilot agent."),
+         "contextWindow": described(integer, "The context window's size. Absent until the CLI reports it, and on an Ollama or Copilot agent.")]
     }
 
     private static func updateAgentDetail() -> Detail {
@@ -1050,7 +1068,8 @@ package enum ControlAPISpec {
                     "agent": string, "name": string, "model": string,
                     "applies": described(string, "now, restarted or nextStart."),
                     "firstTurn": firstTurnSchema
-                ], required: ["agent", "name", "model", "applies", "firstTurn"])),
+                ].merging(measuredContextSchema) { stated, _ in stated },
+                required: ["agent", "name", "model", "applies", "firstTurn"])),
                 errorStatus(400, "A missing or mistyped field, a blank name, no field to change, or a permission mode."),
                 errorStatus(404, "No such agent in this project."),
                 errorStatus(409, "Project not open in Kiteloop, or a teammate already has that name.")
@@ -3172,8 +3191,10 @@ package enum ControlAPISpec {
         "HiredAgent": object([
             "agentId": string,
             "name": string,
-            "model": described(string, "The model actually used — the default when the request omitted one.")
-        ], required: ["agentId", "name", "model"]),
+            "model": described(string, "The model actually used — the default when the request omitted one."),
+            "firstTurn": firstTurnSchema
+        ].merging(measuredContextSchema) { stated, _ in stated },
+        required: ["agentId", "name", "model", "firstTurn"]),
 
         "BacklogItem": object([
             "id": string,
@@ -3925,9 +3946,9 @@ package enum ControlAPISpec {
                 "state": described(string, "idle, working or waitingForHuman."),
                 "mode": described(string, "The agent's permission mode: auto, acceptEdits, plan, default, dontAsk or bypassPermissions."),
                 "budget": described(nullable(ownedBudget("everything the agent spends")), "The agent's own day or month budget, with what it has spent in the current window and where that leaves it; null when it has none."),
-                "contextTokens": described(integer, "Tokens in the context window after the last turn — input, cache read and cache creation. Absent until the agent's chat is open, and on an Ollama or Copilot agent."),
-                "contextWindow": described(integer, "The context window's size. Absent until the CLI reports it, and on an Ollama or Copilot agent.")
-            ], required: ["id", "name", "state"]))
+                "firstTurn": firstTurnSchema
+            ].merging(measuredContextSchema) { stated, _ in stated },
+            required: ["id", "name", "state", "firstTurn"]))
         ], required: ["agents"]),
         "AgentMessage": object([
             "agent": described(string, "The agent's id."),

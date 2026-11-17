@@ -228,6 +228,7 @@
 		FA0C1257A11000000000B001 /* ProjectSession+PackInstall.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0C1257A11000000000A001 /* ProjectSession+PackInstall.swift */; };
 		686B13EE93D27261A8A07570 /* KiteloopControlServerBacklogGroomTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2527CFD035B5AEDF7E22019A /* KiteloopControlServerBacklogGroomTests.swift */; };
 		68A158C9C451C538AB945635 /* AgentEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5DD2B5AF920104404D06BD1 /* AgentEditorSheet.swift */; };
+		54F7841922FB02A7818E4D2F /* AgentFirstTurnView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A0DF531457CA340C44DBD7B /* AgentFirstTurnView.swift */; };
 		68A8376EDB40972D66CCC9CC /* KiteloopControlServerSteerRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76FCC22B0E805671CCF452B /* KiteloopControlServerSteerRunTests.swift */; };
 		EA6674C961A452D0364E2956 /* KiteloopControlServerRoutinesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EC54B42CB84DF052938839F /* KiteloopControlServerRoutinesTests.swift */; };
 		87187468A0A0F75E5793DAC8 /* KiteloopControlServerSpendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB932C4B52A3524DF39DC36B /* KiteloopControlServerSpendTests.swift */; };
@@ -525,6 +526,7 @@
 		F38C6B5ED3C64333B4719075 /* RunScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */; };
 		0F31837E9FB813140FE71E55 /* RoutineRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */; };
 		D4767BB637E3D386E64AE11C /* ProjectSpendBudgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 706BAC85CA4783AAC8974FEA /* ProjectSpendBudgets.swift */; };
+		DF3CFDBA69751236696034DE /* AgentFirstTurn.swift in Sources */ = {isa = PBXBuildFile; fileRef = C17F7CBB1CE595F616ED9B2C /* AgentFirstTurn.swift */; };
 		F3A9BF4E5D23D0EFD48E9245 /* KiteloopControlServerSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A4846B87C61D8C24E83190 /* KiteloopControlServerSchedulingTests.swift */; };
 		F3F81FA2138DFD20E1EFCF18 /* AgentCatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC04DDF864EA60BEAD7BFFA6 /* AgentCatalogStore.swift */; };
 		F402A30B6263709165655087 /* ClaudeCodeCLIRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73D7E5B42202DD55DAD9AB5 /* ClaudeCodeCLIRuntime.swift */; };
@@ -685,6 +687,7 @@
 		9209BD6D9ACB695685B077A6 /* PushRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */; };
 		63042440C7986509B43C723F /* RoutineEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */; };
 		C0A7A6E00000000000000003B /* KiteloopControlServer+AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A7A6E00000000000000003A /* KiteloopControlServer+AppSettings.swift */; };
+		C0AAC49E0FE2390412DA33ACE /* AgentContextFields.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50BC2251FA6B32F6EEE95E24 /* AgentContextFields.swift */; };
 		F3AD42CB9665B75BC54A8116 /* KiteloopControlServer+ConfigChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98235FBC92CA9F5BC12BEDFC /* KiteloopControlServer+ConfigChanges.swift */; };
 		C0A7A6E00000000000000002B /* KiteloopControlServer+Memory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A7A6E00000000000000002A /* KiteloopControlServer+Memory.swift */; };
 		686BFD4958F1B06CC120884F /* KiteloopControlServer+Spend.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4CE05D1AF100AB162C194E /* KiteloopControlServer+Spend.swift */; };
@@ -879,6 +882,7 @@
 		3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunScheduling.swift; sourceTree = "<group>"; };
 		FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineRunner.swift; sourceTree = "<group>"; };
 		706BAC85CA4783AAC8974FEA /* ProjectSpendBudgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSpendBudgets.swift; sourceTree = "<group>"; };
+		C17F7CBB1CE595F616ED9B2C /* AgentFirstTurn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFirstTurn.swift; sourceTree = "<group>"; };
 		40758D27B5B863E9BD66FB34 /* SettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUITests.swift; sourceTree = "<group>"; };
 		40B1C236B2218D02F96AD9B0 /* CoordinatorAdvisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorAdvisor.swift; sourceTree = "<group>"; };
 		41C4208A1F527750364D6971 /* BacklogTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogTemplateTests.swift; sourceTree = "<group>"; };
@@ -1172,6 +1176,7 @@
 		A993E34A13CDD799A9B45F72 /* ChatViewModelPermissionPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelPermissionPromptTests.swift; sourceTree = "<group>"; };
 		836CA3F14C1933759FBFCFF3 /* ChatViewModelCostDeltaTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelCostDeltaTests.swift; sourceTree = "<group>"; };
 		A5DD2B5AF920104404D06BD1 /* AgentEditorSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentEditorSheet.swift; sourceTree = "<group>"; };
+		0A0DF531457CA340C44DBD7B /* AgentFirstTurnView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentFirstTurnView.swift; sourceTree = "<group>"; };
 		A5F69B1380757E9265991086 /* KiteloopControlServerOpenAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerOpenAPITests.swift; sourceTree = "<group>"; };
 		A7CF5A9EC88923767EEC9572 /* TeamConfigWatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamConfigWatcherTests.swift; sourceTree = "<group>"; };
 		A925C9458D60918BC10A4DBB /* LedgerDurableRewriteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerDurableRewriteTests.swift; sourceTree = "<group>"; };
@@ -1411,6 +1416,7 @@
 		30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRelay.swift; sourceTree = "<group>"; };
 		D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineEndpoints.swift; sourceTree = "<group>"; };
 		C0A7A6E00000000000000003A /* KiteloopControlServer+AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+AppSettings.swift"; sourceTree = "<group>"; };
+		C50BC2251FA6B32F6EEE95E24 /* AgentContextFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AgentContextFields.swift"; sourceTree = "<group>"; };
 		98235FBC92CA9F5BC12BEDFC /* KiteloopControlServer+ConfigChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+ConfigChanges.swift"; sourceTree = "<group>"; };
 		C0A7A6E00000000000000002A /* KiteloopControlServer+Memory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+Memory.swift"; sourceTree = "<group>"; };
 		EC4CE05D1AF100AB162C194E /* KiteloopControlServer+Spend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+Spend.swift"; sourceTree = "<group>"; };
@@ -1686,6 +1692,7 @@
 				3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */,
 				FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */,
 				706BAC85CA4783AAC8974FEA /* ProjectSpendBudgets.swift */,
+				C17F7CBB1CE595F616ED9B2C /* AgentFirstTurn.swift */,
 				917ECCEF15B9C71E5890CA1E /* RunWorkEvidence.swift */,
 				8CB80D099D424A70A7879393 /* SampleProjectService.swift */,
 				C3270240124011E101985C2D /* SizeCalibration.swift */,
@@ -1768,6 +1775,7 @@
 			children = (
 				F5D56440DA7C13F39C5743E2 /* AgentConfigSheet.swift */,
 				A5DD2B5AF920104404D06BD1 /* AgentEditorSheet.swift */,
+				0A0DF531457CA340C44DBD7B /* AgentFirstTurnView.swift */,
 				870AC2EE4249D1C28F5D548E /* AgentInfoPopover.swift */,
 				8E04A98D96D468D4216D68DD /* KiteloopSidebar.swift */,
 				60F2A1A1FA8ED26373FCC47C /* RepoResolutionPopover.swift */,
@@ -1942,6 +1950,7 @@
 				30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */,
 				D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */,
 				C0A7A6E00000000000000003A /* KiteloopControlServer+AppSettings.swift */,
+				C50BC2251FA6B32F6EEE95E24 /* AgentContextFields.swift */,
 				98235FBC92CA9F5BC12BEDFC /* KiteloopControlServer+ConfigChanges.swift */,
 				C0A7A6E00000000000000002A /* KiteloopControlServer+Memory.swift */,
 				EC4CE05D1AF100AB162C194E /* KiteloopControlServer+Spend.swift */,
@@ -2666,6 +2675,7 @@
 				9209BD6D9ACB695685B077A6 /* PushRelay.swift in Sources */,
 				63042440C7986509B43C723F /* RoutineEndpoints.swift in Sources */,
 				C0A7A6E00000000000000003B /* KiteloopControlServer+AppSettings.swift in Sources */,
+				C0AAC49E0FE2390412DA33ACE /* AgentContextFields.swift in Sources */,
 				F3AD42CB9665B75BC54A8116 /* KiteloopControlServer+ConfigChanges.swift in Sources */,
 				C0A7A6E00000000000000002B /* KiteloopControlServer+Memory.swift in Sources */,
 				686BFD4958F1B06CC120884F /* KiteloopControlServer+Spend.swift in Sources */,
@@ -2692,6 +2702,7 @@
 				E9B4060C65B26D809E53290C /* AgentCatalogView.swift in Sources */,
 				A484F9478F919F9ED0F1BB54 /* AgentConfigSheet.swift in Sources */,
 				68A158C9C451C538AB945635 /* AgentEditorSheet.swift in Sources */,
+				54F7841922FB02A7818E4D2F /* AgentFirstTurnView.swift in Sources */,
 				8075FBAC54CE29A2ADC353A8 /* AgentInfoPopover.swift in Sources */,
 				0D8A4CF25F2E558FEC747C46 /* AgentKnowledgeStore.swift in Sources */,
 				6D3F73DA13BED464486A1AAD /* AgentMemoryIndex.swift in Sources */,
@@ -2852,6 +2863,7 @@
 				F38C6B5ED3C64333B4719075 /* RunScheduling.swift in Sources */,
 				0F31837E9FB813140FE71E55 /* RoutineRunner.swift in Sources */,
 				D4767BB637E3D386E64AE11C /* ProjectSpendBudgets.swift in Sources */,
+				DF3CFDBA69751236696034DE /* AgentFirstTurn.swift in Sources */,
 				88FF61AB05ACCA63248CC6BB /* RunWorkEvidence.swift in Sources */,
 				B7BD7F06C8994B8585754DA4 /* SampleProjectService.swift in Sources */,
 				464B26AFC65E95D486C16389 /* SearchBar.swift in Sources */,

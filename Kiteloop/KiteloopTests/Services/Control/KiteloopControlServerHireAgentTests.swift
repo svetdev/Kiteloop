@@ -665,6 +665,93 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
                        "the sections are the composed prompt, less what joins them")
     }
 
+    // MARK: - What the tools and servers add to the first turn
+
+    /// The note and the bridge's definitions are measured as the text the
+    /// runtime hands over; the CLI's own share is named, never sized.
+    func testTheListMeasuresTheOperatorNoteAndKiteloopsOwnToolDefinitions() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let agent = Agent(name: "Desk", model: "sonnet", systemPrompt: "Answer.", tools: ["Read", "message_agent"],
+                          denied: [], permissionMode: "acceptEdits", operatorToolsEnabled: true)
+        projectSession.orchestrator.addAgent(agent)
+
+        let (status, body) = try await harness.get("/v1/agents?project=alpha")
+
+        XCTAssertEqual(status, 200)
+        let row = try XCTUnwrap((body["agents"] as? [[String: Any]])?.first)
+        let firstTurn = try XCTUnwrap(row["firstTurn"] as? [String: Any])
+        let sections = try XCTUnwrap(firstTurn["sections"] as? [[String: Any]])
+        let sizes = Dictionary(uniqueKeysWithValues: sections.compactMap { section in
+            (section["name"] as? String).flatMap { name in (section["bytes"] as? Int).map { (name, $0) } }
+        })
+        XCTAssertEqual(sections.compactMap { $0["name"] as? String }, ["prompt", "operatorTools", "kiteloopTools"])
+        XCTAssertEqual(sizes["operatorTools"], OperatorToolsKnowledge.note.utf8.count)
+        XCTAssertEqual(sizes["kiteloopTools"], KiteloopToolSchemas.toolDefinitionsJSON(for: agent)?.utf8.count)
+        XCTAssertEqual(firstTurn["bytes"] as? Int, sizes.values.reduce(0, +))
+        let unmeasured = try XCTUnwrap(firstTurn["unmeasured"] as? [[String: String]])
+        XCTAssertEqual(unmeasured.map { $0["name"] }, ["cli"])
+        XCTAssertEqual((firstTurn["reported"] as? [[String: Any]])?.count, 0)
+    }
+
+    func testAnAgentHoldingTheReadTokenIsMeasuredWithTheReadOnlyNote() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        var agent = Agent(name: "Desk", model: "sonnet", systemPrompt: "", tools: [],
+                          denied: [], permissionMode: "acceptEdits", operatorToolsEnabled: true)
+        agent.controlAccess = .readOnly
+        projectSession.orchestrator.addAgent(agent)
+
+        let (_, body) = try await harness.get("/v1/agents?project=alpha")
+
+        let row = try XCTUnwrap((body["agents"] as? [[String: Any]])?.first)
+        let sections = try XCTUnwrap((row["firstTurn"] as? [String: Any])?["sections"] as? [[String: Any]])
+        XCTAssertEqual(sections.compactMap { $0["name"] as? String }, ["operatorTools"])
+        XCTAssertEqual(sections.first?["bytes"] as? Int, OperatorToolsKnowledge.readOnlyNote.utf8.count)
+    }
+
+    /// A server a session has started is reported as it was seen; one none
+    /// has is named and left unsized.
+    func testAServerIsReportedOnceASessionHasSeenItAndUnmeasuredUntilThen() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let config = tempDir.appending(path: "agent-mcp.json")
+        try #"{"mcpServers": {"github": {"command": "gh-mcp"}, "linear": {"command": "linear-mcp"}}}"#
+            .write(to: config, atomically: true, encoding: .utf8)
+        let agent = Agent(name: "Desk", model: "sonnet", systemPrompt: "", tools: [], denied: [],
+                          permissionMode: "acceptEdits", mcpConfigPath: config.path(percentEncoded: false))
+        projectSession.orchestrator.addAgent(agent)
+        projectSession.orchestrator.recordConnectorStatuses([
+            ConnectorStatus(name: "github", state: "connected", tools: ["search"], reportedAt: Date(timeIntervalSince1970: 0))
+        ])
+
+        let (_, body) = try await harness.get("/v1/agents?project=alpha")
+
+        let row = try XCTUnwrap((body["agents"] as? [[String: Any]])?.first)
+        let firstTurn = try XCTUnwrap(row["firstTurn"] as? [String: Any])
+        let reported = try XCTUnwrap(firstTurn["reported"] as? [[String: Any]])
+        XCTAssertEqual(reported.map { $0["name"] as? String }, ["mcp:github"])
+        XCTAssertEqual(reported.first?["tools"] as? [String], ["search"])
+        XCTAssertEqual(reported.first?["reportedAt"] as? String, "1970-01-01T00:00:00Z")
+        XCTAssertNil(reported.first?["bytes"])
+        let unmeasured = try XCTUnwrap(firstTurn["unmeasured"] as? [[String: String]])
+        XCTAssertEqual(unmeasured.map { $0["name"] }, ["mcp:linear", "cli"])
+        XCTAssertEqual(firstTurn["bytes"] as? Int, 0)
+    }
+
+    func testAHireAnswersWithWhatTheNewAgentsConfigurationPutsInItsFirstTurn() async throws {
+        _ = try registerProject(named: "alpha")
+
+        let (status, body) = try await harness.post("/v1/agents", [
+            "project": "alpha", "name": "Builder", "systemPrompt": "Build boats.", "tools": ["Read"]
+        ])
+
+        XCTAssertEqual(status, 201)
+        let firstTurn = try XCTUnwrap(body["firstTurn"] as? [String: Any])
+        let sections = try XCTUnwrap(firstTurn["sections"] as? [[String: Any]])
+        XCTAssertEqual(sections.compactMap { $0["name"] as? String }, ["prompt"])
+        XCTAssertEqual(firstTurn["bytes"] as? Int, "Build boats.".utf8.count)
+        // No turn has run, so there is no token figure to put beside it.
+        XCTAssertNil(body["contextTokens"])
+    }
+
     // MARK: - Removing an agent
 
     func testRemovingAnAgentStopsItAndTakesItOffTheTeamFile() async throws {

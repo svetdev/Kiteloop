@@ -126,6 +126,8 @@ struct AgentEditorSheet: View {
                             in: ContextFillPolicy.thresholdRange, step: 5)
                         .disabled(!autoCompactEnabled)
                         .accessibilityIdentifier("agent-editor-auto-compact-percent")
+                    AgentFirstTurnView(agentID: agentID, orchestrator: orchestrator,
+                                       appServers: (appConfig?.mcpServers ?? [:]).keys.sorted())
                 }
 
                 Section("Tools") {

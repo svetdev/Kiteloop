@@ -2974,7 +2974,9 @@ curl -s -H "$H" "$B/agents?project=kiteloop"
 {"agents": [{"id": "…", "name": "Planner", "model": "opus", "state": "idle", "mode": "auto",
              "budget": {"ceilingUSD": 5, "period": "day", "warnAtFraction": 0.8, "consequence": "refuse",
                         "spentUSD": 4.2, "standing": "warning"},
-             "contextTokens": 42100, "contextWindow": 200000}]}
+             "contextTokens": 42100, "contextWindow": 200000,
+             "firstTurn": {"bytes": 9412, "sections": [{"name": "prompt", "bytes": 1180}, …],
+                           "reported": [], "unmeasured": [{"name": "cli", "reason": "…"}]}}]}
 ```
 
 `budget` is the agent's own day or month ceiling as
@@ -2996,6 +2998,16 @@ input, cache-read and cache-creation tokens, output left out — and
 `/context` show. Both are absent, never null, until the agent's chat is open in
 the app, and on an Ollama or Copilot agent, whose window Kiteloop does not
 know; `contextWindow` is also absent until the CLI has reported the window.
+
+`firstTurn` is what the agent's configuration puts in its context before
+anyone speaks, in bytes — described under
+[`PATCH /v1/agents`](#patch-v1agents), which answers the same object. The two
+sit side by side on purpose: `firstTurn.bytes` is the text Kiteloop hands
+over, `contextTokens` is what a turn then measured. Neither is derived from
+the other and Kiteloop gives no ratio between them. Each agent's figure is
+read from the project's files on every call — its `CLAUDE.md` files, shared
+context, memory index and, for an agent with an MCP config of its own, that
+file — off the main thread.
 
 **Status:** 200 · 400 (missing `project`) · 409 (project not open)
 
@@ -3045,29 +3057,62 @@ session. Read it back, with what has been spent, from
 
 ```json
 {"agent": "…", "name": "Builder", "model": "opus", "applies": "restarted",
- "firstTurn": {"bytes": 9412, "sections": [
+ "contextTokens": 42100, "contextWindow": 200000,
+ "firstTurn": {"bytes": 21630, "sections": [
    {"name": "prompt", "bytes": 1180},
    {"name": "projectInstructions", "bytes": 5210},
    {"name": "memory", "bytes": 640},
-   {"name": "skill:review", "bytes": 2382}]}}
+   {"name": "skill:review", "bytes": 2382},
+   {"name": "operatorTools", "bytes": 9105},
+   {"name": "kiteloopTools", "bytes": 3113}],
+  "reported": [
+   {"name": "mcp:github", "state": "connected", "tools": ["create_issue", "search_code"],
+    "reportedAt": "2026-11-17T09:12:44Z"}],
+  "unmeasured": [
+   {"name": "mcp:linear", "reason": "No session has started with this MCP server yet, so its tools are not known."},
+   {"name": "cli", "reason": "The Claude CLI's own system prompt and built-in tools are added by the CLI; Kiteloop never sees them."}]}}
 ```
 
 `firstTurn` is what the saved configuration puts in the agent's context before
-anyone speaks: the system prompt Kiteloop composes for it, part by part, in the
-order the parts are joined. A part with no text is left out. The names are
-`prompt` (the agent's own), `projectInstructions` (the project's `CLAUDE.md`
-files), `projectContext` (the shared project context), `identity` and
-`knowledgeIndex` (or `domainKnowledge`, for an agent whose knowledge is given
-whole), `memory` (its memory index) and one `skill:<name>` per skill that
-resolves; a skill named in `skills` that is not installed has no entry.
+anyone speaks, split by how much Kiteloop knows of each part.
 
-The sizes are measured, in bytes of UTF-8 text, and `firstTurn.bytes` is their
-sum. They are not token counts: Kiteloop has no tokenizer, so it does not guess
-one. What a session really holds is `contextTokens` on
-[`GET /v1/agents`](#get-v1agents), after its first turn. Not counted here: the
-tool schemas of the agent's MCP servers, the built-in tools, the operator-tools
-note and the Claude CLI's own system prompt, all of which are added when the
-process starts.
+**`sections`** are the parts Kiteloop writes itself, so their size is
+measured. A part with no text is left out. First the system prompt it composes,
+in the order the parts are joined: `prompt` (the agent's own),
+`projectInstructions` (the project's `CLAUDE.md` files), `projectContext` (the
+shared project context), `identity` and `knowledgeIndex` (or `domainKnowledge`,
+for an agent whose knowledge is given whole), `memory` (its memory index) and
+one `skill:<name>` per skill that resolves; a skill named in `skills` that is
+not installed has no entry. Then what a Claude session is started with besides:
+`operatorTools`, the note that goes with the control API credential of an agent
+with Operator tools on — the read-only note for one whose access is `read` —
+and `kiteloopTools`, the definitions of Kiteloop's own tools the agent has
+(`message_agent`, `ask_human`, …), measured as the JSON the tool bridge answers
+the CLI's `tools/list` with.
+
+**`reported`** are the MCP servers the agent's sessions start with that some
+session has already started: `state` and `tools` are what the Claude CLI said
+of the server then, `reportedAt` is when — the same report
+[`GET /v1/mcp-servers`](#get-v1mcp-servers) lists. The CLI reports a server's
+tool names and not their schemas, so a reported server has no `bytes`:
+Kiteloop does not guess one. The servers are the app's configured ones and the
+ones in the agent's own MCP config. The agent's `mcpServers` list does not
+narrow them — it decides which servers' tools the agent may call, and a server
+it leaves out is still started.
+
+**`unmeasured`** is what is in the context and cannot be sized, each with the
+reason: an `mcp:<server>` no session has reported yet, and `cli` — the Claude
+CLI's own system prompt and built-in tools, which the CLI adds and Kiteloop
+never sees. An Ollama or Copilot agent is given the system prompt only, so it
+has no `operatorTools`, `kiteloopTools`, servers or `cli`.
+
+The sizes are bytes of UTF-8 text and `firstTurn.bytes` is the sum of
+`sections` alone. They are not token counts: Kiteloop has no tokenizer, so it
+does not guess one. Where a turn has measured the agent's context,
+`contextTokens` and `contextWindow` are in the same reply, as on
+[`GET /v1/agents`](#get-v1agents) — bytes before, tokens after, with no
+conversion between them; after an edit that restarted the session they are
+still the last turn's.
 
 `applies` says when the change reaches the agent's session. Everything but the
 name and the avatar is read when the session's process starts, so:
@@ -4066,8 +4111,13 @@ curl -s -H "$H" \
 ```
 
 ```json
-{ "agentId": "6B1F…", "name": "Builder", "model": "opus" }
+{ "agentId": "6B1F…", "name": "Builder", "model": "opus",
+  "firstTurn": {"bytes": 4303, "sections": [{"name": "prompt", "bytes": 58}, …],
+                "reported": [], "unmeasured": [{"name": "cli", "reason": "…"}]} }
 ```
+
+`firstTurn` is what the new agent's configuration puts in its context before
+anyone speaks — the object [`PATCH /v1/agents`](#patch-v1agents) describes.
 
 `select` defaults to `false` so a headless driver doesn't yank the human's current
 view.

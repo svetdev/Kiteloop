@@ -730,7 +730,7 @@ final class KiteloopControlServer {
     /// and reading back what it said.
     private func agentsRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
         switch route {
-        case .hireAgent: return hireAgent(body: req.body)
+        case .hireAgent: return await hireAgent(body: req.body)
         case .updateAgent: return await updateAgent(body: req.body)
         case .removeAgent: return removeAgent(query: req.query)
         case .listAgents: return await listAgents(project: req.query["project"])
@@ -3595,7 +3595,7 @@ final class KiteloopControlServer {
         .error(proposalsRetiredNote, status: 410)
     }
 
-    private func hireAgent(body: Data) -> HTTPServer.Response {
+    private func hireAgent(body: Data) async -> HTTPServer.Response {
         guard let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any],
               let project = json["project"] as? String,
               let name = (json["name"] as? String), !name.isEmpty else {
@@ -3634,7 +3634,11 @@ final class KiteloopControlServer {
             mcpServers: json["mcpServers"] as? [String],
             select: select
         )
-        return .json(["agentId": agentID, "name": name, "model": model], status: 201)
+        var reply: [String: Any] = ["agentId": agentID, "name": name, "model": model]
+        if let hired = entry.session.orchestrator.agents.first(where: { $0.id == agentID }) {
+            reply.merge(await AgentContextFields(registry: registry).fields(of: hired, in: entry)) { stated, _ in stated }
+        }
+        return .json(reply, status: 201)
     }
 
     // MARK: - Run lifecycle
@@ -5329,16 +5333,12 @@ final class KiteloopControlServer {
         let budgets = entry.session.orchestrator.agents.compactMap { ProjectSpendBudgets.owned($0) }
         let readings = Dictionary(zip(budgets.map(\.owner), await budgetReadings(budgets)),
                                   uniquingKeysWith: { first, _ in first })
-        let agents = entry.session.orchestrator.agents.map { agent -> [String: Any] in
-            var row: [String: Any] = ["id": agent.id, "name": agent.name, "model": agent.model,
+        var agents: [[String: Any]] = []
+        for agent in entry.session.orchestrator.agents {
+            let row: [String: Any] = ["id": agent.id, "name": agent.name, "model": agent.model,
                                       "state": agent.state.rawValue, "mode": agent.permissionMode,
                                       "budget": readings[.agent(id: agent.id, name: agent.name)] ?? NSNull()]
-            // `chatViewModels[…]`, not `chatViewModel(for:)`: listing never creates one.
-            if let occupancy = entry.session.chatViewModels[agent.id]?.contextOccupancy {
-                row["contextTokens"] = occupancy.tokens
-                if let window = occupancy.windowSize { row["contextWindow"] = window }
-            }
-            return row
+            agents.append(row.merging(await AgentContextFields(registry: registry).fields(of: agent, in: entry)) { stated, _ in stated })
         }
         return .json(["agents": agents])
     }
@@ -5362,11 +5362,9 @@ final class KiteloopControlServer {
         }
         let effect = entry.session.editAgent(agent.id, edit)
         let saved = entry.session.orchestrator.agents.first { $0.id == agent.id } ?? agent
-        let orchestrator = entry.session.orchestrator
-        let sections = await orchestrator.memoryManager.systemContextSections(
-            agent: saved, skillRegistry: orchestrator.skillRegistry)
-        return .json(["agent": saved.id, "name": saved.name, "model": saved.model, "applies": effect.rawValue,
-                      "firstTurn": FirstTurnCost(sections: sections).json])
+        let reply: [String: Any] = ["agent": saved.id, "name": saved.name, "model": saved.model,
+                                    "applies": effect.rawValue]
+        return .json(reply.merging(await AgentContextFields(registry: registry).fields(of: saved, in: entry)) { stated, _ in stated })
     }
 
     /// Takes an agent off the team, as Remove Agent does in the sidebar. An
