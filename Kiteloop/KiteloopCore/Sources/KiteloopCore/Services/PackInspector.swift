@@ -59,7 +59,8 @@ package struct PackInspection: Equatable, Sendable {
     package struct Connector: Equatable, Sendable {
         package let path: String
         package let name: String
-        /// The command line, or the transport and endpoint of a remote server.
+        /// The command line, or the transport and endpoint of a remote server,
+        /// through `SecretRedaction`.
         package let summary: String
         /// Names of the environment variables it expects. Never their values.
         package let envNames: [String]
@@ -197,7 +198,7 @@ package struct PackInspector {
         let servers = try decode([String: ClaudeMCPServerEntry].self, file: listed, at: url)
         return servers.keys.sorted().compactMap { name in
             servers[name].map { entry in
-                PackInspection.Connector(path: listed, name: name, summary: entry.displaySummary,
+                PackInspection.Connector(path: listed, name: name, summary: entry.redactedSummary,
                                          envNames: Self.envNames(of: entry),
                                          headerNames: Self.keys(of: entry.extras["headers"]))
             }

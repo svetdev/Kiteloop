@@ -141,8 +141,24 @@ final class ConfigChangeSummaryTests: XCTestCase {
         XCTAssertFalse(text.contains("sk-live"))
         XCTAssertFalse(text.contains("k-999"))
         XCTAssertFalse(text.contains("pw@"))
-        XCTAssertTrue(text.contains("https://mcp.example.com/sse"))
+        XCTAssertFalse(text.contains("user"))
+        XCTAssertTrue(text.contains("https://<redacted>@mcp.example.com/sse?api_key=<redacted>"), text)
         XCTAssertTrue(text.contains("Authorization"))
+    }
+
+    func testASecretWrittenIntoAnMCPServersCommandLineIsLeftOut() {
+        let text = summary([:], #"{"command":"npx tracker --api-key k-111","args":["--token=t-222","--password","p-333","-H","Authorization: Bearer b-444","--dir","/opt/token-store"]}"#)
+
+        for secret in ["k-111", "t-222", "p-333", "b-444"] {
+            XCTAssertFalse(text.contains(secret), secret)
+        }
+        XCTAssertTrue(text.contains(#""command":"npx tracker --api-key <redacted>""#), text)
+        XCTAssertTrue(text.contains(#""--token=<redacted>","--password","<redacted>","-H","Authorization: Bearer <redacted>","--dir","/opt/token-store""#), text)
+    }
+
+    func testAURLKeepsTheQueryValuesThatAreNotNamedLikeSecrets() {
+        XCTAssertEqual(summary(["feed": "https://example.com/items?page=2&access_token=abc"]),
+                       "feed=https://example.com/items?page=2&access_token=<redacted>")
     }
 
     func testSecretNamedFieldsAreRedactedAtAnyDepth() {

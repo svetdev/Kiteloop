@@ -306,8 +306,10 @@ struct KiteloopApp: App {
                 let configStore = globalConfigStore
                 PushRelay.shared.configure(devices: PushDeviceStore(url: PushDeviceStore.defaultURL),
                                            key: { configStore.config.pushKey })
-                // Outbound webhooks: read once; no file, no dispatcher.
-                let webhooks = OutboundWebhooks.load(from: OutboundWebhooks.defaultURL)
+                // Outbound webhooks: read once; no file, no dispatcher. A
+                // secret written in the file moves to the keychain here.
+                let webhooks = OutboundWebhooks.load(from: OutboundWebhooks.defaultURL,
+                                                     secrets: KeychainConnectorSecretStore())
                 if !webhooks.isEmpty {
                     let dispatcher = OutboundWebhookDispatcher(webhooks: webhooks, transport: { request in
                         let (data, response) = try await URLSession.shared.data(for: request)

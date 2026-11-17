@@ -121,13 +121,20 @@ the route.
 
 The card says who asked (`operator`, or a scoped token's name and scope), the
 method and path, and the call's query and JSON body **with secrets left out**:
-every value inside an `env` or `headers` object, the value of any field named
-like a secret (`token`, `secret`, `password`, `authorization`, `credential`, or
-ending in `key`), and the user, password and query string of any URL are
-replaced with `<redacted>`. Names stay, so the card still says which variable
-or header is being set. An MCP server's `command` and `args` are shown as
-sent — a secret passed as a command-line argument is visible on the card and
-in the log.
+every value inside an `env` or `headers` object and the value of any field
+named like a secret (`token`, `secret`, `password`, `authorization`,
+`credential`, or ending in `key` or `token`) are replaced with `<redacted>`.
+Names stay, so the card still says which variable or header is being set.
+
+An MCP server's `command` and `args`, and any value that is a URL, are shown
+with what looks like a credential replaced by the same marker: the user and
+password before a URL's `@`, the value of a query key named like a secret
+(`?access_token=…`; other query values are shown), the value of a flag or
+assignment named like one (`--token=…`, `--api-key …`, `API_KEY=…`) and
+whatever follows `Bearer`. **This is best effort, not a guarantee**: a secret
+passed bare, under a name that says nothing, or inside a path is shown as
+sent, on the card and in the log. Put a server's secrets in its `env` or
+`headers`, which are never shown and are kept in the keychain.
 
 Every decision is one line of `config-changes.jsonl` — in
 `<project>/.kiteloop/` when the call names an open project, else in
@@ -2698,15 +2705,26 @@ launch, and with no file or an empty list nothing is sent:
 ```json
 [
   {"url": "https://hooks.example.com/kiteloop", "secret": "a-long-random-string", "kinds": ["approval", "question"]},
-  {"url": "https://dash.example.net/in", "secret": "another-secret", "kinds": []}
+  {"url": "https://dash.example.net/in", "kinds": []}
 ]
 ```
 
 | Field | Meaning |
 |---|---|
 | `url` | Where each event is POSTed |
-| `secret` | The key the body is signed with |
+| `secret` | The key the body is signed with — written here once, then kept in the keychain (below) |
 | `kinds` | The event `kind`s to send — `approval`, `question`, `complete`, `error`, `event`; an empty list sends every kind |
+
+**The secret lives in the login keychain, not in the file.** To set one, or
+replace it, write `secret` on the webhook's entry and start Kiteloop: at
+launch the value moves to the keychain (service `ai.kiteloop.connector`, under
+the webhook's `url`) and the file is written again without it, so after the
+first launch an entry reads like the second one above. A `secret` already in
+the file from an earlier version moves the same way. It stays in the file only
+if the keychain refused it. The secret is stored under the `url`, so changing
+an entry's `url` means writing its `secret` again; removing an entry leaves
+its keychain item behind, to delete in Keychain Access. A webhook with no secret in
+the file or the keychain is skipped — nothing is posted unsigned.
 
 Each event goes as a `POST` whose body is the event's `data:` JSON line above,
 byte for byte, with three headers:
@@ -3304,7 +3322,15 @@ The MCP servers the app has configured — what an agent's `mcpServers` names.
 ```
 
 `env` lists the names of the variables a server is given and never their
-values: they are where its credentials are.
+values: they are where its credentials are. In `summary`, `command` and `args`
+what looks like a credential is replaced with `<redacted>` — the user and
+password of a URL, the value of a query key, flag or assignment named like a
+secret (`--token=…`, `--api-key …`, `API_KEY=…`, `?access_token=…`) and
+whatever follows `Bearer` — by the rules, and with the limits, given under
+[configuration changes](#configuration-changes-wait-on-a-person). That is best
+effort: a secret the rules do not recognise is listed as written, so keep
+secrets in `env`, whose values go to the keychain. A listed entry is therefore
+not always one to `PUT` back as it stands.
 
 `status`, `tools` and `reportedAt` are what the last session to start — in any
 open project — reported of the server on its opening line, not a live probe.
