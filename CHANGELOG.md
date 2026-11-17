@@ -9,6 +9,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 ## 0.7.2 — unreleased
 
 ### Added
+- `GET /v1/attention` returns everything waiting on you across every open project — approvals, agents' unanswered questions, plan and permission cards, stale items — as the waiting drawer lists them, oldest first, each row naming the API call that answers it.
 - A routine can start its agent a fresh chat for each run instead of continuing the open one, so a daily job's context stops growing; the fresh chat opens with a note of the last run's reply. Chosen in the routine editor or as `conversation` on `/v1/routines`; existing routines keep continuing their chat.
 - An agent with Operator tools is told every control API endpoint it may call — starting and stopping agents, chats, project and app settings, backlog edits, memory, knowledge, MCP servers and routines included — each with a one-line summary, and that `POST /v1/backlog/land` is the operator's call along with the two approvals.
 - The chat header shows how full the agent's context window is as tokens against the window — `42.1k / 200k · 21%` — updated as each turn finishes, and `GET /v1/agents` reports the same figure as `contextTokens` and `contextWindow`.

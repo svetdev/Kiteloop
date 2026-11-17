@@ -202,7 +202,7 @@ package enum ControlAPISpec {
              .listMetrics, .listEstimates, .listGrooming, .portfolioReport:
             return backlogDetail(for: route)
         case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot,
-             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
+             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .attention, .appEvents:
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
@@ -1939,7 +1939,7 @@ package enum ControlAPISpec {
         case .getAutopilot, .setAutopilot, .resetAutopilot,
              .pauseAutopilot, .resumeAutopilot:
             return autopilotDetail(for: route)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .attention, .appEvents:
             return fleetDetail(for: route)
         default:
             preconditionFailure("\(route) is not a queue route")
@@ -2086,6 +2086,7 @@ package enum ControlAPISpec {
         case .quiesceFleet: return quiesceFleetDetail()
         case .resumeFleet: return resumeFleetDetail()
         case .usage: return usageDetail()
+        case .attention: return attentionDetail()
         case .appEvents: return appEventsDetail()
         default:
             preconditionFailure("\(route) is not a fleet route")
@@ -2114,6 +2115,46 @@ package enum ControlAPISpec {
                        description: "An SSE stream of inbox notices.",
                        schema: described(string, "SSE frames, newline-delimited."),
                        contentType: "text/event-stream")
+            ]
+        )
+    }
+
+    private static func attentionDetail() -> Detail {
+        let project = object(["id": string, "name": string, "path": string], required: ["id", "name", "path"])
+        let answer = object([
+            "method": string,
+            "path": described(string, "The control call that answers this row.")
+        ], required: ["method", "path"])
+        let row = object([
+            "id": string,
+            "kind": described(string, "approval, question, plan, prompt or stale."),
+            "project": project,
+            "itemId": described(nullable(string), "For approval and stale rows."),
+            "agentId": described(nullable(string), "For question, plan and prompt rows."),
+            "title": string,
+            "detail": nullable(string),
+            "since": described(nullable(string), "When it started waiting, ISO 8601; null when its notice is gone."),
+            "gateRefusal": described(nullable(string), "The merge gate's refusal, for an approval row it refused."),
+            "staleFileCount": described(nullable(integer), "Files that conflict with the base, for an approval row."),
+            "answer": answer
+        ], required: ["id", "kind", "project", "title", "since", "answer"])
+        return Detail(
+            id: "attention",
+            summary: "Everything waiting on you, across every open project",
+            description: """
+            The same list the app's waiting drawer draws, oldest first — a row whose \
+            notice is gone (`since` null) at the top: items at the approval gate, agents \
+            holding an unanswered `ask_human` (question), an open plan card (plan) or an \
+            open permission or choices card (prompt), and items nothing has touched in a \
+            while (stale). Each row's `answer` names the call that deals with it. A \
+            snapshot; GET /v1/events streams the notices behind it.
+            """,
+            responses: [
+                Status(code: 200, description: "The list.", schema: object([
+                    "count": integer,
+                    "summary": described(string, "What is waiting, by kind — \"nothing is waiting on you\" when empty."),
+                    "rows": array(of: row)
+                ], required: ["count", "summary", "rows"]))
             ]
         )
     }

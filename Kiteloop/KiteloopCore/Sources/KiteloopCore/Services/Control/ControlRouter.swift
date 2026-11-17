@@ -117,6 +117,10 @@ package enum ControlRoute: Equatable {
     case resumeFleet
     /// `GET /v1/usage` — the agents' rate limits and the last day's spend per project.
     case usage
+    /// `GET /v1/attention` — everything waiting on a person across every open
+    /// project, oldest first: the waiting drawer's list, each row naming the
+    /// call that answers it.
+    case attention
     /// `GET /v1/events` — every open project's inbox notices as one SSE stream.
     case appEvents
 
@@ -221,7 +225,7 @@ package enum ControlRoute: Equatable {
              .listQuickReplies, .workspaceChanges, .workspaceFile, .previewScreenshot,
              .listAgentTasks, .backlogItemDetail, .backlogItemDiff, .listTemplates,
              .listBacklog, .listMetrics, .listEstimates, .listGrooming, .portfolioReport,
-             .getAutopilot, .fleetStatus, .usage, .appEvents, .listMemoryProposals,
+             .getAutopilot, .fleetStatus, .usage, .attention, .appEvents, .listMemoryProposals,
              .getCoordinatorRefill, .getCoordinatorScheduling, .listProposals,
              .listRoutines, .listRoutineRuns, .openAPIDocument,
              .listRuns, .runStatus, .runResult, .runEvents, .runLog:
@@ -389,6 +393,7 @@ package enum ControlRouter {
         Row("POST", "/v1/fleet/quiesce")        { _ in .quiesceFleet },
         Row("POST", "/v1/fleet/resume")         { _ in .resumeFleet },
         Row("GET",  "/v1/usage")                { _ in .usage },
+        Row("GET",  "/v1/attention")            { _ in .attention },
         Row("GET",  "/v1/events")               { _ in .appEvents },
 
         Row("GET",  "/v1/memory/proposals")             { _ in .listMemoryProposals },

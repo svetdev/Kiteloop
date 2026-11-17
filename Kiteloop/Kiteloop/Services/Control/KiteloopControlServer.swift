@@ -601,7 +601,7 @@ final class KiteloopControlServer {
              .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine,
              .fireHook, .mintHook, .revokeHook:
             return loopsRoute(route, req)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .attention, .appEvents:
             return await fleetRoute(route, req)
         case .startRun, .listRuns, .runStatus, .runResult, .runEvents, .runLog,
              .approveRun, .cancelRun, .steerRun, .manage:
@@ -853,6 +853,7 @@ final class KiteloopControlServer {
         case .quiesceFleet: return await quiesceFleet(body: req.body)
         case .resumeFleet: return await resumeFleet()
         case .usage: return usage()
+        case .attention: return await attention()
         case .appEvents: return appEvents(req)
         default: return Self.notThisArea(route)
         }
@@ -875,6 +876,29 @@ final class KiteloopControlServer {
                 writer.send(event.json, id: String(event.seq))
             }
         }
+    }
+
+    /// `GET /v1/attention`: what is waiting on a person across every open
+    /// project — the waiting drawer's list, read through the same
+    /// `ProjectSession.waitingReading(pending:)` the drawer reads.
+    private func attention() async -> HTTPServer.Response {
+        var readings: [WaitingOnYou.ProjectReading] = []
+        var waits: [String: [String: AttentionReport.AgentWait]] = [:]
+        for entry in registry.openProjects {
+            let pending = await entry.session.orchestrator.notificationStore?.pending() ?? []
+            readings.append(entry.session.waitingReading(pending: pending))
+            // What each agent's chat holds open, in the order its answer box
+            // takes them: an `ask_human`, then a plan card, then any other card.
+            waits[entry.session.project.id] = entry.session.chatViewModels.mapValues { chat in
+                if chat.pendingHumanToolCallID != nil { return AttentionReport.AgentWait.question }
+                return chat.hasOpenPlanCard ? .plan : .prompt
+            }
+        }
+        let waiting = WaitingOnYou.capture(projects: readings)
+        return .json(AttentionReport.payload(waiting) { row in
+            guard case .question(let agentID) = row.gate else { return .question }
+            return waits[row.projectID]?[agentID] ?? .question
+        })
     }
 
     /// The window `GET /v1/usage` reports spend over: the day the shared
