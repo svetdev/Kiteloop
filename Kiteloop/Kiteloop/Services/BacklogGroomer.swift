@@ -96,16 +96,11 @@ enum BacklogGroomer {
         }
         let subject = Subject(item: item, repos: detail?.repos,
                               dependencies: DefinitionOfReady.Dependencies(file: backlog), sources: sources)
-        var proposal = subject.proposal(from: draft)
-        var rounds = 0
-        while GroomingCorrection.isOwed(after: proposal.grounding, roundsUsed: rounds) {
-            rounds += 1
-            let reply = try await runOneShot(correctionPrompt(original: prompt, refused: proposal.draft,
-                                                              summary: proposal.grounding.summary))
-            guard let corrected = QueueRefill.Draft.parse(reply).first else { break }
-            proposal = subject.proposal(from: corrected)
+        return try await GroomingCorrection.settle(subject.proposal(from: draft), grounding: \.grounding) { refused, summary in
+            let reply = try await runOneShot(correctionPrompt(original: prompt, refused: refused.draft,
+                                                              summary: summary))
+            return QueueRefill.Draft.parse(reply).first.map(subject.proposal(from:))
         }
-        return proposal
     }
 
     /// The item a pass is about and what its proposals are judged against —
@@ -150,6 +145,37 @@ enum BacklogGroomer {
             proposal += "\n\nOut of Scope:\n" + refused.outOfScope.map { "- \($0)" }.joined(separator: "\n")
         }
         return GroomingCorrection.prompt(original: original, refused: proposal, summary: summary)
+    }
+
+    /// The correction prompt for a draft the Planner's bulk grooming wrote and
+    /// the grounding check refused: this file's own one-item grooming prompt
+    /// for the item the draft would become — turn history included — then the
+    /// refused draft and the check's `summary`. A bulk pass asks for several
+    /// items at once; a correction is about one, so it is asked the way the
+    /// Groom button asks.
+    static func correctionPrompt(redrafting refused: QueueRefill.Draft, backlog: BacklogFile,
+                                 turns: TurnHistory?, summary: String) -> String {
+        let original = buildPrompt(item: refused.item(status: .draft), detail: nil, backlog: backlog, turns: turns)
+        return correctionPrompt(original: original, refused: refused, summary: summary)
+    }
+
+    /// `refused` with the rewording in `reply` applied: the size, the `verify:`
+    /// and the four sections are the reply's, and everything the correction
+    /// was not asked for — the id and title, the epic, `from`, `needs`, the
+    /// premise, the repositories — stays the draft's own. The reply's item is
+    /// the one carrying the draft's id, or its first when none does; nil when
+    /// the reply holds no usable draft at all.
+    static func reworded(_ refused: QueueRefill.Draft, by reply: String) -> QueueRefill.Draft? {
+        let parsed = QueueRefill.Draft.parse(reply)
+        guard let answer = parsed.first(where: { $0.id == refused.id }) ?? parsed.first else { return nil }
+        var draft = refused
+        draft.size = answer.size
+        draft.verify = answer.verify
+        draft.what = answer.what
+        draft.how = answer.how
+        draft.validation = answer.validation
+        draft.outOfScope = answer.outOfScope
+        return draft
     }
 
     /// The one-shot's system prompt, appended after whatever persona and repo
