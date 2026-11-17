@@ -418,6 +418,26 @@ from it.
 [`GET /v1/report`](control-api.md#get-v1report) ·
 [`GET /v1/metrics`](control-api.md#get-v1metrics).
 
+### The sitting summary
+
+When the scheduler stops starting runs in a project — nothing left to run, a
+spent budget, a hold — or an autopilot run over several items closes, the
+project's inbox gets one **Sitting summary** notice: what landed, what blocked,
+was refused at pickup or waits at the gate, each stalled item with its recorded
+reason on one line and what clears it, and what the sitting spent. It counts in
+the inbox badge only when something stalled. The last one is also served, per
+project, by
+[`GET /v1/autopilot/sitting-summary`](control-api.md#get-v1autopilotsitting-summary):
+
+```bash
+curl -s -H "$H" "$B/autopilot/sitting-summary?project=<name>" | jq -r .text
+```
+
+It reads the run records and nothing else, so it is as complete as they are, and
+it is kept in memory — a 404 after a restart means no sitting has ended since.
+A queue that empties and is refilled a few minutes later is two sittings and two
+notices.
+
 ## F. Verify coverage: does the `verify:` cover the diff?
 
 An item's `verify:` is trusted to exercise whatever the run changed, and until a

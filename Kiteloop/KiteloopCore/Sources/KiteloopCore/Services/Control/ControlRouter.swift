@@ -110,6 +110,9 @@ package enum ControlRoute: Equatable {
     case resetAutopilot
     case pauseAutopilot
     case resumeAutopilot
+    /// `GET /v1/autopilot/sitting-summary` — what a project's last sitting of
+    /// runs landed, what stalled and what it spent.
+    case sittingSummary
 
     // Fleet-wide quiesce, for a restart that strands nothing
     case fleetStatus
@@ -231,7 +234,7 @@ package enum ControlRoute: Equatable {
              .listQuickReplies, .workspaceChanges, .workspaceFile, .previewScreenshot,
              .listAgentTasks, .backlogItemDetail, .backlogItemDiff, .listTemplates,
              .listBacklog, .listMetrics, .listEstimates, .listGrooming, .portfolioReport,
-             .getAutopilot, .fleetStatus, .usage, .spend, .spendForecast, .attention, .appEvents, .listMemoryProposals,
+             .getAutopilot, .sittingSummary, .fleetStatus, .usage, .spend, .spendForecast, .attention, .appEvents, .listMemoryProposals,
              .getCoordinatorRefill, .getCoordinatorScheduling, .listProposals,
              .listRoutines, .listRoutineRuns, .openAPIDocument,
              .listRuns, .runStatus, .runResult, .runEvents, .runLog:
@@ -394,6 +397,7 @@ package enum ControlRouter {
         Row("POST", "/v1/autopilot/reset")      { _ in .resetAutopilot },
         Row("POST", "/v1/autopilot/pause")      { _ in .pauseAutopilot },
         Row("POST", "/v1/autopilot/resume")     { _ in .resumeAutopilot },
+        Row("GET",  "/v1/autopilot/sitting-summary") { _ in .sittingSummary },
 
         Row("GET",  "/v1/fleet/quiesce")        { _ in .fleetStatus },
         Row("POST", "/v1/fleet/quiesce")        { _ in .quiesceFleet },

@@ -2182,7 +2182,7 @@ struct MainWindow: View {
         autopilot.isProjectPaused = {
             session.project.loadConfig().paused == true
         }
-        wireRunEnds(of: autopilot)
+        wireRunEnds(of: autopilot, projectID: session.project.id)
         autopilotCache.instances[projectID] = autopilot
         return autopilot
     }
@@ -2190,7 +2190,7 @@ struct MainWindow: View {
     /// What the fleet does when one of this project's runs ends: on a usage
     /// limit, which is the account's, so one project's park holds them all;
     /// and on any finish.
-    private func wireRunEnds(of autopilot: BacklogAutopilot) {
+    private func wireRunEnds(of autopilot: BacklogAutopilot, projectID: String) {
         autopilot.onUsageLimitParked = { [runScheduler] limit in
             runScheduler.recordUsageLimit(limit)
         }
@@ -2210,6 +2210,17 @@ struct MainWindow: View {
             // the following launch — said about work that landed perfectly well,
             // and a UI-driven install may see no request for days.
             Task { @MainActor in await controlRegistry.finalizeRuns?() }
+        }
+        // A run over several items is a sitting of its own, and its record
+        // closing is the sitting ending. A run of one item is not: the
+        // scheduler and `POST /v1/runs` both start items one run at a time,
+        // and a summary after each would be the item-by-item reading this
+        // replaces — the scheduler reports its own stretch when it holds.
+        autopilot.onRunRecordClosed = { [weak autopilot, controlRegistry] record in
+            guard let autopilot, autopilot.runQueue.count > 1 else { return }
+            Task { @MainActor in
+                await controlRegistry.sittingEnded?(projectID, record.startedAt, record.completedAt ?? Date())
+            }
         }
     }
 

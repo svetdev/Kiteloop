@@ -1417,6 +1417,8 @@ class BacklogAutopilot {
     /// loop listens here: this is the moment a project's `ready` count is most
     /// likely to have hit zero.
     var onRunFinished: (() -> Void)?
+    /// Fired as a run's record closes, however the run ended, with the record.
+    var onRunRecordClosed: ((RunRecord) -> Void)?
 
     private weak var orchestrator: Orchestrator?
     private weak var backlogViewModel: BacklogViewModel?
@@ -6777,6 +6779,7 @@ class BacklogAutopilot {
         if runHistory.count > 30 { runHistory.removeLast() }
         currentRunRecord = nil
         saveHistory()
+        onRunRecordClosed?(record)
     }
 
     // MARK: - Autopilot Config Persistence

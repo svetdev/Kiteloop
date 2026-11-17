@@ -150,6 +150,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/autopilot/reset` | Reset the budget and behaviour flags to their defaults |
 | POST | `/v1/autopilot/pause` | Hold the queue after the item in flight, and refuse new runs for this project |
 | POST | `/v1/autopilot/resume` | Pick a paused queue back up |
+| GET | `/v1/autopilot/sitting-summary?project=` | What the project's last sitting of runs landed, what stalled and why, and what it spent |
 | GET | `/v1/fleet/quiesce` | Is the fleet holding, and has the last run finished? |
 | POST | `/v1/fleet/quiesce` | Stop the whole fleet taking new work, and wait for it to drain |
 | POST | `/v1/fleet/resume` | Lift the hold and pick the held queues back up |
@@ -2109,6 +2110,85 @@ To keep the same session and give it more room, raise `budgetUSD` with
 
 **Status:** 200 (paused switch cleared, nothing to resume) · 202 (resuming) · 400
 (missing `project`) · 401 · 409 (project not open, or not paused either way).
+
+---
+
+### GET /v1/autopilot/sitting-summary
+
+What the project's **last sitting** of runs came to: the items that landed, the
+items that stalled — each with its recorded reason on one line and what clears
+it — and what the sitting spent. Read scope.
+
+A sitting is a stretch of runs nobody had to watch:
+
+- the unbroken run of starts the **scheduler** made in the project, from its
+  first start until its next look that holds with no run of its own in flight
+  (nothing runnable, a spent budget, a hold, the switch going off); or
+- one **autopilot run over more than one item**, from its start to its record
+  closing. A run of a single item — which is every `POST /v1/runs` — is not a
+  sitting and gets no summary of its own.
+
+When a sitting ends with anything landed or stalled, the summary is filed once in
+the project's inbox as a **Sitting summary** notice — actionable when something
+stalled, a plain report when everything landed — and kept here until the next
+sitting replaces it. A sitting with nothing to report files nothing and leaves the
+previous summary in place.
+
+```bash
+curl -s -H "$H" "$B/autopilot/sitting-summary?project=kiteloop"
+```
+
+```json
+{
+  "project": "/Users/me/kiteloop",
+  "from": "2026-11-16T22:04:11Z",
+  "to": "2026-11-17T05:47:30Z",
+  "summary": "2 landed, 3 stalled, $14.20 spent",
+  "landed": [
+    { "itemId": "item-1", "title": "Ship the thing", "mergeCommit": "4f2a9c1…" },
+    { "itemId": "item-2", "title": "Tidy the other thing", "mergeCommit": null }
+  ],
+  "blocked": [
+    { "itemId": "item-3", "title": "Rework the parser", "reason": "verify failed on the merged tree",
+      "action": "re-groom the item or run it again" }
+  ],
+  "refusedAtPickup": [
+    { "itemId": "item-4", "title": "Bigger than it looks", "reason": "size L exceeds M",
+      "action": "fix what the reason names, usually a Definition-of-Ready clause, so it can be picked up" }
+  ],
+  "atGate": [
+    { "itemId": "item-5", "title": "Needs sign-off", "reason": "no reason recorded",
+      "action": "approve or reject it at the gate" }
+  ],
+  "totalSpendUSD": 14.2,
+  "text": "2 landed, 3 stalled, $14.20 spent.\n\nLanded:\n- item-1: Ship the thing\n…"
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `project` | The project's path |
+| `from` / `to` | The sitting's window, ISO 8601 |
+| `summary` | The counts and the spend, in a sentence |
+| `landed` | Items whose run ended `done`, or whose own merge landed. `mergeCommit` is the commit that merge made, `null` when the run made none |
+| `blocked` | Items a run reached and could not finish |
+| `refusedAtPickup` | Items a pickup gate refused before any work began (`did_not_run`) |
+| `atGate` | Items waiting at the approval gate, with work (`awaiting_approval`) or with a report refuting the item's premise (`investigation`) |
+| `reason` | The record's reason, cut to its first line. When none was recorded: `the run's own merge was refused`, `the worker refuted the item's premise; its report is at the gate`, or `no reason recorded` |
+| `action` | What clears a stall of that kind — the same sentence for every row in a list |
+| `totalSpendUSD` | The sum of the costs on the sitting's run records: every attempt at an item, and runs that are in none of the lists. On a subscription these are token-equivalents, as in [`GET /v1/spend`](#get-v1spend) |
+| `text` | The whole summary as the inbox notice words it |
+
+Each list is in the order the runs started, and an item run more than once in the
+sitting appears once, under its latest run. A run that was cancelled, parked on
+the usage limit or interrupted is in no list.
+
+The summary is read off the run records [`GET /v1/runs`](#get-v1runs) lists and
+records nothing of its own. It is held in memory: a restart forgets it, and a
+sitting the app was quit under is never summarised.
+
+**Status:** 200 · 400 (missing `project`) · 401 · 404 (no sitting has ended in
+this project since Kiteloop launched) · 409 (project not open).
 
 ---
 

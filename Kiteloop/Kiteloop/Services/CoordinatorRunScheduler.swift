@@ -169,6 +169,9 @@ final class CoordinatorRunScheduler {
     /// and releases it when the run returns, so concurrent looks never hand
     /// one project two runs and the fleet never exceeds `maxConcurrentRuns`.
     private(set) var startsInFlight: Set<String> = []
+    /// The sittings in progress: each project this loop has started a run in
+    /// since it last held with nothing in flight, and when the first was.
+    private var sittings = OpenSittings()
     /// True from the moment a start is committed to until the run ends.
     var isStarting: Bool { !startsInFlight.isEmpty }
     /// How many runs the fleet may have in flight at once, across projects —
@@ -540,8 +543,8 @@ final class CoordinatorRunScheduler {
             }
             // One at a time: the tick awaits the run, as it always did, so a
             // caller reading this tick's answer reads the run's end too.
-            defer { startsInFlight.remove(target.path) }
             await performStart(target, registry: registry, now: now)
+            releaseSlot(of: target)
             // The decision this tick *ended* on, not the one it set out with.
             // `performStart` bails on its own guards — no registry entry, the
             // autopilot not idle, the switch re-read late — and notes a hold when
@@ -637,10 +640,7 @@ final class CoordinatorRunScheduler {
         // is. `GET /v1/runs` and `/v1/runs/{id}/result` are where a night is read
         // back from, and until now they had nothing to say about a run nobody
         // asked for over HTTP.
-        let runID = controlServer?.openRun(projectID: entry.session.project.id,
-                                          itemID: target.itemID,
-                                          title: target.itemTitle,
-                                          startedAt: now)
+        let runID = openRun(for: target, in: entry.session.project.id, at: now)
 
         autopilot.selectedItemIDs = [target.itemID]
         // What the autopilot carried before the start, because the execution id is
@@ -886,6 +886,7 @@ final class CoordinatorRunScheduler {
     @discardableResult
     private func note(_ decision: RunScheduling.Decision, at now: Date) -> RunScheduling.Decision {
         lastDecision = decision
+        if decision.hold != nil { endSittings(at: now) }
         guard decision.hold != .disabled else { return decision }
         schedulerLog.info("Run scheduling: \(decision.summary, privacy: .public)")
         var payload: [String: String] = [
@@ -895,6 +896,38 @@ final class CoordinatorRunScheduler {
         ]
         publish(project: decision.target?.project, payload: payload)
         return decision
+    }
+
+    /// Opens the run's durable record, when a control server is attached to
+    /// keep one, and counts the start into the project's sitting either way.
+    private func openRun(for target: RunScheduling.Target, in projectID: String, at now: Date) -> String? {
+        sittings.started(in: projectID, at: now)
+        return controlServer?.openRun(projectID: projectID, itemID: target.itemID,
+                                      title: target.itemTitle, startedAt: now)
+    }
+
+    /// The serial path's run has returned: free its slot. If the switch went
+    /// off while it ran, the timer is torn down and no later look will hold
+    /// and end the sitting, so it ends here.
+    private func releaseSlot(of target: RunScheduling.Target) {
+        startsInFlight.remove(target.path)
+        if !enabled { endSittings(at: Date()) }
+    }
+
+    /// A hold with nothing in flight is where a sitting ends: this loop has
+    /// stopped starting runs, for whatever reason the hold gives, and every
+    /// run it started has come back. Each project it ran in is handed to the
+    /// control server to summarise. A hold noted while a run is still awaited
+    /// ends nothing — that run is part of the sitting.
+    private func endSittings(at now: Date) {
+        guard startsInFlight.isEmpty else { return }
+        let ended = sittings.end(at: now)
+        guard !ended.isEmpty, let registry else { return }
+        Task { @MainActor in
+            for sitting in ended {
+                await registry.sittingEnded?(sitting.projectID, sitting.from, sitting.to)
+            }
+        }
     }
 
     private func remember(_ record: StartRecord) {
