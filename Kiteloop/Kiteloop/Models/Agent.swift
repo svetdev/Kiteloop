@@ -187,3 +187,188 @@ struct Agent: Identifiable, Codable, Equatable {
         state = try container.decodeIfPresent(AgentState.self, forKey: .state) ?? .idle
     }
 }
+
+extension Agent {
+    /// The permission modes an agent can be in, as they are stored.
+    static let permissionModes = ["auto", "acceptEdits", "plan", "default", "dontAsk", "bypassPermissions"]
+
+    /// Why a name cannot be given to an agent, or nil when it can. Agents are
+    /// found by name with a case-insensitive first match, so a blank name
+    /// leaves an empty row and a teammate's name makes one of the two
+    /// unreachable. The agent's own current name is always allowed.
+    static func nameRefusal(_ name: String, agentID: String, agents: [Agent]) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "A name is required." }
+        let taken = agents.contains {
+            $0.id != agentID
+                && $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .caseInsensitiveCompare(trimmed) == .orderedSame
+        }
+        return taken ? "Another agent is already named \u{201C}\(trimmed)\u{201D}." : nil
+    }
+}
+
+/// A change to an agent already on a project's team: the fields named are
+/// replaced, the ones left nil stay as they are.
+struct AgentEdit: Equatable {
+    var name: String?
+    var model: String?
+    var systemPrompt: String?
+    var avatar: String?
+    var tools: [String]?
+    var denied: [String]?
+    var askFirst: [String]?
+    var mcpServers: [String]?
+    var crossAgentAccess: [String]?
+    var skills: [String]?
+    var effort: String?
+    var thinking: Bool?
+    var thinkingBudget: Int?
+    /// `.some(nil)` lifts the ceiling.
+    var maxBudgetUSD: Double??
+
+    static let textFields = ["name", "model", "systemPrompt", "avatar", "effort"]
+    static let listFields = ["tools", "denied", "askFirst", "mcpServers", "crossAgentAccess", "skills"]
+    static let tuningFields = ["thinking", "thinkingBudget", "maxBudgetUSD"]
+    static let effortLevels = ["low", "medium", "high", "xhigh", "max"]
+
+    /// Why a body could not be read as an edit.
+    struct Refusal: Error, Equatable {
+        let reason: String
+    }
+
+    /// Reads the edit out of a request body. A field of the wrong type is
+    /// refused by name rather than dropped, and so is a body that changes
+    /// nothing: either would answer 200 for an edit that did not happen.
+    static func parse(_ json: [String: Any]) -> Result<AgentEdit, Refusal> {
+        if let wrong = textFields.first(where: { json[$0] != nil && !(json[$0] is String) }) {
+            return .failure(Refusal(reason: "\"\(wrong)\" must be a string"))
+        }
+        if let wrong = listFields.first(where: { json[$0] != nil && !(json[$0] is [String]) }) {
+            return .failure(Refusal(reason: "\"\(wrong)\" must be an array of strings"))
+        }
+        if let refusal = tuningRefusal(json) { return .failure(refusal) }
+        var edit = AgentEdit(
+            name: (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+            model: json["model"] as? String,
+            systemPrompt: json["systemPrompt"] as? String,
+            avatar: json["avatar"] as? String,
+            tools: json["tools"] as? [String],
+            denied: json["denied"] as? [String],
+            askFirst: json["askFirst"] as? [String],
+            mcpServers: json["mcpServers"] as? [String],
+            crossAgentAccess: json["crossAgentAccess"] as? [String],
+            skills: json["skills"] as? [String],
+            effort: json["effort"] as? String
+        )
+        edit.readTuning(json)
+        guard edit != AgentEdit() else {
+            let fields = (textFields + listFields + tuningFields).joined(separator: ", ")
+            return .failure(Refusal(reason: "Body must include at least one of: \(fields)"))
+        }
+        return .success(edit)
+    }
+
+    /// Why the effort, thinking or budget a body names cannot be taken.
+    private static func tuningRefusal(_ json: [String: Any]) -> Refusal? {
+        if let effort = json["effort"] as? String, !effortLevels.contains(effort) {
+            return Refusal(reason: "\"effort\" must be one of: \(effortLevels.joined(separator: ", "))")
+        }
+        if json["thinking"] != nil, !isBool(json["thinking"]) {
+            return Refusal(reason: "\"thinking\" must be true or false")
+        }
+        if json["thinkingBudget"] != nil, (wholeNumber(json["thinkingBudget"]) ?? 0) <= 0 {
+            return Refusal(reason: "\"thinkingBudget\" must be a whole number of tokens above zero")
+        }
+        if let budget = json["maxBudgetUSD"], !(budget is NSNull), (amount(budget) ?? 0) <= 0 {
+            return Refusal(reason: "\"maxBudgetUSD\" must be a number above zero, or null for no ceiling")
+        }
+        return nil
+    }
+
+    /// JSON's true and false, and not the 1 and 0 they bridge to.
+    private static func isBool(_ value: Any?) -> Bool {
+        (value as? NSNumber).map { CFGetTypeID($0) == CFBooleanGetTypeID() } ?? false
+    }
+
+    private static func amount(_ value: Any?) -> Double? {
+        guard let number = value as? NSNumber, !isBool(number) else { return nil }
+        return number.doubleValue
+    }
+
+    private static func wholeNumber(_ value: Any?) -> Int? {
+        guard let double = amount(value), double == double.rounded() else { return nil }
+        return Int(double)
+    }
+
+    /// Takes the fields `tuningRefusal` has already passed.
+    private mutating func readTuning(_ json: [String: Any]) {
+        thinking = json["thinking"] as? Bool
+        thinkingBudget = Self.wholeNumber(json["thinkingBudget"])
+        if let budget = json["maxBudgetUSD"] {
+            maxBudgetUSD = .some(Self.amount(budget))
+        }
+    }
+
+    /// Whether the edit changes something the agent's CLI process reads when
+    /// it is spawned — everything but its name and avatar — so a live session
+    /// would keep the old value until it is started again.
+    func changesSpawnValues(of agent: Agent) -> Bool {
+        [
+            model.map { $0 != agent.model },
+            systemPrompt.map { $0 != agent.systemPrompt },
+            tools.map { $0 != agent.tools },
+            denied.map { $0 != agent.denied },
+            askFirst.map { $0 != agent.askFirst },
+            mcpServers.map { $0 != agent.mcpServers },
+            crossAgentAccess.map { $0 != agent.crossAgentAccess },
+            skills.map { $0 != agent.skills },
+            effort.map { $0 != agent.effort },
+            thinking.map { $0 != agent.thinkingEnabled },
+            thinkingBudget.map { $0 != agent.thinkingBudget },
+            maxBudgetUSD.map { $0 != agent.maxBudgetUSD }
+        ].contains(true)
+    }
+
+    func apply(to agent: inout Agent) {
+        if let name { agent.name = name }
+        if let model { agent.model = model }
+        if let systemPrompt { agent.systemPrompt = systemPrompt }
+        if let avatar { agent.avatar = avatar.isEmpty ? nil : avatar }
+        applyLists(to: &agent)
+    }
+
+    private func applyLists(to agent: inout Agent) {
+        if let tools { agent.tools = tools }
+        if let denied { agent.denied = denied }
+        if let askFirst { agent.askFirst = askFirst }
+        if let mcpServers { agent.mcpServers = mcpServers }
+        if let crossAgentAccess { agent.crossAgentAccess = crossAgentAccess }
+        if let skills { agent.skills = skills }
+        applyTuning(to: &agent)
+    }
+
+    private func applyTuning(to agent: inout Agent) {
+        if let effort { agent.effort = effort }
+        if let thinking {
+            agent.thinkingEnabled = thinking
+            if !thinking { agent.thinkingBudget = nil }
+        }
+        if let thinkingBudget {
+            agent.thinkingEnabled = true
+            agent.thinkingBudget = thinkingBudget
+        }
+        if let maxBudgetUSD { agent.maxBudgetUSD = maxBudgetUSD }
+    }
+}
+
+/// When an edit reaches the agent's session.
+enum AgentEditEffect: String {
+    /// Nothing the session reads at spawn changed: it is in effect already.
+    case now
+    /// An idle session was stopped and started on the same conversation.
+    case restarted
+    /// No session is running, or one is mid-turn and was left alone: the edit
+    /// takes when the agent next starts.
+    case nextStart
+}

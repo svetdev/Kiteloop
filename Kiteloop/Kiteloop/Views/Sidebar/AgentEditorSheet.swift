@@ -252,14 +252,7 @@ struct AgentEditorSheet: View {
     /// leaves an empty row and a teammate's name makes one of the two
     /// unreachable. The edited agent's own name is always allowed.
     static func nameRefusal(_ name: String, agentID: String, agents: [Agent]) -> String? {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "A name is required." }
-        let taken = agents.contains {
-            $0.id != agentID
-                && $0.name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    .caseInsensitiveCompare(trimmed) == .orderedSame
-        }
-        return taken ? "Another agent is already named \u{201C}\(trimmed)\u{201D}." : nil
+        Agent.nameRefusal(name, agentID: agentID, agents: agents)
     }
 
     static func saveEffect(hasSession: Bool, state: Agent.AgentState?) -> SaveEffect {

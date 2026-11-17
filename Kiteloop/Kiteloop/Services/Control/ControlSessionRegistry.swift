@@ -30,6 +30,10 @@ final class ControlSessionRegistry {
     /// session state). Reports what it did once the project is registered.
     var openProject: (@MainActor (URL) async -> OpenOutcome)?
 
+    /// Set by `MainWindow` beside `openProject`: closes a project's tab the way
+    /// its ✕ does, and returns once the project is unregistered.
+    var closeProject: (@MainActor (_ projectID: String) async -> Void)?
+
     /// The window's portfolio-level refill loop, so the control API can report
     /// what its passes did. Weak, and for the same reason as `openProject` being
     /// a closure: the window owns this, the app owns the registry, and a window

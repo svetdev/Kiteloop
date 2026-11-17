@@ -473,6 +473,180 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
         XCTAssertEqual(unknown, 404)
     }
 
+    // MARK: - Changing an agent
+
+    func testAnEditReplacesTheNamedFieldsLeavesTheRestAndWritesTheTeamFile() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let agentID = addAgent(named: "Builder", to: projectSession)
+
+        let (status, body) = try await patch([
+            "project": "alpha", "agent": "builder", "name": " Shipwright ", "model": "opus",
+            "systemPrompt": "Build boats.", "tools": ["Read"], "askFirst": ["Bash(gh pr comment:*)"]
+        ])
+
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(body["agent"] as? String, agentID)
+        XCTAssertEqual(body["name"] as? String, "Shipwright")
+        XCTAssertEqual(body["model"] as? String, "opus")
+        let agent = try XCTUnwrap(projectSession.orchestrator.agents.first { $0.id == agentID })
+        XCTAssertEqual(agent.name, "Shipwright")
+        XCTAssertEqual(agent.systemPrompt, "Build boats.")
+        XCTAssertEqual(agent.tools, ["Read"])
+        XCTAssertEqual(agent.askFirst, ["Bash(gh pr comment:*)"])
+        XCTAssertEqual(agent.permissionMode, "acceptEdits", "a field the edit did not name stays")
+        XCTAssertEqual(try savedTeamNames(projectSession), ["Shipwright"], "the edit outlives a restart")
+    }
+
+    /// `applies` is the driver's only way to know whether the session it is
+    /// about to message already runs with the new values.
+    func testAnEditSaysWhenItReachesTheSession() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let agentID = addAgent(named: "Builder", to: projectSession)
+
+        let (_, renamed) = try await patch(["project": "alpha", "agent": agentID, "name": "Wright"])
+        let (_, stopped) = try await patch(["project": "alpha", "agent": agentID, "model": "opus"])
+        try await projectSession.orchestrator.startAgent(agentID, cwd: projectSession.project.rootURL)
+        let (_, same) = try await patch(["project": "alpha", "agent": agentID, "model": "opus"])
+        let (_, idle) = try await patch(["project": "alpha", "agent": agentID, "model": "haiku"])
+        try await eventually("the restart to bring the session back") { projectSession.orchestrator.hasSession(for: agentID) }
+        projectSession.orchestrator.updateAgent(id: agentID) { $0.state = .working }
+        let (_, busy) = try await patch(["project": "alpha", "agent": agentID, "model": "sonnet"])
+
+        XCTAssertEqual(renamed["applies"] as? String, "now", "a name is not read at spawn")
+        XCTAssertEqual(stopped["applies"] as? String, "nextStart", "no session to restart")
+        XCTAssertEqual(same["applies"] as? String, "now", "a value it already had restarts nothing")
+        XCTAssertEqual(idle["applies"] as? String, "restarted")
+        XCTAssertEqual(busy["applies"] as? String, "nextStart", "a turn in flight is left alone")
+        XCTAssertTrue(projectSession.orchestrator.hasSession(for: agentID))
+    }
+
+    func testARenameIsCarriedIntoATeammatesCrossAgentAccess() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let builder = addAgent(named: "Builder", to: projectSession)
+        let lead = addAgent(named: "Lead", to: projectSession)
+        _ = try await patch(["project": "alpha", "agent": lead, "crossAgentAccess": ["Builder"]])
+
+        _ = try await patch(["project": "alpha", "agent": builder, "name": "Shipwright"])
+
+        XCTAssertEqual(projectSession.orchestrator.agents.first { $0.id == lead }?.crossAgentAccess, ["Shipwright"])
+    }
+
+    func testAnEditThatCannotBeMadeIsRefusedAndChangesNothing() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let agentID = addAgent(named: "Builder", to: projectSession)
+        addAgent(named: "Reviewer", to: projectSession)
+        let before = projectSession.orchestrator.agents
+
+        let (taken, _) = try await patch(["project": "alpha", "agent": agentID, "name": "reviewer"])
+        let (blank, _) = try await patch(["project": "alpha", "agent": agentID, "name": "  "])
+        let (nothing, _) = try await patch(["project": "alpha", "agent": agentID])
+        let (mistyped, _) = try await patch(["project": "alpha", "agent": agentID, "tools": "Read"])
+        let (mode, _) = try await patch(["project": "alpha", "agent": agentID, "permissionMode": "plan"])
+        let (unknown, _) = try await patch(["project": "alpha", "agent": "nobody", "name": "X"])
+        let (notOpen, _) = try await patch(["project": "beta", "agent": agentID, "name": "X"])
+
+        XCTAssertEqual(taken, 409)
+        XCTAssertEqual(blank, 400)
+        XCTAssertEqual(nothing, 400)
+        XCTAssertEqual(mistyped, 400)
+        XCTAssertEqual(mode, 400, "the mode has its own endpoint, which moves a live session")
+        XCTAssertEqual(unknown, 404)
+        XCTAssertEqual(notOpen, 409)
+        XCTAssertEqual(projectSession.orchestrator.agents, before)
+    }
+
+    func testAnEditSetsAnAgentsSkillsEffortThinkingAndBudget() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let agentID = addAgent(named: "Builder", to: projectSession)
+
+        let (status, _) = try await patch([
+            "project": "alpha", "agent": agentID, "skills": ["review"], "effort": "high",
+            "thinkingBudget": 8000, "maxBudgetUSD": 2.5
+        ])
+
+        XCTAssertEqual(status, 200)
+        var agent = try XCTUnwrap(projectSession.orchestrator.agents.first { $0.id == agentID })
+        XCTAssertEqual(agent.skills, ["review"])
+        XCTAssertEqual(agent.effort, "high")
+        XCTAssertTrue(agent.thinkingEnabled, "a budget turns thinking on")
+        XCTAssertEqual(agent.thinkingBudget, 8000)
+        XCTAssertEqual(agent.maxBudgetUSD, 2.5)
+
+        _ = try await patch(["project": "alpha", "agent": agentID, "thinking": false, "maxBudgetUSD": NSNull()])
+        agent = try XCTUnwrap(projectSession.orchestrator.agents.first { $0.id == agentID })
+        XCTAssertFalse(agent.thinkingEnabled)
+        XCTAssertNil(agent.thinkingBudget)
+        XCTAssertNil(agent.maxBudgetUSD, "null lifts the ceiling")
+
+        let (effort, _) = try await patch(["project": "alpha", "agent": agentID, "effort": "extreme"])
+        let (thinking, _) = try await patch(["project": "alpha", "agent": agentID, "thinking": 1])
+        let (tokens, _) = try await patch(["project": "alpha", "agent": agentID, "thinkingBudget": 0])
+        let (budget, _) = try await patch(["project": "alpha", "agent": agentID, "maxBudgetUSD": "lots"])
+        XCTAssertEqual([effort, thinking, tokens, budget], [400, 400, 400, 400])
+        XCTAssertEqual(projectSession.orchestrator.agents.first { $0.id == agentID }?.effort, "high")
+    }
+
+    // MARK: - Removing an agent
+
+    func testRemovingAnAgentStopsItAndTakesItOffTheTeamFile() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let agentID = addAgent(named: "Builder", to: projectSession)
+        addAgent(named: "Reviewer", to: projectSession)
+        projectSession.persistTeamConfig()
+        try await projectSession.orchestrator.startAgent(agentID, cwd: projectSession.project.rootURL)
+
+        let (status, body) = try await remove("project=alpha&agent=builder")
+
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(body["removed"] as? String, agentID)
+        XCTAssertEqual(body["name"] as? String, "Builder")
+        XCTAssertEqual(projectSession.orchestrator.agents.map(\.name), ["Reviewer"])
+        XCTAssertFalse(projectSession.orchestrator.hasSession(for: agentID))
+        XCTAssertEqual(try savedTeamNames(projectSession), ["Reviewer"])
+        let (again, _) = try await remove("project=alpha&agent=builder")
+        XCTAssertEqual(again, 404)
+    }
+
+    func testAnAgentInTheMiddleOfSomethingIsNotRemoved() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let busy = addAgent(named: "Builder", to: projectSession)
+        let reviewer = addAgent(named: "Reviewer", to: projectSession)
+        projectSession.orchestrator.updateAgent(id: busy) { $0.state = .working }
+        let autopilot = try XCTUnwrap(registry.entry(forProject: "alpha")?.autopilot)
+        autopilot.reviewerAgentID = reviewer
+        autopilot.stageRunForTesting(status: .paused, queue: [])
+
+        let (midTurn, _) = try await remove("project=alpha&agent=\(busy)")
+        let (staffed, _) = try await remove("project=alpha&agent=\(reviewer)")
+        let (missing, _) = try await remove("project=alpha")
+
+        XCTAssertEqual(midTurn, 409)
+        XCTAssertEqual(staffed, 409, "the run would lose its reviewer")
+        XCTAssertEqual(missing, 400)
+        XCTAssertEqual(projectSession.orchestrator.agents.count, 2)
+
+        autopilot.stageRunForTesting(status: .idle, queue: [])
+        let (afterTheRun, _) = try await remove("project=alpha&agent=\(reviewer)")
+        XCTAssertEqual(afterTheRun, 200)
+    }
+
+    /// The names in the project's team file, as a relaunch would read them.
+    private func savedTeamNames(_ projectSession: ProjectSession) throws -> [String] {
+        let data = try Data(contentsOf: projectSession.project.teamConfigURL)
+        return try JSONDecoder().decode([AgentTemplate].self, from: data).map(\.name)
+    }
+
+    private func patch(_ body: [String: Any]) async throws -> (Int, [String: Any]) {
+        try await harness.send("/v1/agents", method: "PATCH", body: body, bearer: token)
+    }
+
+    private func remove(_ query: String) async throws -> (Int, [String: Any]) {
+        var request = URLRequest(url: harness.url("/v1/agents?\(query)"))
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return try await harness.send(request)
+    }
+
     // MARK: - Helpers
 
     /// Builds a real `ProjectSession` over a throwaway directory and registers it,

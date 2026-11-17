@@ -712,7 +712,7 @@ class ChatViewModel {
     }
 
     /// The permission modes `/mode <name>` switches between, as stored.
-    private static let permissionModes = ["auto", "acceptEdits", "plan", "default", "dontAsk", "bypassPermissions"]
+    private static let permissionModes = Agent.permissionModes
 
     /// Bare `/mode`: the agent's permission mode by its picker name and the
     /// choices, without touching the agent.

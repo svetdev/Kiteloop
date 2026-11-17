@@ -204,6 +204,8 @@ struct KiteloopApp: App {
         let ledger = dailySpendLedger
         let configStore = globalConfigStore
         controlServer.routines = runner
+        controlServer.settings = configStore
+        controlServer.updater = softwareUpdater
         runner.agent = { [weak controlServer] routine in
             controlServer?.routineAgent(for: routine)
                 ?? .failure(Routine.Refusal(problems: ["Kiteloop is shutting down"]))

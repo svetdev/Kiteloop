@@ -14,6 +14,13 @@ package enum ControlRoute: Equatable {
     /// `POST /v1/projects/pin` — the file the phone shows first for a project.
     case pinProjectDocument
     case hireAgent
+    /// `PATCH /v1/agents` — change an agent already on the team.
+    case updateAgent
+    /// `DELETE /v1/agents` — take an agent off the team.
+    case removeAgent
+    /// Setting a team and its project up: sessions, chats, project settings,
+    /// backlog edits, memory, knowledge and the app's settings.
+    case manage(ManagementRoute)
 
     // Backlog + history
     case listBacklog
@@ -241,6 +248,8 @@ package enum ControlRouter {
         Row("POST", "/v1/projects/pin")         { _ in .pinProjectDocument },
         Row("POST", "/v1/agents")               { _ in .hireAgent },
         Row("GET", "/v1/agents")                { _ in .listAgents },
+        Row("PATCH", "/v1/agents")              { _ in .updateAgent },
+        Row("DELETE", "/v1/agents")             { _ in .removeAgent },
         Row("POST", "/v1/agents/message")       { _ in .messageAgent },
         Row("GET", "/v1/agents/transcript")     { _ in .agentTranscript },
         Row("GET", "/v1/agents/events")         { _ in .agentEvents },
@@ -300,6 +309,36 @@ package enum ControlRouter {
         Row("GET",  "/v1/coordinator/proposals")         { _ in .listProposals },
         Row("POST", "/v1/coordinator/proposals/approve") { _ in .approveProposal },
         Row("POST", "/v1/coordinator/proposals/dismiss") { _ in .dismissProposal },
+
+        Row("POST", "/v1/agents/start") { _ in .manage(.startAgent) },
+        Row("POST", "/v1/agents/stop") { _ in .manage(.stopAgent) },
+        Row("POST", "/v1/agents/restart") { _ in .manage(.restartAgent) },
+        Row("GET", "/v1/agents/chats") { _ in .manage(.listAgentChats) },
+        Row("POST", "/v1/agents/chats") { _ in .manage(.newAgentChat) },
+        Row("POST", "/v1/agents/chats/open") { _ in .manage(.openAgentChat) },
+        Row("DELETE", "/v1/agents/chats") { _ in .manage(.deleteAgentChat) },
+        Row("POST", "/v1/projects/close") { _ in .manage(.closeProject) },
+        Row("GET", "/v1/projects/settings") { _ in .manage(.getProjectSettings) },
+        Row("PUT", "/v1/projects/settings") { _ in .manage(.setProjectSettings) },
+        Row("PATCH", "/v1/backlog/items") { _ in .manage(.updateBacklogItem) },
+        Row("DELETE", "/v1/backlog/items") { _ in .manage(.deleteBacklogItem) },
+        Row("GET", "/v1/memory") { _ in .manage(.getAgentMemory) },
+        Row("POST", "/v1/memory/facts") { _ in .manage(.addMemoryFact) },
+        Row("PUT", "/v1/memory/facts") { _ in .manage(.rewriteMemoryFact) },
+        Row("DELETE", "/v1/memory/facts") { _ in .manage(.archiveMemoryFact) },
+        Row("GET", "/v1/memory/shared") { _ in .manage(.getSharedMemory) },
+        Row("PUT", "/v1/memory/shared") { _ in .manage(.setSharedMemory) },
+        Row("GET", "/v1/memory/claude") { _ in .manage(.listClaudeMemory) },
+        Row("PUT", "/v1/memory/claude") { _ in .manage(.putClaudeMemoryNote) },
+        Row("DELETE", "/v1/memory/claude") { _ in .manage(.deleteClaudeMemoryNote) },
+        Row("GET", "/v1/knowledge") { _ in .manage(.listKnowledge) },
+        Row("GET", "/v1/knowledge/file") { _ in .manage(.getKnowledgeFile) },
+        Row("PUT", "/v1/knowledge/file") { _ in .manage(.putKnowledgeFile) },
+        Row("GET", "/v1/mcp-servers") { _ in .manage(.listMCPServers) },
+        Row("PUT", "/v1/mcp-servers/:name") { .manage(.putMCPServer(name: $0[0])) },
+        Row("DELETE", "/v1/mcp-servers/:name") { .manage(.deleteMCPServer(name: $0[0])) },
+        Row("GET", "/v1/settings") { _ in .manage(.getSettings) },
+        Row("PUT", "/v1/settings") { _ in .manage(.setSettings) },
 
         Row("GET",  "/v1/routines")             { _ in .listRoutines },
         Row("GET",  "/v1/routines/runs")        { _ in .listRoutineRuns },

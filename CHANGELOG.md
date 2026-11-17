@@ -6,6 +6,17 @@ The version here is the app's `MARKETING_VERSION` (what `/health` reports and
 what the About panel shows). Every build that ships a behavioural change gets an
 entry — see the changelog convention in `CLAUDE.md`.
 
+## 0.7.2 — unreleased
+
+### Added
+- The control API changes and removes agents: `PATCH /v1/agents` replaces an agent's name, model, prompt, avatar, tools, refused and always-ask calls, MCP servers and the teammates it may message, and says whether the change is in effect now, restarted the idle session or waits for the agent's next start; `DELETE /v1/agents` takes an agent off the team. Until now an agent could be hired over the API but only edited or removed in the app.
+- `PATCH /v1/agents` also sets an agent's skills, effort, thinking and session budget.
+- An agent's session is started, stopped and restarted over the API (`/v1/agents/start`, `stop`, `restart`), and its chats are listed, started, switched and deleted (`/v1/agents/chats`).
+- A project is closed over the API (`POST /v1/projects/close`), and its settings — default model, permission mode, effort, session budget, goal and companion repositories — are read and changed (`/v1/projects/settings`).
+- A backlog item's title, verify, size and detail file are changed, and an item removed, over the API (`PATCH` and `DELETE /v1/backlog/items`).
+- Kiteloop's per-agent memory is read and written over the API — add, rewrite and archive a fact (`/v1/memory`, `/v1/memory/facts`) — and so are the project's shared context (`/v1/memory/shared`), the notes the Claude CLI keeps (`/v1/memory/claude`) and the knowledge packages (`/v1/knowledge`).
+- The app's MCP servers are listed, added and removed over the API (`/v1/mcp-servers`), with their environment values never returned, and its default model, default effort, sound theme and update check are read and changed (`/v1/settings`).
+
 ## 0.7.1 — 2026-11-15
 
 ### Added

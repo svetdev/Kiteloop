@@ -141,7 +141,7 @@ package enum ControlAPISpec {
 
     // MARK: - What each route accepts and returns
 
-    private struct Detail {
+    struct Detail {
         let id: String
         let summary: String
         var description: String?
@@ -151,7 +151,7 @@ package enum ControlAPISpec {
         var responses: [Status]
     }
 
-    private struct QueryParameter {
+    struct QueryParameter {
         let name: String
         let required: Bool
         let schema: [String: Any]
@@ -162,7 +162,7 @@ package enum ControlAPISpec {
         }
     }
 
-    private struct Status {
+    struct Status {
         let code: Int
         let description: String
         var schema: [String: Any]?
@@ -183,7 +183,7 @@ package enum ControlAPISpec {
             return metaDetail(for: route)
         case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot,
-             .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents,
+             .hireAgent, .updateAgent, .removeAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents,
              .interruptAgent, .answerAgentPlan, .answerAgentQuestion,
              .answerAgentPermission, .answerAgentChoices, .setAgentMode, .listAgentTasks, .stopAgentTask,
              .listMemoryProposals, .approveMemoryProposal, .rejectMemoryProposal:
@@ -203,9 +203,15 @@ package enum ControlAPISpec {
              .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine:
             return loopDetail(for: route)
         case .startRun, .approveRun, .cancelRun, .steerRun,
-             .listRuns, .runStatus, .runResult, .runEvents, .runLog:
-            return runDetail(for: route)
+             .listRuns, .runStatus, .runResult, .runEvents, .runLog, .manage:
+            return runOrManagementDetail(for: route)
         }
+    }
+
+    /// The last two families: a run, and setting a team up.
+    private static func runOrManagementDetail(for route: ControlRoute) -> Detail {
+        guard case .manage(let managed) = route else { return runDetail(for: route) }
+        return managementDetail(for: managed)
     }
 
     /// What runs on its own clock: the Planner's two loops, and routines.
@@ -515,7 +521,7 @@ package enum ControlAPISpec {
         switch route {
         case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot: return projectDetail(for: route)
-        case .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents: return agentDetail(for: route)
+        case .hireAgent, .updateAgent, .removeAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents: return agentDetail(for: route)
         case .interruptAgent, .answerAgentPlan, .answerAgentQuestion: return agentSteeringDetail(for: route)
         case .answerAgentPermission, .answerAgentChoices, .setAgentMode, .listAgentTasks, .stopAgentTask:
             return agentPromptDetail(for: route)
@@ -731,6 +737,7 @@ package enum ControlAPISpec {
     private static func agentDetail(for route: ControlRoute) -> Detail {
         switch route {
         case .hireAgent: return hireAgentDetail()
+        case .updateAgent, .removeAgent: return agentRosterDetail(for: route)
         case .listAgents: return listAgentsDetail()
         case .messageAgent: return messageAgentDetail()
         case .agentTranscript: return agentTranscriptDetail()
@@ -771,6 +778,76 @@ package enum ControlAPISpec {
                 Status(code: 201, description: "Hired.", schema: ref("HiredAgent")),
                 errorStatus(400, "Body is missing \"project\" or a non-empty \"name\"."),
                 errorStatus(409, "Project not open in Kiteloop.")
+            ]
+        )
+    }
+
+    /// Changing who is on the team after the hire.
+    private static func agentRosterDetail(for route: ControlRoute) -> Detail {
+        route == .updateAgent ? updateAgentDetail() : removeAgentDetail()
+    }
+
+    private static func updateAgentDetail() -> Detail {
+        return Detail(
+            id: "updateAgent",
+            summary: "Change an agent already on a project's team",
+            description: """
+            What saving the agent's editor does. The fields named are replaced and \
+            the rest stay; the team file is written. `applies` says when the change \
+            reaches the agent's session: `now` (only its name or avatar changed), \
+            `restarted` (an idle session was started again on the same conversation) \
+            or `nextStart` (no session is running, or one is mid-turn and was left alone). \
+            The permission mode is `POST /v1/agents/mode`'s.
+            """,
+            requestBody: agentTargetBody([
+                "name": described(string, "A new display name. Not blank, and not a teammate's."),
+                "model": described(string, "Model id."),
+                "systemPrompt": string,
+                "avatar": described(string, "An avatar's name; empty clears it."),
+                "tools": described(array(of: string), "The tools the agent may use — the whole list."),
+                "denied": described(array(of: string), "The calls the agent is refused — the whole list."),
+                "askFirst": described(array(of: string), "The calls the agent always stops to ask a person about — the whole list."),
+                "mcpServers": described(array(of: string), "The configured MCP servers its sessions are given, by name — the whole list."),
+                "crossAgentAccess": described(array(of: string), "The teammates it may message, by name — the whole list."),
+                "skills": described(array(of: string), "The skills it is given, by qualified name — the whole list."),
+                "effort": described(string, "low, medium, high, xhigh or max."),
+                "thinking": described(bool, "Extended thinking on or off."),
+                "thinkingBudget": described(integer, "Thinking tokens per turn; turns thinking on."),
+                "maxBudgetUSD": described(nullable(number), "What one session may spend; null for no ceiling.")
+            ], required: []),
+            responses: [
+                Status(code: 200, description: "Changed.", schema: object([
+                    "agent": string, "name": string, "model": string,
+                    "applies": described(string, "now, restarted or nextStart.")
+                ], required: ["agent", "name", "model", "applies"])),
+                errorStatus(400, "A missing or mistyped field, a blank name, no field to change, or a permission mode."),
+                errorStatus(404, "No such agent in this project."),
+                errorStatus(409, "Project not open in Kiteloop, or a teammate already has that name.")
+            ]
+        )
+    }
+
+    private static func removeAgentDetail() -> Detail {
+        return Detail(
+            id: "removeAgent",
+            summary: "Take an agent off a project's team",
+            description: """
+            What Remove Agent does in the sidebar: the agent's live session stops and \
+            the agent, with its settings for this project, leaves the team file. \
+            Refused while the agent is mid-turn, and while an autopilot run is using \
+            it as its worker or reviewer.
+            """,
+            query: [
+                projectQuery(required: true),
+                QueryParameter(name: "agent", required: true, schema: string, description: "Agent id or name.")
+            ],
+            responses: [
+                Status(code: 200, description: "Removed.", schema: object([
+                    "removed": described(string, "The agent's id."), "name": string
+                ], required: ["removed", "name"])),
+                errorStatus(400, "Missing ?project= or ?agent=."),
+                errorStatus(404, "No such agent in this project."),
+                errorStatus(409, "Project not open in Kiteloop, the agent is mid-turn, or an autopilot run is using it.")
             ]
         )
     }
@@ -1073,7 +1150,7 @@ package enum ControlAPISpec {
     }
 
     /// A body naming a project and an agent, plus `extra`.
-    private static func agentTargetBody(_ extra: [String: Any], required: [String]) -> [String: Any] {
+    static func agentTargetBody(_ extra: [String: Any], required: [String]) -> [String: Any] {
         var properties: [String: Any] = [
             "project": described(string, "Project identifier."),
             "agent": described(string, "Agent id or name.")
@@ -2426,7 +2503,7 @@ package enum ControlAPISpec {
         "id": "The run id — the workflow execution id returned by POST /v1/runs."
     ]
 
-    private static func projectQuery(required: Bool) -> QueryParameter {
+    static func projectQuery(required: Bool) -> QueryParameter {
         QueryParameter(
             name: "project", required: required, schema: string,
             description: required
@@ -3384,10 +3461,10 @@ package enum ControlAPISpec {
 
     // MARK: - JSON Schema helpers
 
-    private static var string: [String: Any] { ["type": "string"] }
-    private static var bool: [String: Any] { ["type": "boolean"] }
-    private static var number: [String: Any] { ["type": "number"] }
-    private static var integer: [String: Any] { ["type": "integer"] }
+    static var string: [String: Any] { ["type": "string"] }
+    static var bool: [String: Any] { ["type": "boolean"] }
+    static var number: [String: Any] { ["type": "number"] }
+    static var integer: [String: Any] { ["type": "integer"] }
     private static var dateTime: [String: Any] { ["type": "string", "format": "date-time"] }
 
     /// Advisory mode's retired vocabulary — kept only to describe the
@@ -3400,18 +3477,18 @@ package enum ControlAPISpec {
         return schema
     }
 
-    private static func nullable(_ schema: [String: Any]) -> [String: Any] {
+    static func nullable(_ schema: [String: Any]) -> [String: Any] {
         var nullable = schema
         // 3.1 is JSON Schema 2020-12: a nullable type is a type union, not a flag.
         if let type = schema["type"] as? String { nullable["type"] = [type, "null"] }
         return nullable
     }
 
-    private static func array(of items: [String: Any]) -> [String: Any] {
+    static func array(of items: [String: Any]) -> [String: Any] {
         ["type": "array", "items": items]
     }
 
-    private static func enumOf(_ values: [String]) -> [String: Any] {
+    static func enumOf(_ values: [String]) -> [String: Any] {
         ["type": "string", "enum": values]
     }
 
@@ -3451,20 +3528,20 @@ package enum ControlAPISpec {
         ]) { declared, _ in declared }
     }
 
-    private static func described(_ schema: [String: Any], _ description: String) -> [String: Any] {
+    static func described(_ schema: [String: Any], _ description: String) -> [String: Any] {
         var described = schema
         described["description"] = description
         return described
     }
 
-    private static func ref(_ name: String) -> [String: Any] {
+    static func ref(_ name: String) -> [String: Any] {
         ["$ref": "#/components/schemas/\(name)"]
     }
 
     /// `anyOfRequired` is how "one of these keys, either spelling" is stated —
     /// several bodies take `item` or its `itemId` alias, and a schema that
     /// demanded one spelling would reject requests the handler accepts.
-    private static func object(_ properties: [String: Any],
+    static func object(_ properties: [String: Any],
                                required: [String],
                                anyOfRequired: [[String]] = [],
                                description: String? = nil) -> [String: Any] {
@@ -3475,7 +3552,7 @@ package enum ControlAPISpec {
         return schema
     }
 
-    private static func errorStatus(_ code: Int, _ description: String) -> Status {
+    static func errorStatus(_ code: Int, _ description: String) -> Status {
         Status(code: code, description: description, schema: ref("Error"))
     }
 

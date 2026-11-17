@@ -533,6 +533,9 @@ struct MainWindow: View {
                 }
                 return outcome
             }
+            controlRegistry.closeProject = { projectID in
+                await closeProjectAndWait(projectID)
+            }
             controlRegistry.reorderProject = { projectID, beforeProjectID in
                 reorderProject(projectID, beforeProjectID: beforeProjectID)
             }
@@ -1040,23 +1043,22 @@ struct MainWindow: View {
     }
 
     private func closeProject(_ projectID: String) {
+        Task { await closeProjectAndWait(projectID) }
+    }
+
+    /// Closes a project and returns once it is gone from the window and the
+    /// control registry — what the control API's close waits on.
+    private func closeProjectAndWait(_ projectID: String) async {
         sessions[projectID]?.shutdown()
         sessions.removeValue(forKey: projectID)
-
-        Task {
-            // Awaited, and first: unregistering closes the run records of
-            // whatever this project had finished before it drops the entry, and
-            // after that nothing can reach those runs again.
-            await controlRegistry.unregister(projectID: projectID)
-            await projectStore.close(projectID)
-            await reloadOpenProjects()
-            if let active = await projectStore.activeProject() {
-                activeProjectID = active.id
-            } else {
-                activeProjectID = nil
-            }
-            saveAllBookmarks()
-        }
+        // Awaited, and first: unregistering closes the run records of
+        // whatever this project had finished before it drops the entry, and
+        // after that nothing can reach those runs again.
+        await controlRegistry.unregister(projectID: projectID)
+        await projectStore.close(projectID)
+        await reloadOpenProjects()
+        activeProjectID = await projectStore.activeProject()?.id
+        saveAllBookmarks()
     }
 
     // MARK: - Sidebar Support

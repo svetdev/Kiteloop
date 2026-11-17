@@ -84,6 +84,14 @@ final class KiteloopControlServer {
     /// The routines this app keeps, for the `/v1/routines` endpoints. Only the
     /// app attaches one; a server without answers 503 on them.
     weak var routines: RoutineRunner?
+    /// The app's settings, for `/v1/settings` and `/v1/mcp-servers`. Set by
+    /// the app on the same terms as `routines`.
+    weak var settings: GlobalConfigStore?
+    /// Where the settings that are not in the config file live — the sound
+    /// theme and the update check. A test hands in its own suite.
+    var defaults: UserDefaults = .standard
+    /// The app's updater, for the update-check switch in `/v1/settings`.
+    weak var updater: SoftwareUpdater?
     /// The fleet-wide hold — "stop taking new work everywhere, and tell me when the
     /// last run has finished". Owned here because the gate it keeps is read on the
     /// path that starts runs, and the autonomous scheduler reaches it through
@@ -566,7 +574,7 @@ final class KiteloopControlServer {
             return await metaRoute(route, req)
         case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot,
-             .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents,
+             .hireAgent, .updateAgent, .removeAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents,
              .interruptAgent, .answerAgentPlan, .answerAgentQuestion,
              .answerAgentPermission, .answerAgentChoices, .setAgentMode, .listAgentTasks, .stopAgentTask,
              .listMemoryProposals, .approveMemoryProposal, .rejectMemoryProposal:
@@ -586,9 +594,15 @@ final class KiteloopControlServer {
         case .fleetStatus, .quiesceFleet, .resumeFleet, .usage:
             return await fleetRoute(route, req)
         case .startRun, .listRuns, .runStatus, .runResult, .runEvents, .runLog,
-             .approveRun, .cancelRun, .steerRun:
-            return await runsRoute(route, req)
+             .approveRun, .cancelRun, .steerRun, .manage:
+            return await runOrManagementRoute(route, req)
         }
+    }
+
+    /// The last two areas: a run, and setting a team up.
+    private func runOrManagementRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
+        guard case .manage(let managed) = route else { return await runsRoute(route, req) }
+        return await manage(managed, req)
     }
 
     /// What runs on its own clock: the Planner's two loops, and routines.
@@ -658,7 +672,7 @@ final class KiteloopControlServer {
         case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot:
             return await projectsRoute(route, req)
-        case .hireAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents:
+        case .hireAgent, .updateAgent, .removeAgent, .listAgents, .messageAgent, .agentTranscript, .agentEvents:
             return await agentsRoute(route, req)
         case .interruptAgent, .answerAgentPlan, .answerAgentQuestion:
             return agentSteeringRoute(route, req)
@@ -680,6 +694,8 @@ final class KiteloopControlServer {
     private func agentsRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
         switch route {
         case .hireAgent: return hireAgent(body: req.body)
+        case .updateAgent: return updateAgent(body: req.body)
+        case .removeAgent: return removeAgent(query: req.query)
         case .listAgents: return listAgents(project: req.query["project"])
         case .messageAgent: return await messageAgent(body: req.body)
         case .agentTranscript: return agentTranscript(query: req.query)
@@ -5071,6 +5087,45 @@ final class KiteloopControlServer {
         return .json(["agents": agents])
     }
 
+    /// Changes an agent already on the team, as saving its editor does.
+    private func updateAgent(body: Data) -> HTTPServer.Response {
+        let json = Self.jsonBody(body)
+        let target = agentTarget(json)
+        guard case .found(let entry, let agent) = target else { return target.refusal }
+        guard json["permissionMode"] == nil else {
+            return .error("The permission mode is changed with POST /v1/agents/mode", status: 400)
+        }
+        let edit: AgentEdit
+        switch AgentEdit.parse(json) {
+        case .failure(let refusal): return .error(refusal.reason, status: 400)
+        case .success(let parsed): edit = parsed
+        }
+        if let name = edit.name,
+           let refusal = Agent.nameRefusal(name, agentID: agent.id, agents: entry.session.orchestrator.agents) {
+            return .error(refusal, status: name.isEmpty ? 400 : 409)
+        }
+        let effect = entry.session.editAgent(agent.id, edit)
+        let saved = entry.session.orchestrator.agents.first { $0.id == agent.id } ?? agent
+        return .json(["agent": saved.id, "name": saved.name, "model": saved.model, "applies": effect.rawValue])
+    }
+
+    /// Takes an agent off the team, as Remove Agent does in the sidebar. An
+    /// agent in the middle of something is left where it is: a turn in flight,
+    /// or an autopilot run that would lose its worker or reviewer.
+    private func removeAgent(query: [String: String]) -> HTTPServer.Response {
+        let target = agentTarget(query)
+        guard case .found(let entry, let agent) = target else { return target.refusal }
+        guard agent.state != .working else {
+            return .error("\(agent.name) is mid-turn; stop it first with POST /v1/agents/interrupt", status: 409)
+        }
+        let staffed = [entry.autopilot.workerAgentID, entry.autopilot.reviewerAgentID].contains(agent.id)
+        guard !staffed || entry.autopilot.status == .idle else {
+            return .error("An autopilot run is using \(agent.name) as its worker or reviewer", status: 409)
+        }
+        entry.session.removeAgent(agent.id)
+        return .json(["removed": agent.id, "name": agent.name])
+    }
+
     private func messageAgent(body: Data) async -> HTTPServer.Response {
         let json = Self.jsonBody(body)
         let content: AgentMessageContent
@@ -5199,7 +5254,7 @@ final class KiteloopControlServer {
         return .found(entry, agent)
     }
 
-    private static func jsonBody(_ body: Data) -> [String: Any] {
+    static func jsonBody(_ body: Data) -> [String: Any] {
         (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
     }
 

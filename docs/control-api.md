@@ -157,6 +157,37 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/memory/proposals/reject` | Reject one — takes it off the list, writes nothing |
 | GET | `/v1/agents?project=` | List a project's agents — id, name, model, state |
 | POST | `/v1/agents` | Hire (summon) an agent into a project |
+| PATCH | `/v1/agents` | Change an agent already on the team — name, model, prompt, tools, rules |
+| DELETE | `/v1/agents?project=&agent=` | Take an agent off the team, stopping its session |
+| POST | `/v1/agents/start` | Start an agent's session; a running one is left alone |
+| POST | `/v1/agents/stop` | Stop an agent's session, as Stop Agent does in the sidebar |
+| POST | `/v1/agents/restart` | Stop an agent's session and start it again |
+| GET | `/v1/agents/chats?project=&agent=` | An agent's chats, newest first, and which one is current |
+| POST | `/v1/agents/chats` | Start a new chat with an agent |
+| POST | `/v1/agents/chats/open` | Switch an agent to one of its earlier chats |
+| DELETE | `/v1/agents/chats?project=&agent=&chat=` | Delete one of an agent's chats and its messages |
+| POST | `/v1/projects/close` | Close an open project, as closing its tab does |
+| GET | `/v1/projects/settings?project=` | Read a project's settings — default model, mode, effort, budget, goal, companions |
+| PUT | `/v1/projects/settings` | Change them; the fields named are replaced, null clears |
+| PATCH | `/v1/backlog/items` | Change an item's title, verify, size or detail file |
+| DELETE | `/v1/backlog/items?project=&item=` | Remove an item from the backlog |
+| GET | `/v1/memory?project=&agent=` | What Kiteloop remembers for an agent — index, facts, archived facts |
+| POST | `/v1/memory/facts` | Add a fact to an agent's memory, with no proposal to approve |
+| PUT | `/v1/memory/facts` | Replace one fact's text |
+| DELETE | `/v1/memory/facts?project=&agent=&topic=` | Archive one fact |
+| GET | `/v1/memory/shared?project=` | The project's shared context, shown to every agent |
+| PUT | `/v1/memory/shared` | Replace the shared context |
+| GET | `/v1/memory/claude?project=` | The notes the Claude CLI keeps for the project |
+| PUT | `/v1/memory/claude` | Write one of those notes, or the index |
+| DELETE | `/v1/memory/claude?project=&note=` | Delete one note and its index line |
+| GET | `/v1/knowledge?project=` | The project's knowledge packages and their files |
+| GET | `/v1/knowledge/file?project=&package=&path=` | Read one file of a package |
+| PUT | `/v1/knowledge/file` | Write one file of a package |
+| GET | `/v1/mcp-servers` | The MCP servers the app has configured — never their secrets |
+| PUT | `/v1/mcp-servers/{name}` | Add an MCP server, or replace the one with this name |
+| DELETE | `/v1/mcp-servers/{name}` | Remove an MCP server |
+| GET | `/v1/settings` | The app's settings — default model and effort, sounds, update checks |
+| PUT | `/v1/settings` | Change them |
 | POST | `/v1/agents/message` | Send a message to an agent — answers once it is in; `wait` holds for the reply |
 | GET | `/v1/agents/transcript?project=&agent=` | The agent's recent chat transcript, oldest first |
 | GET | `/v1/agents/events?project=&agent=` | An agent's chat as it happens (SSE) — the phone's live chat |
@@ -2381,6 +2412,388 @@ with choices. `mode` is the agent's permission mode as stored — `auto`,
 [`POST /v1/agents/mode`](#post-v1agentsmode) changes.
 
 **Status:** 200 · 400 (missing `project`) · 409 (project not open)
+
+### PATCH /v1/agents
+
+Changes an agent already on the project's team, as saving the agent's editor
+does. The fields you name are replaced — a list is the whole list, not an
+addition — and the rest stay. The team file is written, so the change is there
+after a relaunch.
+
+```bash
+curl -s -X PATCH -H "$H" -d '{"project":"kiteloop","agent":"Builder","model":"opus","askFirst":["Bash(gh pr comment:*)"]}' $B/agents
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `project` | string | Project identifier. Required |
+| `agent` | string | Agent id or name. Required |
+| `name` | string | A new name. Not blank, and not a teammate's; a teammate's Cross-Agent Access that named the old one follows it |
+| `model` | string | Model id |
+| `systemPrompt` | string | The agent's prompt |
+| `avatar` | string | An avatar's name; empty clears it |
+| `tools` | array | The tools the agent may use |
+| `denied` | array | The calls the agent is refused |
+| `askFirst` | array | The calls the agent always stops to ask a person about |
+| `mcpServers` | array | The configured MCP servers its sessions are given, by name |
+| `crossAgentAccess` | array | The teammates it may message, by name |
+| `skills` | array | The skills it is given, by qualified name |
+| `effort` | string | `low`, `medium`, `high`, `xhigh` or `max` |
+| `thinking` | bool | Extended thinking on or off |
+| `thinkingBudget` | integer | Thinking tokens per turn; turns thinking on |
+| `maxBudgetUSD` | number or null | What one session may spend; null for no ceiling |
+
+```json
+{"agent": "…", "name": "Builder", "model": "opus", "applies": "restarted"}
+```
+
+`applies` says when the change reaches the agent's session. Everything but the
+name and the avatar is read when the session's process starts, so:
+
+- `now` — only the name or avatar changed, or the values were already those.
+- `restarted` — an idle session was stopped and started again on the same
+  conversation; its next turn runs with the new values.
+- `nextStart` — no session is running, or one is mid-turn and was left alone.
+  The change takes when the agent next starts.
+
+The permission mode is not changed here: [`POST /v1/agents/mode`](#post-v1agentsmode)
+moves a live session without restarting it.
+
+**Status:** 200 · 400 (a missing or mistyped field, a blank name, nothing to
+change, or `permissionMode`) · 404 (no such agent) · 409 (project not open, or a
+teammate already has that name)
+
+### DELETE /v1/agents
+
+Takes an agent off the project's team, as Remove Agent does in the sidebar: its
+live session stops and the agent, with its settings for this project, leaves
+the team file. Its past chats stay on disk.
+
+```bash
+curl -s -X DELETE -H "$H" "$B/agents?project=kiteloop&agent=Builder"
+```
+
+```json
+{"removed": "…", "name": "Builder"}
+```
+
+An agent in the middle of something is not removed: one mid-turn (stop it with
+[`POST /v1/agents/interrupt`](#post-v1agentsinterrupt) first), or one an
+autopilot run in flight is using as its worker or reviewer.
+
+**Status:** 200 · 400 (missing `project` or `agent`) · 404 (no such agent) ·
+409 (project not open, the agent is mid-turn, or an autopilot run is using it)
+
+### POST /v1/agents/start
+
+An agent has no session until something starts one — a message does it too.
+This starts it without sending anything; a running agent is left alone.
+`POST /v1/agents/stop` ends the process, a turn in flight with it, and keeps
+the chat. `POST /v1/agents/restart` does both, so values read when the process
+starts take effect.
+
+```bash
+curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder"}' $B/agents/start
+```
+
+```json
+{"agent": "…", "running": true, "started": true}
+```
+
+`started` is false when it was running already.
+
+**Status:** 200 · 400 (missing `project` or `agent`) · 404 (no such agent) ·
+409 (project not open) · 500 (the session could not be started; the error says why)
+
+### POST /v1/agents/stop
+
+Same body as start. Answers `{"agent": "…", "running": false, "stopped": true}`;
+`stopped` is false when nothing was running. Refused while an autopilot run in
+flight is using the agent as its worker or reviewer.
+
+**Status:** 200 · 400 · 404 · 409 (project not open, or an autopilot run is using the agent)
+
+### POST /v1/agents/restart
+
+Same body as start. Answers `{"agent": "…", "running": true}`. Refused mid-turn
+— stop the turn with [`POST /v1/agents/interrupt`](#post-v1agentsinterrupt)
+first — and while an autopilot run is using the agent.
+
+**Status:** 200 · 400 · 404 · 409 (project not open, mid-turn, or an autopilot
+run is using the agent) · 500 (the session could not be started)
+
+### GET /v1/agents/chats
+
+An agent keeps every conversation it has had. This lists them, newest first.
+
+```bash
+curl -s -H "$H" "$B/agents/chats?project=kiteloop&agent=Builder"
+```
+
+```json
+{"agent": "…", "chats": [{"id": "…", "title": "New Chat", "messages": 12,
+                          "lastMessageAt": "2026-11-16T18:02:11Z", "current": true}]}
+```
+
+`current` marks the chat the agent's next message goes into.
+
+**Status:** 200 · 400 (missing `project` or `agent`) · 404 (no such agent) · 409 (project not open)
+
+### POST /v1/agents/chats
+
+Starts a new chat, as New Chat does: the open chat is saved and the agent
+begins a fresh conversation. Body `{"project", "agent"}`; answers 201 with
+`{"agent": "…", "chat": {…}}`, the chat in the shape the list gives.
+
+**Status:** 201 · 400 · 404 · 409 (project not open, or the agent is mid-turn)
+
+### POST /v1/agents/chats/open
+
+Switches the agent to one of its earlier chats: body `{"project", "agent",
+"chat"}`, where `chat` is an id from the list. The agent's next message
+continues that conversation.
+
+**Status:** 200 · 400 · 404 (no such agent, or no such chat of its) · 409
+(project not open, or the agent is mid-turn)
+
+### DELETE /v1/agents/chats
+
+Deletes one chat and its messages: `?project=&agent=&chat=`. Deleting the
+current chat opens the next one, or a fresh chat when none is left.
+
+**Status:** 200 · 400 · 404 · 409 (project not open, or it is the current chat
+and the agent is mid-turn)
+
+### POST /v1/projects/close
+
+Closes an open project, as closing its tab does: its agents stop and it leaves
+the window. Body `{"project"}`; answers `{"closed": "<project id>"}` once it is
+gone.
+
+**Status:** 200 · 400 (missing `project`) · 409 (project not open, or its
+autopilot has a run in flight) · 503 (the app window isn't running)
+
+### GET /v1/projects/settings
+
+What new agents in the project start with, and what the project is.
+
+```bash
+curl -s -H "$H" "$B/projects/settings?project=kiteloop"
+```
+
+```json
+{"model": null, "permissionMode": "auto", "effort": null, "maxBudgetUSD": null,
+ "goal": null, "companions": [{"name": "site", "path": "../site", "base": "main"}]}
+```
+
+A null `model` or `effort` follows the app's ([`GET /v1/settings`](#get-v1settings)).
+
+**Status:** 200 · 400 (missing `project`) · 409 (project not open)
+
+### PUT /v1/projects/settings
+
+Changes them. The body names the project and any of the fields the read
+returns; the fields named are replaced and the rest stay. `null` clears
+`model`, `effort`, `maxBudgetUSD` and `goal`; an empty `companions` clears the
+list. Agents already hired keep their own values. Answers the settings as they
+now stand.
+
+```bash
+curl -s -X PUT -H "$H" -d '{"project":"kiteloop","model":"opus","permissionMode":"acceptEdits"}' $B/projects/settings
+```
+
+**Status:** 200 · 400 (a mistyped field, an unknown mode or effort, a companion
+without a name and a path, or nothing to change) · 409 (project not open) ·
+500 (the settings file could not be written)
+
+### PATCH /v1/backlog/items
+
+Changes an item: its `title`, its `verify`, its `size` (`XS` to `XL`), and
+`detail`, the whole text of its detail file. The change is checked whole
+before any of it is written.
+
+```bash
+curl -s -X PATCH -H "$H" -d '{"project":"kiteloop","item":"item-1","title":"A better title","size":"S"}' $B/backlog/items
+```
+
+```json
+{"item": "item-1", "title": "A better title", "changed": ["title", "size"]}
+```
+
+**Status:** 200 · 400 (a mistyped field, an empty title or verify, an unknown
+size, an item with no detail file, or nothing to change) · 404 (no such item) ·
+409 (project not open, or a run is working on the item)
+
+### DELETE /v1/backlog/items
+
+Removes an item's line from the backlog: `?project=&item=`. Its detail file and
+run history stay on disk.
+
+**Status:** 200 · 400 · 404 (no such item) · 409 (project not open, a run is
+working on the item, or it has work waiting at its gate)
+
+### GET /v1/memory
+
+What Kiteloop remembers for one agent: `?project=&agent=`.
+
+```json
+{"agent": "…", "index": "- 2026-11-16 · staging-reset · The staging database …",
+ "facts": [{"topic": "staging-reset", "body": "…"}], "archived": []}
+```
+
+`index` is what the agent is shown every session; `facts` are the bodies
+behind its lines. This is Kiteloop's own memory — what a chat agent writes when
+told to "remember" is under [`GET /v1/memory/claude`](#get-v1memoryclaude).
+
+**Status:** 200 · 400 · 404 (no such agent) · 409 (project not open)
+
+### POST /v1/memory/facts
+
+Adds a fact to an agent's memory at once, as Add does on the Memory tab: body
+`{"project", "agent", "content"}`. Answers 201 with the agent's facts.
+
+**Status:** 201 · 400 (a missing field, or blank content) · 404 · 409 · 500
+(the write did not land; the error says why — the index is capped)
+
+### PUT /v1/memory/facts
+
+Replaces one fact's text: body `{"project", "agent", "topic", "content"}`,
+`topic` as the read lists it.
+
+**Status:** 200 · 400 · 404 (no such agent, or no such fact) · 409 · 500
+
+### DELETE /v1/memory/facts
+
+Archives one fact: `?project=&agent=&topic=`. It leaves the index the agent is
+shown and stays on disk, restorable on the Memory tab.
+
+**Status:** 200 · 400 · 404 (no such agent, or no such fact) · 409 · 500
+
+### GET /v1/memory/shared
+
+The project's shared context — Project Context on the Memory tab, shown to
+every agent: `?project=`. Answers `{"content": "…"}`.
+
+**Status:** 200 · 400 · 409 (project not open)
+
+### PUT /v1/memory/shared
+
+Replaces it: body `{"project", "content"}`.
+
+**Status:** 200 · 400 · 409 · 500 (the file could not be written)
+
+### GET /v1/memory/claude
+
+The notes the Claude CLI keeps for the project — what chat agents wrote when
+told to remember something: `?project=`. The index (`MEMORY`) first, then each
+note.
+
+```json
+{"directory": "/Users/you/.claude/projects/-Users-you-code-kiteloop/memory",
+ "notes": [{"id": "MEMORY", "name": "MEMORY.md", "text": "- [Deploys](deploys.md) — Thursdays\n"},
+           {"id": "deploys", "name": "deploys", "summary": "When we deploy", "kind": "project", "text": "…"}]}
+```
+
+**Status:** 200 · 400 · 409 (project not open)
+
+### PUT /v1/memory/claude
+
+Writes one note's file, or makes it: body `{"project", "note", "text"}`, `note`
+being the file's name without `.md`. A new note is not added to the index —
+write `MEMORY` too.
+
+**Status:** 200 · 400 (a missing field, or a note id that is not a plain file
+name) · 409 · 500 (the file could not be written)
+
+### DELETE /v1/memory/claude
+
+Deletes one note and the index lines that point at it: `?project=&note=`. The
+index itself is not deleted.
+
+**Status:** 200 · 400 (a missing parameter, or the index) · 404 (no such note) · 409
+
+### GET /v1/knowledge
+
+The project's knowledge packages — each trained agent under its knowledge
+folder — and the files each carries: `?project=`.
+
+```json
+{"packages": [{"id": "reviewer", "name": "Reviewer", "description": "Reads diffs",
+               "files": ["profile.md", "knowledge/rubric.md"]}]}
+```
+
+**Status:** 200 · 400 · 409 (project not open)
+
+### GET /v1/knowledge/file
+
+One file of a package: `?project=&package=&path=`, the path as the list gives
+it. Answers `{"package", "path", "content"}`.
+
+**Status:** 200 · 400 (a missing parameter, or a path that leaves the package) ·
+404 (no such package or file) · 409
+
+### PUT /v1/knowledge/file
+
+Writes one file of a package, or makes it, folders on the way included: body
+`{"project", "package", "path", "content"}`. The package itself must exist.
+
+**Status:** 200 · 400 (a missing field, or a path that leaves the package) ·
+404 (no such package) · 409 · 500 (the file could not be written)
+
+### GET /v1/mcp-servers
+
+The MCP servers the app has configured — what an agent's `mcpServers` names.
+
+```json
+{"servers": [{"name": "tracker", "summary": "npx -y tracker-mcp", "command": "npx",
+              "args": ["-y", "tracker-mcp"], "env": ["TRACKER_TOKEN"]}]}
+```
+
+`env` lists the names of the variables a server is given and never their
+values: they are where its credentials are.
+
+**Status:** 200 · 503 (no settings store attached)
+
+### PUT /v1/mcp-servers/{name}
+
+Adds a server, or replaces the one with this name. The body is the server's
+entry as Claude Code's own MCP configuration spells it: `command`, `args` and
+`env` for one run as a process, or `type` and `url` for a remote one. Running
+sessions are told at once.
+
+```bash
+curl -s -X PUT -H "$H" -d '{"command":"npx","args":["-y","tracker-mcp"],"env":{"TRACKER_TOKEN":"…"}}' $B/mcp-servers/tracker
+```
+
+**Status:** 200 · 400 (a body that is not an object, is empty, or has a
+mistyped field) · 503
+
+### DELETE /v1/mcp-servers/{name}
+
+Removes a server. Agents that name it keep the name and are given nothing for it.
+
+**Status:** 200 · 404 (no server with this name) · 503
+
+### GET /v1/settings
+
+The app's own settings.
+
+```json
+{"defaultModel": null, "defaultEffort": "high", "soundTheme": "soft", "automaticUpdateChecks": true}
+```
+
+`soundTheme` is `soft` (Kiteloop's own sounds), `system` or `silent`.
+
+**Status:** 200 · 503 (no settings store attached)
+
+### PUT /v1/settings
+
+Changes them: any of the fields the read returns. `null` clears
+`defaultModel` or `defaultEffort`. The change is checked whole before any of it
+is written.
+
+**Status:** 200 · 400 (a mistyped field, an unknown effort or sound theme, or
+nothing to change) · 503
 
 ### POST /v1/agents/message
 

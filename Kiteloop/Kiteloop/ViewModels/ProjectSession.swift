@@ -16,6 +16,9 @@ struct ProjectSessionContext {
     /// Where the session records approve/reopen transitions (success metric
     /// #3b). Defaulted so a caller that doesn't measure — tests, embedded use —
     /// builds a context unchanged.
+    /// The Claude CLI's own folder, where it keeps each project's notes. Nil
+    /// for the one the environment names — a test hands in its own.
+    var claudeConfigDirectory: URL?
     var metricStore: TaskMetricStore?
     /// The pre-run ledger the backlog's queue reading takes its recorded
     /// refusals from. Defaulted for the same reason as `metricStore`: without it
@@ -78,7 +81,8 @@ final class ProjectSession {
         self.context = context
 
         self.memoryViewModel = MemoryViewModel(memoryManager: orchestrator.memoryManager)
-        self.claudeMemoryViewModel = ClaudeMemoryViewModel(store: ClaudeMemoryStore(projectRoot: project.rootURL))
+        self.claudeMemoryViewModel = ClaudeMemoryViewModel(
+            store: ClaudeMemoryStore(projectRoot: project.rootURL, configDirectory: context.claudeConfigDirectory))
         let backlogVM = BacklogViewModel(globalConfigStore: context.globalConfigStore, notifications: orchestrator.notificationStore)
         // Before the load: the first queue reading is taken during it, and one
         // taken without the ledger would report items a gate has refused as
