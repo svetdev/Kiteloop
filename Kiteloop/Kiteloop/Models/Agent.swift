@@ -35,6 +35,9 @@ struct Agent: Identifiable, Codable, Equatable {
     /// the same consent pattern as autonomous work, since the token authorizes
     /// everything the control API does except resolving the human gate.
     var operatorToolsEnabled: Bool
+    /// The share of the context window, 50–95, at which this agent compacts
+    /// itself after a turn (`ContextFillPolicy`). Nil — the default — is off.
+    var contextCompactPercent: Int?
     /// Set when this agent is an ephemeral **aside** — a second agent forked
     /// from another's live session so the human can question it without
     /// spending the source's context. Holds the source agent's id.
@@ -155,7 +158,7 @@ struct Agent: Identifiable, Codable, Equatable {
         case permissionMode, subscriptions, mcpServers, skills, avatar, group
         case effort, maxBudgetUSD, thinkingEnabled, thinkingBudget
         case crossAgentAccess, canAcceptDelegation, runtimeKind, workspacePath, mcpConfigPath
-        case operatorToolsEnabled, asideOfAgentID, state
+        case operatorToolsEnabled, contextCompactPercent, asideOfAgentID, state
     }
 
     init(from decoder: Decoder) throws {
@@ -183,6 +186,7 @@ struct Agent: Identifiable, Codable, Equatable {
         workspacePath = try container.decodeIfPresent(String.self, forKey: .workspacePath)
         mcpConfigPath = try container.decodeIfPresent(String.self, forKey: .mcpConfigPath)
         operatorToolsEnabled = try container.decodeIfPresent(Bool.self, forKey: .operatorToolsEnabled) ?? false
+        contextCompactPercent = try container.decodeIfPresent(Int.self, forKey: .contextCompactPercent)
         asideOfAgentID = try container.decodeIfPresent(String.self, forKey: .asideOfAgentID)
         state = try container.decodeIfPresent(AgentState.self, forKey: .state) ?? .idle
     }

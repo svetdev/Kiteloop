@@ -400,4 +400,16 @@ final class AgentCodableTests: XCTestCase {
         XCTAssertEqual(decoded.askFirst, ["mcp__chat__post"])
         XCTAssertEqual(try decode(#"{ "name": "Old" }"#).askFirst, [])
     }
+
+    // MARK: - contextCompactPercent
+
+    func testAnAgentSavedBeforeAutoCompactDecodesWithItOff() throws {
+        XCTAssertNil(try decode(#"{ "name": "Old" }"#).contextCompactPercent)
+    }
+
+    func testAContextCompactPercentRoundTrips() throws {
+        var agent = fullAgent()
+        agent.contextCompactPercent = 85
+        XCTAssertEqual(try roundTrip(agent).contextCompactPercent, 85)
+    }
 }
