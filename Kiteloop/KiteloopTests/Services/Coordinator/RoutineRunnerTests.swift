@@ -44,9 +44,9 @@ final class RoutineRunnerTests: XCTestCase {
     }
 
     /// A started runner holding `routines`, armed as of the clock's reading.
-    private func runner(_ routines: [Routine]) throws -> RoutineRunner {
+    private func runner(_ routines: [Routine], feed: AppEventFeed = AppEventFeed()) throws -> RoutineRunner {
         let runner = RoutineRunner(store: store, clock: { [unowned self] in self.now },
-                                   calendar: { [calendar] in calendar })
+                                   calendar: { [calendar] in calendar }, feed: feed)
         runner.agent = { [unowned self] _ in
             if let unreachable { return .failure(Routine.Refusal(problems: [unreachable])) }
             return .success(RoutineAgent(
@@ -420,6 +420,82 @@ final class RoutineRunnerTests: XCTestCase {
         XCTAssertEqual(RoutineRunner.hookBody(Data([0xFF, 0xFE, 0x00])),
                        "The webhook call that fired this routine sent 3 bytes that are not UTF-8 text.")
         XCTAssertEqual(RoutineRunner.hookBody(Data()), "The webhook call that fired this routine sent no body.")
+    }
+
+    // MARK: - An event
+
+    private func onError(precheck: String? = nil) -> Routine {
+        Routine(id: "on-error", name: "On error", project: "vault", agent: "Chief", prompt: "Look at what failed.",
+                trigger: .init(on: "error"), precheck: precheck, armed: true)
+    }
+
+    /// A runner on its own feed, listening, and the notice that feed publishes.
+    private func publishError(to routines: [Routine]) async throws -> (RoutineRunner, AppEventFeed.Event) {
+        let feed = AppEventFeed()
+        let runner = try runner(routines, feed: feed)
+        try await eventually("the runner to subscribe") { await feed.subscriberCount == 1 }
+        let notice = NotificationItem(agentID: "worker", type: .error, title: "Run failed: fix-login", body: "",
+                                      itemID: "fix-login", projectPath: "/tmp/vault")
+        return (runner, await feed.publish(notice))
+    }
+
+    func testAMatchingEventSendsThePromptWithTheEventUnderIt() async throws {
+        let (runner, event) = try await publishError(to: [onError()])
+
+        try await eventually("the event's turn to finish") { runner.lastRun(of: "on-error")?.finishedAt != nil }
+
+        let time = ISO8601DateFormatter().string(from: event.time)
+        XCTAssertEqual(sent, ["Look at what failed.\n\nThe event that fired this routine:\n\n- kind: error\n"
+                              + "- subject: fix-login\n- title: Run failed: fix-login\n- time: \(time)"])
+        let run = try XCTUnwrap(runner.lastRun(of: "on-error"))
+        XCTAssertEqual(run.outcome, .started)
+        XCTAssertEqual(run.event, "error")
+        XCTAssertNil(run.scheduledFor)
+        XCTAssertEqual(run.json["event"] as? String, "error")
+        XCTAssertNil(runner.nextWake, "an event routine sets no clock")
+    }
+
+    func testAnEventFiringIsRefusedWhenTheDaysBudgetIsSpent() async throws {
+        let feed = AppEventFeed()
+        let runner = try runner([onError()], feed: feed)
+        runner.budgetRefusal = { _ in "daily budget $5.00 exhausted ($5.20 spent today)" }
+        try await eventually("the runner to subscribe") { await feed.subscriberCount == 1 }
+
+        await feed.publish(NotificationItem(agentID: "worker", type: .error, title: "Run failed", body: "",
+                                            projectPath: "/tmp/vault"))
+        try await eventually("the refusal on record") { runner.lastRun(of: "on-error") != nil }
+
+        XCTAssertEqual(sent, [])
+        let run = try XCTUnwrap(runner.lastRun(of: "on-error"))
+        XCTAssertEqual(run.outcome, .refused)
+        XCTAssertEqual(run.reason, "daily budget $5.00 exhausted ($5.20 spent today)")
+        XCTAssertEqual(run.event, "error")
+    }
+
+    func testAnEventFiringIsSkippedByACheckThatFindsNothing() async throws {
+        try await withScriptedSubprocesses(ScriptedSubprocessRunner { _ in .init(output: "") }) {
+            let (runner, _) = try await publishError(to: [onError(precheck: "gh pr list")])
+            try await eventually("the skip on record") { runner.lastRun(of: "on-error") != nil }
+
+            XCTAssertEqual(sent, [])
+            XCTAssertEqual(runner.lastRun(of: "on-error")?.outcome, .skipped)
+            XCTAssertEqual(runner.lastRun(of: "on-error")?.event, "error")
+        }
+    }
+
+    func testAnEventOfAnotherKindOrProjectFiresNothing() async throws {
+        let feed = AppEventFeed()
+        let runner = try runner([onError(), brief()], feed: feed)
+        try await eventually("the runner to subscribe") { await feed.subscriberCount == 1 }
+
+        let other = await feed.publish(NotificationItem(agentID: "w", type: .complete, title: "Done", body: "",
+                                                        projectPath: "/tmp/vault"))
+        let elsewhere = await feed.publish(NotificationItem(agentID: "w", type: .error, title: "Failed", body: "",
+                                                            projectPath: "/tmp/other"))
+
+        XCTAssertTrue(runner.fire(on: other).isEmpty)
+        XCTAssertTrue(runner.fire(on: elsewhere).isEmpty)
+        XCTAssertEqual(sent, [])
     }
 
     func testARunWrittenBeforeHooksStillDecodes() throws {

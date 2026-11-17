@@ -65,8 +65,9 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
     package var startsFresh: Bool { conversation == .fresh }
 
     /// When a routine fires, as it is written down: either `at` a time of day,
-    /// or `every` so many minutes between `from` and `until`. `days` narrows
-    /// either to some weekdays.
+    /// or `every` so many minutes between `from` and `until`, or `on` an event
+    /// of a kind the app's event feed publishes. `days` narrows a schedule to
+    /// some weekdays.
     package struct Trigger: Codable, Equatable, Sendable {
         /// A time of day, `HH:mm`, in the Mac's own time zone.
         package var at: String?
@@ -79,14 +80,19 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
         package var until: String?
         /// `mon` … `sun`; every day when absent.
         package var days: [String]?
+        /// An event kind — a `NotificationItem.NotificationType` raw value —
+        /// that fires the routine when its project publishes one. Nil for a
+        /// routine on a schedule.
+        package var on: String?
 
         package init(at: String? = nil, every: Int? = nil, from: String? = nil,
-                     until: String? = nil, days: [String]? = nil) {
+                     until: String? = nil, days: [String]? = nil, on: String? = nil) {
             self.at = at
             self.every = every
             self.from = from
             self.until = until
             self.days = days
+            self.on = on
         }
     }
 
@@ -119,6 +125,7 @@ extension Routine.Trigger {
         if let from { out["from"] = from }
         if let until { out["until"] = until }
         if let days { out["days"] = days }
+        if let on { out["on"] = on }
         return out
     }
 }
@@ -141,6 +148,8 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
     package var costUSD: Double?
     /// The webhook that fired it; nil for a scheduled run or one started by hand.
     package var hook: String?
+    /// The kind of event that fired it; nil for a run nothing published started.
+    package var event: String?
 
     package enum Outcome: String, Codable, Sendable {
         /// The turn began; `finishedAt` says when it ended.
@@ -159,7 +168,8 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
 
     package init(id: String = UUID().uuidString, routine: String, scheduledFor: Date?, at: Date,
                  outcome: Outcome, reason: String? = nil, finishedAt: Date? = nil,
-                 reply: String? = nil, costUSD: Double? = nil, hook: String? = nil) {
+                 reply: String? = nil, costUSD: Double? = nil, hook: String? = nil,
+                event: String? = nil) {
         self.id = id
         self.routine = routine
         self.scheduledFor = scheduledFor
@@ -170,6 +180,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
         self.reply = reply
         self.costUSD = costUSD
         self.hook = hook
+        self.event = event
     }
 
     /// The run as the API returns it.
@@ -183,6 +194,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
         if let reply { out["reply"] = reply }
         if let costUSD { out["costUSD"] = costUSD }
         if let hook { out["hook"] = hook }
+        if let event { out["event"] = event }
         return out
     }
 }

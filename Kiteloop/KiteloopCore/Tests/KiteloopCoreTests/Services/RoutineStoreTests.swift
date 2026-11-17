@@ -209,4 +209,94 @@ final class RoutineStoreTests: XCTestCase {
 
         XCTAssertNil(routine.owed(at: .now, lastHandled: nil, calendar: Calendar(identifier: .gregorian)))
     }
+
+    // MARK: - A routine an event fires
+
+    private let onError = Routine(id: "on-error", name: "On error", project: "/p/vault", agent: "Chief",
+                                  prompt: "Look at what failed.", trigger: .init(on: "error"),
+                                  armed: true, armedAt: Date(timeIntervalSince1970: 1_800_000_000))
+
+    private func event(_ kind: String = "error", project: String? = "/p/vault",
+                       time: Date = Date(timeIntervalSince1970: 1_800_000_060)) -> AppEventFeed.Event {
+        AppEventFeed.Event(seq: 1, project: project, kind: kind, subject: "item-1", title: "Run failed", time: time)
+    }
+
+    func testABodyNamingAnEventKindIsTakenAndWrittenBack() throws {
+        let body: [String: Any] = ["project": "vault", "agent": "Chief", "prompt": "Look.", "trigger": ["on": "error"]]
+
+        let routine = try Routine.parse(body, id: "on-error", existing: nil).get()
+
+        XCTAssertEqual(routine.trigger, .init(on: "error"))
+        XCTAssertEqual((routine.json["trigger"] as? [String: Any])?["on"] as? String, "error")
+        XCTAssertNil(routine.schedule)
+        XCTAssertNil(routine.owed(at: .distantFuture, lastHandled: nil, calendar: Calendar(identifier: .gregorian)))
+    }
+
+    func testAnEventRoutineSurvivesASaveAndReload() throws {
+        let store = try store()
+        try store.save([onError])
+
+        XCTAssertEqual(store.routines(), [onError])
+    }
+
+    func testARoutineWrittenBeforeEventsStillRunsOnItsSchedule() throws {
+        let store = try store()
+        let written = #"{"routines":[{"id":"old","name":"Old","project":"vault","agent":"Chief","prompt":"Go.","#
+            + #""trigger":{"at":"07:00"},"armed":true}]}"#
+        try Data(written.utf8).write(to: store.routinesURL)
+
+        let routine = try XCTUnwrap(store.routines().first)
+
+        XCTAssertNil(routine.trigger.on)
+        XCTAssertNotNil(routine.schedule)
+        XCTAssertNil((routine.json["trigger"] as? [String: Any])?["on"])
+    }
+
+    func testAnEventKindTheFeedDoesNotPublishIsRefusedByName() {
+        let body: [String: Any] = ["project": "vault", "agent": "Chief", "prompt": "Go.", "trigger": ["on": "crash"]]
+
+        guard case .failure(let refusal) = Routine.parse(body, id: "x", existing: nil) else { return XCTFail("parsed") }
+
+        XCTAssertEqual(refusal.problems, ["\"on\" is one of approval, question, complete, error, event"])
+    }
+
+    func testAnEventBesideAScheduleIsRefusedByName() {
+        for trigger: [String: Any] in [["on": "error", "at": "07:00"], ["on": "error", "every": 30]] {
+            let body: [String: Any] = ["project": "vault", "agent": "Chief", "prompt": "Go.", "trigger": trigger]
+
+            guard case .failure(let refusal) = Routine.parse(body, id: "x", existing: nil) else {
+                return XCTFail("parsed \(trigger)")
+            }
+
+            XCTAssertEqual(refusal.problems,
+                           ["\"on\" takes neither \"at\" nor \"every\": a routine fires on an event or on a schedule"])
+        }
+    }
+
+    func testAnEventFiresAnArmedRoutineOfItsKindInItsProject() {
+        XCTAssertTrue(onError.matches(event()))
+        XCTAssertTrue(onError.matches(event(project: "/p/vault/")))
+        var byName = onError
+        byName.project = "vault"
+        XCTAssertTrue(byName.matches(event()))
+    }
+
+    func testAnEventDoesNotFireAnUnarmedRoutineOrOneOfAnotherKindProjectOrTime() {
+        var unarmed = onError
+        unarmed.armed = false
+        XCTAssertFalse(unarmed.matches(event()))
+        XCTAssertFalse(onError.matches(event("complete")))
+        XCTAssertFalse(onError.matches(event(project: "/p/other")))
+        XCTAssertFalse(onError.matches(event(project: nil)))
+        XCTAssertFalse(onError.matches(event(time: Date(timeIntervalSince1970: 1_799_999_999))))
+        XCTAssertFalse(brief.matches(event()))
+    }
+
+    func testARunAnEventFiredNamesItsKind() {
+        let run = RoutineRun(id: "a", routine: "on-error", scheduledFor: nil, at: .now, outcome: .started,
+                             event: "error")
+
+        XCTAssertEqual(run.json["event"] as? String, "error")
+        XCTAssertNil(RoutineRun(id: "b", routine: "x", scheduledFor: nil, at: .now, outcome: .started).json["event"])
+    }
 }

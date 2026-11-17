@@ -9,6 +9,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 ## 0.7.2 — unreleased
 
 ### Added
+- A routine can fire on an event instead of a clock: `"trigger": {"on": "error"}` sends its prompt when its project publishes an event of that kind (`approval`, `question`, `complete`, `error`, `event`), with the event's kind, subject, title and time under the prompt. Set over `/v1/routines` or in `routines.json`; the budget and the check apply as for a scheduled run.
 - Spend is kept in one ledger: every chat turn you start, every routine turn, autopilot run and Planner pass adds a row, and `GET /v1/spend?by=agent|project|routine|model|day&days=N` totals it over the last days, saying whether the figures are billed dollars or a subscription's token-equivalents.
 - `GET /health` lists the routines whose last run was refused, is waiting or was skipped, each with a severity (`error`, `warning`, `info`), so a monitor sees a lost or owed routine without a token.
 - `GET /v1/attention` returns everything waiting on you across every open project — approvals, agents' unanswered questions, plan and permission cards, stale items — as the waiting drawer lists them, oldest first, each row naming the API call that answers it.

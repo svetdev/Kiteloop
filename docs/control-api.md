@@ -5255,7 +5255,7 @@ letters, digits and hyphens.
 | `project` | yes | The project the agent is in, as every endpoint names one |
 | `agent` | yes | The agent the prompt goes to, by name or id |
 | `prompt` | yes | What the agent is sent |
-| `trigger` | yes | Either `{"at": "07:00"}` — a time of day in the Mac's time zone — or `{"every": 30, "from": "08:00", "until": "18:00"}`, minutes between occurrences inside those hours (the whole day when absent). `"days": ["mon", …]` narrows either |
+| `trigger` | yes | Either `{"at": "07:00"}` — a time of day in the Mac's time zone — or `{"every": 30, "from": "08:00", "until": "18:00"}`, minutes between occurrences inside those hours (the whole day when absent). `"days": ["mon", …]` narrows either. Or `{"on": "error"}` — an event kind (`approval`, `question`, `complete`, `error`, `event`) that fires the armed routine when its project publishes one on [`GET /v1/events`](#get-v1events), with the event's kind, subject, title and time under the prompt. `on` takes neither `at` nor `every`; events from before it was armed, or while the app was closed, fire nothing |
 | `name` | no | What a person calls it; the id when absent |
 | `precheck` | no | A shell command run in the project's folder before the turn. Failing, or printing nothing, skips the turn at no model cost; what it prints goes to the agent under the prompt. It has until the routine next falls |
 | `conversation` | no | `continues` (the default, and what a routine saved without the field reads as) sends the prompt into the agent's open chat; `fresh` starts the agent a new chat before each run, opened with a line giving the last started run's time and the first line of its reply. An agent mid-turn gets the prompt in its running chat either way. Absent on a replace keeps the routine's choice; any other value is refused with 400. Every routine is returned with it |
@@ -5330,7 +5330,8 @@ curl -s -H "$H" "$B/routines/runs?routine=pr-watch&limit=5"
 
 **Status:** 200 · 401 · 503
 
-A run a webhook fired carries `hook`, the hook's name, whatever its outcome.
+A run a webhook fired carries `hook`, the hook's name, whatever its outcome. A run an event fired carries
+`event`, the event's kind.
 
 ### POST /v1/hooks/{name}
 

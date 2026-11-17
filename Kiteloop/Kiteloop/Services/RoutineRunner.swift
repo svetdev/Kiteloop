@@ -74,13 +74,18 @@ final class RoutineRunner {
     private var waiting: [String: Date] = [:]
     private var wake: Task<Void, Never>?
     private var clockChanges: [NSObjectProtocol] = []
+    /// The app's event feed, which fires the routines whose trigger names an
+    /// event kind, and the task that listens to it.
+    private let feed: AppEventFeed
+    private var events: Task<Void, Never>?
     private var isStarted = false
 
     init(store: RoutineStore = RoutineStore(), clock: @escaping () -> Date = Date.init,
-         calendar: @escaping () -> Calendar = { .current }) {
+         calendar: @escaping () -> Calendar = { .current }, feed: AppEventFeed = .shared) {
         self.store = store
         self.clock = clock
         self.calendar = calendar
+        self.feed = feed
     }
 
     // MARK: - Starting
@@ -104,7 +109,39 @@ final class RoutineRunner {
                 Task { @MainActor in self?.look() }
             }
         }
+        listenForEvents()
         look()
+    }
+
+    /// Fires every routine an event on the feed matches, for as long as the
+    /// runner lives. Only events published from now on: the feed keeps none
+    /// across a restart, so an event routine owes nothing from before it.
+    private func listenForEvents() {
+        let feed = feed
+        events = Task { [weak self] in
+            let live = await feed.subscribe(after: nil).live
+            for await event in live {
+                guard let self else { return }
+                self.fire(on: event)
+            }
+        }
+    }
+
+    /// Sends every armed routine `event` matches its prompt, with the event
+    /// under it. Returns the firings, so a caller can await them.
+    @discardableResult
+    func fire(on event: AppEventFeed.Event) -> [Task<Void, Never>] {
+        routines.filter { $0.matches(event) }.map { routine in
+            Task {
+                switch self.resolve(routine) {
+                case .failure(let refusal):
+                    self.record(RoutineRun(routine: routine.id, scheduledFor: nil, at: self.clock(), outcome: .refused,
+                                           event: event.kind), refused: refusal.reason)
+                case .success(let target):
+                    await self.fire(routine, from: .event(event), target: target)
+                }
+            }
+        }
     }
 
     /// A routine armed by editing the file carries no arming time, and one
@@ -230,6 +267,8 @@ final class RoutineRunner {
         case person
         /// An outside service calling the routine's webhook.
         case hook(String, body: Data)
+        /// An event of the kind the routine's trigger names.
+        case event(AppEventFeed.Event)
 
         var scheduledFor: Date? {
             if case .schedule(let occurrence) = self { return occurrence }
@@ -246,6 +285,11 @@ final class RoutineRunner {
             return nil
         }
 
+        var event: AppEventFeed.Event? {
+            if case .event(let event) = self { return event }
+            return nil
+        }
+
         /// Whether the day's budget and the check have a say: everything but
         /// a person's own start.
         var isAutonomous: Bool {
@@ -256,7 +300,7 @@ final class RoutineRunner {
 
     private func fire(_ routine: Routine, from source: Source, target: RoutineAgent) async {
         var run = RoutineRun(routine: routine.id, scheduledFor: source.scheduledFor, at: clock(), outcome: .refused,
-                             hook: source.hook)
+                             hook: source.hook, event: source.event?.kind)
         if source.isAutonomous, let refusal = budgetRefusal?(target.folder) { return record(run, refused: refusal) }
 
         let check = await check(routine, in: target.folder)
@@ -267,7 +311,7 @@ final class RoutineRunner {
         }
         let text = { (note: String?) in
             Self.text(prompt: routine.prompt, command: routine.precheck, output: check.output,
-                      body: source.body, note: note)
+                      body: source.body, event: source.event, note: note)
         }
         guard !target.isBusy() else {
             run.outcome = .queued
@@ -360,15 +404,23 @@ final class RoutineRunner {
 
     /// What the agent is sent: the note of the last run above the prompt, if
     /// there is one, under the prompt what the check printed, and under that
-    /// the body of the webhook call that fired it, if one did.
+    /// the body of the webhook call or the event that fired it, if one did.
     static func text(prompt: String, command: String?, output: String, body: Data? = nil,
-                     note: String? = nil) -> String {
+                     event: AppEventFeed.Event? = nil, note: String? = nil) -> String {
         var text = note.map { $0 + "\n\n" + prompt } ?? prompt
         if let command, !output.isEmpty {
             text += "\n\nOutput of this routine's check (`\(command)`):\n\n```\n\(output)\n```"
         }
         if let body { text += "\n\n" + hookBody(body) }
+        if let event { text += "\n\n" + eventBlock(event) }
         return text
+    }
+
+    /// The event that fired a routine, as the agent reads it.
+    static func eventBlock(_ event: AppEventFeed.Event) -> String {
+        let time = ISO8601DateFormatter().string(from: event.time)
+        return "The event that fired this routine:\n\n- kind: \(event.kind)\n- subject: \(event.subject)\n"
+            + "- title: \(event.title)\n- time: \(time)"
     }
 
     /// A webhook call's body as the agent reads it: the text, or a note that

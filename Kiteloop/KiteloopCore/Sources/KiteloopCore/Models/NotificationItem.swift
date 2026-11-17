@@ -34,7 +34,7 @@ package struct NotificationItem: Codable, Identifiable, Sendable {
     /// The project that item lives in, by root path.
     package var projectPath: String?
 
-    package enum NotificationType: String, Codable, Sendable {
+    package enum NotificationType: String, Codable, Sendable, CaseIterable {
         case approval
         case question
         case complete

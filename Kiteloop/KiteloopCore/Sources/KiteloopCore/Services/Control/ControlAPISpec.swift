@@ -252,7 +252,11 @@ package enum ControlAPISpec {
             "every": described(integer, "Minutes between occurrences. Either this or `at`."),
             "from": described(string, "With `every`: the day's first occurrence, HH:mm. Midnight when absent."),
             "until": described(string, "With `every`: the last moment of the day one may fall on, HH:mm."),
-            "days": described(array(of: string), "mon … sun; every day when absent.")
+            "days": described(array(of: string), "mon … sun; every day when absent."),
+            "on": described(string, """
+                An event kind — approval, question, complete, error or event — that fires the routine when its \
+                project publishes one on GET /v1/events. Instead of `at` or `every`.
+                """)
         ], required: [])
     }
 
@@ -279,7 +283,8 @@ package enum ControlAPISpec {
             "finishedAt": described(string, "When a started turn ended."),
             "reply": described(string, "The first line of what the agent said."),
             "costUSD": number,
-            "hook": described(string, "The webhook that fired it; absent for a scheduled run or one started by hand.")
+            "hook": described(string, "The webhook that fired it; absent for a scheduled run or one started by hand."),
+            "event": described(string, "The kind of event that fired it; absent for a run no event started.")
         ], required: ["id", "routine", "at", "outcome"])
     }
 

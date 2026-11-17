@@ -115,7 +115,7 @@ extension Routine {
             prompt: json["prompt"] as? String ?? "",
             trigger: Trigger(at: trigger["at"] as? String, every: trigger["every"] as? Int,
                              from: trigger["from"] as? String, until: trigger["until"] as? String,
-                             days: trigger["days"] as? [String]),
+                             days: trigger["days"] as? [String], on: trigger["on"] as? String),
             precheck: (json["precheck"] as? String).flatMap { $0.isEmpty ? nil : $0 },
             armed: json["armed"] as? Bool ?? existing?.armed ?? false,
             armedAt: existing?.armedAt,
@@ -142,14 +142,44 @@ extension Routine {
         where value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             found.append("\"\(field)\" is required")
         }
-        if case .failure(let refusal) = RoutineSchedule.parse(trigger) { found += refusal.problems }
+        if trigger.on != nil {
+            found += eventProblems
+        } else if case .failure(let refusal) = RoutineSchedule.parse(trigger) {
+            found += refusal.problems
+        }
+        return found
+    }
+
+    /// What is wrong with a trigger that names an event: a kind the feed does
+    /// not publish, or a schedule beside it.
+    private var eventProblems: [String] {
+        var found: [String] = []
+        if let on = trigger.on, NotificationItem.NotificationType(rawValue: on) == nil {
+            let kinds = NotificationItem.NotificationType.allCases.map(\.rawValue)
+            found.append("\"on\" is one of \(kinds.joined(separator: ", "))")
+        }
+        if trigger.at != nil || trigger.every != nil {
+            found.append("\"on\" takes neither \"at\" nor \"every\": a routine fires on an event or on a schedule")
+        }
         return found
     }
 
     /// The parsed trigger; nil for a routine whose trigger does not parse,
-    /// which `problems` would have named.
+    /// which `problems` would have named, and for one fired by an event.
     package var schedule: RoutineSchedule? {
-        try? RoutineSchedule.parse(trigger).get()
+        guard trigger.on == nil else { return nil }
+        return try? RoutineSchedule.parse(trigger).get()
+    }
+
+    /// Whether `event` fires this routine: it is armed, the event is of the
+    /// kind its trigger names, in its project, and no older than its arming.
+    /// The feed names a project by its folder; a routine names it as the
+    /// control API does — the folder, or the folder's last component.
+    package func matches(_ event: AppEventFeed.Event) -> Bool {
+        guard armed, let on = trigger.on, on == event.kind, let folder = event.project else { return false }
+        if let armedAt, event.time < armedAt { return false }
+        let path = KiteloopProject.canonicalPath(folder)
+        return KiteloopProject.canonicalPath(project) == path || URL(fileURLWithPath: path).lastPathComponent == project
     }
 
     /// The occurrence this routine owes at `now`, given the runs on record.
