@@ -82,7 +82,10 @@ final class KiteloopControlServerEventsTests: XCTestCase {
     /// the backlog held exactly `ids`, and the stream went live after it.
     private func assertReplays(_ ids: [String], from stream: EventStream) async throws {
         var replayed: [String] = []
-        for _ in ids { replayed.append(try await stream.next().id) }
+        for _ in ids {
+            let frame = try await stream.next()
+            replayed.append(try XCTUnwrap(frame.id))
+        }
         XCTAssertEqual(replayed, ids)
         try await eventually("the stream to subscribe") { await self.feed.subscriberCount == 1 }
         let live = await feed.publish(NotificationItem(agentID: "late", type: .event, title: "Later", body: ""))
