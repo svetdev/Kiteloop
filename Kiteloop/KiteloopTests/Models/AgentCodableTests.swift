@@ -188,7 +188,7 @@ final class AgentCodableTests: XCTestCase {
             "permissionMode", "subscriptions", "mcpServers", "skills", "avatar", "group",
             "effort", "maxBudgetUSD", "thinkingEnabled", "thinkingBudget",
             "crossAgentAccess", "canAcceptDelegation", "runtimeKind", "workspacePath",
-            "mcpConfigPath", "operatorToolsEnabled", "state",
+            "mcpConfigPath", "operatorToolsEnabled", "controlAccess", "state",
         ]
 
         XCTAssertEqual(try keys(of: fullAgent()), expected)

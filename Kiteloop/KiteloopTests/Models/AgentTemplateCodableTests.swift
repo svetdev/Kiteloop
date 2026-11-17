@@ -180,7 +180,7 @@ final class AgentTemplateCodableTests: XCTestCase {
         let expected: Set<String> = [
             "id", "name", "model", "systemPrompt", "tools", "denied", "askFirst",
             "permissionMode", "subscriptions", "mcpServers", "skills", "description",
-            "avatar", "group", "runtimeKind", "crossAgentAccess", "operatorToolsEnabled",
+            "avatar", "group", "runtimeKind", "crossAgentAccess", "operatorToolsEnabled", "controlAccess",
         ]
 
         XCTAssertEqual(try keys(of: fullTemplate()), expected)
@@ -499,6 +499,25 @@ final class AgentTemplateCodableTests: XCTestCase {
         XCTAssertFalse(try package(operatorTools: #", "operatorToolsEnabled": false"#).toAgentTemplate().operatorToolsEnabled)
     }
 
+    /// `controlAccess` rides from the package to the template to the agent and
+    /// back into a saved template; a package that says nothing keeps the
+    /// operator token it had before the key existed.
+    func testAPackagesControlAccessReachesTheAgentAndAbsentMeansTheOperatorToken() throws {
+        let readOnly = try package(operatorTools: #", "operatorToolsEnabled": true, "controlAccess": "read""#)
+        let template = readOnly.toAgentTemplate()
+
+        XCTAssertEqual(template.controlAccess, .readOnly)
+        XCTAssertEqual(template.instantiateAgent().controlAccess, .readOnly)
+        XCTAssertEqual(AgentTemplate(from: template.instantiateAgentWithFixedID()).controlAccess, .readOnly)
+        let saved = try JSONDecoder().decode(AgentTemplate.self, from: JSONEncoder().encode(template))
+        XCTAssertEqual(saved.controlAccess, .readOnly)
+
+        let unstated = try package(operatorTools: #", "operatorToolsEnabled": true"#).toAgentTemplate()
+        XCTAssertEqual(unstated.controlAccess, .operatorToken)
+        XCTAssertEqual(unstated.instantiateAgent().controlAccess, .operatorToken)
+        XCTAssertEqual(try decode(#"{ "name": "Old", "operatorToolsEnabled": true }"#).controlAccess, .operatorToken)
+    }
+
     private func bundledPackage(_ name: String) throws -> (package: AgentPackage, directory: URL) {
         let examples = try XCTUnwrap(KnowledgePathResolver.resolveBuiltInPath(), "the bundled examples were not found")
         let directory = examples.appending(path: "agents/\(name)")
@@ -512,6 +531,7 @@ final class AgentTemplateCodableTests: XCTestCase {
 
         XCTAssertEqual(package.handle, "@project-setup")
         XCTAssertTrue(template.operatorToolsEnabled)
+        XCTAssertEqual(template.controlAccess, .operatorToken)
         XCTAssertEqual(template.denied, ["Edit", "Write"])
         XCTAssertTrue(template.tools.contains("ask_human"))
         XCTAssertEqual(package.knowledge.files, ["setup-interview.md"])
@@ -539,6 +559,7 @@ final class AgentTemplateCodableTests: XCTestCase {
 
         XCTAssertEqual(package.handle, "@watch")
         XCTAssertTrue(template.operatorToolsEnabled)
+        XCTAssertEqual(template.controlAccess, .readOnly)
         XCTAssertEqual(template.tools, ["Read", "Bash", "recall_knowledge"])
         XCTAssertTrue(Set(template.denied).isSuperset(of: ["Edit", "Write"]))
         XCTAssertEqual(template.mcpServers, [])

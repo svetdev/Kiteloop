@@ -158,7 +158,8 @@ struct KiteloopApp: App {
             // A token per paired phone, beside the control token every other client uses.
             deviceTokens: ControlDeviceTokens(url: ControlDeviceTokens.defaultURL),
             // Tokens narrowed to read, operate or configure, minted over `/v1/tokens`.
-            scopedTokens: ControlScopedTokens(url: ControlScopedTokens.defaultURL),
+            // The one store the runtime's read token for read-only agents is minted in too.
+            scopedTokens: Self.scopedControlTokens,
             // Routines' webhooks, minted over `/v1/hooks`; each secret fires one routine.
             routineHooks: RoutineHooks(url: RoutineHooks.defaultURL),
             // What was driven remotely, readable afterwards: never a body or a token.
@@ -188,6 +189,12 @@ struct KiteloopApp: App {
             : KiteloopHome.url(environment: environment).appending(path: "Library/Application Support")
         return support.appending(path: "Kiteloop/recent-projects.json")
     }
+
+    /// The scoped control tokens, one instance for the app: the control server
+    /// answers `/v1/tokens` from it and checks every scoped bearer against it,
+    /// and the runtime mints the read token for read-only agents into it — a
+    /// second instance over the same file would not see the other's tokens.
+    nonisolated private static let scopedControlTokens = ControlScopedTokens(url: ControlScopedTokens.defaultURL)
 
     private static let globalDir: URL = {
         let home = KiteloopHome.url
@@ -223,7 +230,9 @@ struct KiteloopApp: App {
         let real = ClaudeCodeCLIRuntime(claudePath: cli.claude, nodePath: cli.node,
                                         environmentForSpawn: RunEnvironment.overlay(forWorkingDirectory:),
                                         globalMCPServers: globalConfigStore.config.mcpServers ?? [:],
-                                        operatorToolsNote: OperatorToolsKnowledge.note)
+                                        operatorToolsNote: OperatorToolsKnowledge.note,
+                                        readOnlyToolsNote: OperatorToolsKnowledge.readOnlyNote,
+                                        readOnlyControlToken: { AgentReadToken(store: Self.scopedControlTokens).current() })
         if Self.shouldRecordSessions(environment: ProcessInfo.processInfo.environment) {
             let dir = Self.globalDir.appending(path: "recordings")
             return RecordingAgentRuntime(wrapped: real, outputDirectory: dir)

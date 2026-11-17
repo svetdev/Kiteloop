@@ -83,7 +83,10 @@ package enum OperatorToolsKnowledge {
     /// The endpoints the note lists, grouped by the first path segment after
     /// `/v1` in the order the table first reaches each.
     private static var endpointList: String {
-        let listed = ControlRouter.endpoints.filter { exclusionReason(for: $0.route) == nil }
+        grouped( ControlRouter.endpoints.filter { exclusionReason(for: $0.route) == nil })
+    }
+
+    private static func grouped(_ listed: [ControlRouter.Endpoint]) -> String {
         var groups: [String] = []
         var lines: [String: [String]] = [:]
         for endpoint in listed {
@@ -106,4 +109,40 @@ package enum OperatorToolsKnowledge {
         let path = endpoint.templatedPath
         return path.hasPrefix("/v1/") ? String(path.dropFirst(3)) : path
     }
+
+    // MARK: - Read-only access
+
+    /// The endpoints an agent whose `controlAccess` is `read` is told about:
+    /// those of the full note that `ControlAccess` lets a `read` scoped token
+    /// call. Asked of the access rule rather than of the method, so the note
+    /// can never list a call the token is refused.
+    package static var readOnlyEndpoints: [ControlRouter.Endpoint] {
+        ControlRouter.endpoints.filter { endpoint in
+            exclusionReason(for: endpoint.route) == nil
+                && ControlAccess.refusal(of: .scoped(.read), calling: endpoint.route, as: citation(endpoint)) == nil
+        }
+    }
+
+    /// The note for an agent spawned with the read token (`AgentReadToken`)
+    /// in place of the operator token: the same two variables, the reads only.
+    package static let readOnlyNote = [
+        readOnlyHeader,
+        "Every path below is relative to `$KITELOOP_CONTROL_URL`, which already ends in `/v1`. For query " +
+            "parameters read `GET $KITELOOP_CONTROL_URL/openapi.json`; the full reference is `docs/control-api.md`.",
+        grouped( readOnlyEndpoints),
+    ].joined(separator: "\n\n")
+
+    private static let readOnlyHeader = """
+    ## Control API (read-only)
+
+    Your environment carries `KITELOOP_OPERATOR_TOKEN` and `KITELOOP_CONTROL_URL` \
+    — credentials for Kiteloop's local control API. Despite the variable's name, \
+    the token is **read-only**: it is authorized for the `GET` endpoints listed \
+    below and nothing else. Anything that starts, stops, changes, approves or \
+    answers something answers **403** for this token. Do not look for another \
+    way to make a change: report what you read and what you would change, and \
+    leave the change to the operator.
+
+    Every request needs the header `Authorization: Bearer $KITELOOP_OPERATOR_TOKEN`.
+    """
 }
