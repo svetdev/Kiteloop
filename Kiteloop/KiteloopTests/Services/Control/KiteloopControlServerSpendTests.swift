@@ -3,7 +3,7 @@ import XCTest
 @testable import Kiteloop
 
 /// `GET /v1/spend`, in process: the ledger's rows over a window, grouped the
-/// way the caller asks.
+/// way the caller asks — and `GET /v1/spend/forecast`, what they say is coming.
 @MainActor
 final class KiteloopControlServerSpendTests: XCTestCase {
 
@@ -133,10 +133,67 @@ final class KiteloopControlServerSpendTests: XCTestCase {
         }
     }
 
+    // MARK: - The forecast
+
+    func testTheForecastHasTheDocumentedShape() async throws {
+        let now = Date()
+        for cost in [1.0, 2, 3, 4, 10] {
+            ledger.append(SpendRow(at: now, source: .routine, project: "/p/a", routine: "brief",
+                                   costUSD: cost, basis: .usd))
+        }
+        ledger.append(SpendRow(at: now, source: .routine, project: "/p/a", routine: "new", costUSD: 1, basis: .usd))
+        ledger.append(SpendRow(at: now, source: .chat, project: "/p/b", costUSD: 2, basis: .tokenEquivalent))
+
+        let response = await get([:], path: "/v1/spend/forecast")
+
+        XCTAssertEqual(response.status, 200)
+        let body = json(response)
+        XCTAssertEqual((body["month"] as? String)?.count, 7)
+        XCTAssertNotNil(body["asOf"] as? String)
+        let projects = try XCTUnwrap(body["projects"] as? [[String: Any]])
+        XCTAssertEqual(projects.map { $0["project"] as? String }, ["/p/a", "/p/b"])
+        XCTAssertEqual(projects.map { $0["monthToDateUSD"] as? Double }, [21, 2])
+        XCTAssertEqual(projects.map { $0["basis"] as? String }, ["usd", "token-equivalent"])
+        let first = try XCTUnwrap(projects.first)
+        let elapsed = try XCTUnwrap(first["daysElapsed"] as? Int)
+        let inMonth = try XCTUnwrap(first["daysInMonth"] as? Int)
+        let projected = try XCTUnwrap(first["projectedMonthEndUSD"] as? Double)
+        XCTAssertEqual(projected, 21 / Double(elapsed) * Double(inMonth), accuracy: 0.0001)
+
+        let routines = try XCTUnwrap(body["routines"] as? [[String: Any]])
+        XCTAssertEqual(routines.map { $0["routine"] as? String }, ["brief", "new"])
+        XCTAssertEqual(routines.map { $0["runs"] as? Int }, [5, 1])
+        XCTAssertEqual(routines[0]["expectedUSD"] as? Double, 3)
+        XCTAssertEqual(routines[0]["lowUSD"] as? Double, 1)
+        XCTAssertEqual(routines[0]["highUSD"] as? Double, 10)
+        for figure in ["expectedUSD", "lowUSD", "highUSD"] {
+            XCTAssertTrue(routines[1][figure] is NSNull, "one run is too little history for \(figure)")
+        }
+    }
+
+    func testTheForecastNarrowsItsProjectionsToOneProject() async throws {
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/p/a", costUSD: 1, basis: .usd))
+        ledger.append(SpendRow(at: Date(), source: .routine, project: "/p/b", routine: "brief",
+                               costUSD: 2, basis: .usd))
+
+        let response = await get(["project": "/p/a"], path: "/v1/spend/forecast")
+
+        let body = json(response)
+        let projects = try XCTUnwrap(body["projects"] as? [[String: Any]])
+        XCTAssertEqual(projects.map { $0["project"] as? String }, ["/p/a"])
+        XCTAssertEqual((body["routines"] as? [[String: Any]])?.count, 1, "the filter narrows projects only")
+    }
+
+    func testTheForecastOnAServerWithNoLedgerAnswers503() async {
+        server.spendLedger = nil
+        let answer = await get([:], path: "/v1/spend/forecast")
+        XCTAssertEqual(answer.status, 503)
+    }
+
     // MARK: - Helpers
 
-    private func get(_ query: [String: String]) async -> HTTPServer.Response {
-        await server.handle(HTTPServer.Request(method: "GET", path: "/v1/spend", query: query,
+    private func get(_ query: [String: String], path: String = "/v1/spend") async -> HTTPServer.Response {
+        await server.handle(HTTPServer.Request(method: "GET", path: path, query: query,
                                                headers: ["authorization": "Bearer \(token)"], body: Data()))
     }
 

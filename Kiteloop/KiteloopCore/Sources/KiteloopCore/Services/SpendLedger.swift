@@ -185,7 +185,8 @@ package struct SpendBreakdown: Equatable, Sendable {
         return value
     }
 
-    private static func basis(of rows: [SpendRow]) -> Basis {
+    /// Every row's own basis when they agree, `mixed` when they don't.
+    package static func basis(of rows: [SpendRow]) -> Basis {
         let kinds = Set(rows.map(\.basis))
         if kinds == [.tokenEquivalent] { return .tokenEquivalent }
         return kinds.count > 1 ? .mixed : .usd

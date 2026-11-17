@@ -2,7 +2,7 @@ import Foundation
 import KiteloopCore
 
 /// `GET /v1/spend`: the spend ledger over a window, grouped the way the caller
-/// asks.
+/// asks — and `GET /v1/spend/forecast`: what that history says is coming.
 @MainActor
 struct SpendEndpoints {
     let ledger: SpendLedger?
@@ -34,6 +34,41 @@ struct SpendEndpoints {
             "totalUSD": breakdown.totalUSD,
             "rows": breakdown.rows.map { ["key": $0.key, "costUSD": $0.costUSD, "count": $0.count] }
         ])
+    }
+
+    /// What each routine's next run and each project's month will probably
+    /// cost. `project` narrows the projections to one root path.
+    func forecast(_ query: [String: String], now: Date = Date(),
+                  calendar: Calendar = .current) async -> HTTPServer.Response {
+        guard let ledger else { return .error("This Kiteloop keeps no spend ledger", status: 503) }
+        // Off the main actor: the ledger is a file read end to end.
+        let rows = await Task.detached { ledger.rows() }.value
+        let forecast = SpendForecast.make(rows: rows, now: now, calendar: calendar)
+        let projects = forecast.projects.filter { query["project"] == nil || $0.project == query["project"] }
+        return .json([
+            "month": forecast.month,
+            "asOf": ISO8601DateFormatter().string(from: now),
+            "projects": projects.map(Self.projectJSON),
+            "routines": forecast.routines.map(Self.routineJSON)
+        ])
+    }
+
+    private static func projectJSON(_ project: SpendForecast.Project) -> [String: Any] {
+        ["project": project.project,
+         "monthToDateUSD": project.monthToDateUSD,
+         "daysElapsed": project.daysElapsed,
+         "daysInMonth": project.daysInMonth,
+         "projectedMonthEndUSD": project.projectedMonthEndUSD,
+         "basis": project.basis.rawValue]
+    }
+
+    private static func routineJSON(_ routine: SpendForecast.Routine) -> [String: Any] {
+        ["routine": routine.routine,
+         "runs": routine.runs,
+         "expectedUSD": routine.expectedUSD as Any? ?? NSNull(),
+         "lowUSD": routine.lowUSD as Any? ?? NSNull(),
+         "highUSD": routine.highUSD as Any? ?? NSNull(),
+         "basis": routine.basis.rawValue]
     }
 
     /// The reading closest to its limit, when the window holds spend drawn

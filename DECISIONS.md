@@ -318,3 +318,10 @@ Entry format:
 **Why:** The inspection is what a person reads before letting someone else's setup in, and it is shown on screen and will be returned over the API, so a value in it is a value leaked. Listing every part by path means a pack holds exactly what its manifest says and cannot reach a file beside it.
 **Evidence:** `PackManifest`, `PackInspector.resolve`, `PackInspectorTests.testNoSecretValueAppearsAnywhereInTheInspection`, `testAListedPathThatLeavesThePackThroughASymlinkIsRefused`.
 **Status:** holds — a secret written into a connector's command line or URL is still shown, as part of what the connector runs.
+
+## [2026-11-17] A spend forecast is read off the ledger, and says when it cannot be made
+**Kind:** rule
+**What:** `GET /v1/spend/forecast` works only from rows the spend ledger holds: a routine's next run is the median of its latest runs with their cheapest and costliest as the range, and a project's month is its month to date divided by the days begun times the days in the month. A routine with fewer than three charged runs reports no figures, only how many runs it has.
+**Why:** A forecast built on a price list or a tuned model is a guess that reads as a measurement. Under three runs a median has no middle run distinct from the ends, so the honest answer is the count. The window of twenty latest runs is the one bound that is a choice, not a derivation: it keeps a routine whose prompt or model changed from being forecast off how it used to run.
+**Evidence:** `SpendForecast.fewestRuns`, `SpendForecast.runsConsidered`, `SpendForecastTests`.
+**Status:** holds — the projection is compared to no budget; no monthly budget exists.
