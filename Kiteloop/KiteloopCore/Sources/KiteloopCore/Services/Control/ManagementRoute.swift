@@ -66,6 +66,25 @@ package enum ManagementRoute: Equatable, Sendable {
             return .configure
         }
     }
+
+    /// Whether the call changes what agents are allowed to do or what Kiteloop
+    /// does unattended (`ControlRoute.changesConfiguration`): a project's
+    /// settings, an MCP server, the app's settings. A backlog item, memory,
+    /// knowledge, a chat and closing a project are everyday work. Exhaustive
+    /// with no `default:`.
+    package var changesConfiguration: Bool {
+        switch self {
+        case .setProjectSettings, .putMCPServer, .deleteMCPServer, .setSettings:
+            return true
+        case .listAgentChats, .getProjectSettings, .exportProjectSetup, .getAgentMemory, .getSharedMemory,
+             .listClaudeMemory, .listKnowledge, .getKnowledgeFile, .listMCPServers, .getSettings,
+             .startAgent, .stopAgent, .restartAgent, .newAgentChat, .openAgentChat,
+             .deleteAgentChat, .closeProject, .updateBacklogItem, .deleteBacklogItem,
+             .addMemoryFact, .rewriteMemoryFact, .archiveMemoryFact, .setSharedMemory,
+             .putClaudeMemoryNote, .deleteClaudeMemoryNote, .putKnowledgeFile:
+            return false
+        }
+    }
 }
 
 /// What each `ManagementRoute` accepts and returns. One function per route,

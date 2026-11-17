@@ -162,6 +162,28 @@ final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
         XCTAssertTrue(server.configChanges.waiting.isEmpty)
     }
 
+    /// Everyday work — a backlog item, a memory fact, a knowledge file — is
+    /// answered at once for the operator token, as it is for the person: no
+    /// card, no log line. Awaited through `eventually`, so a call that were
+    /// held fails here and does not hang the suite.
+    func testAnOperatorsEverydayWriteIsAnsweredWithoutACard() async throws {
+        let everyday = [("PATCH", "/v1/backlog/items"), ("DELETE", "/v1/backlog/items"),
+                        ("POST", "/v1/memory/facts"), ("PUT", "/v1/memory/shared"),
+                        ("PUT", "/v1/memory/claude"), ("PUT", "/v1/knowledge/file")]
+        for (method, path) in everyday {
+            let answer = Answer()
+            let asked = send(method, path, [:], bearer: operatorToken)
+            Task { answer.response = await asked.value }
+            try await eventually("\(method) \(path) to be answered without a person") { answer.response != nil }
+            let asThePerson = await server.handle(request(method, path, [:], bearer: token))
+
+            XCTAssertEqual(answer.response?.status, asThePerson.status, "\(method) \(path)")
+            XCTAssertNotEqual(answer.response?.status, 403, "\(method) \(path)")
+        }
+        XCTAssertTrue(server.configChanges.waiting.isEmpty)
+        XCTAssertTrue(log().isEmpty)
+    }
+
     // MARK: - The switch
 
     func testWithTheGateOffAnOperatorsChangeAppliesAtOnce() async throws {
@@ -312,6 +334,12 @@ final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
     private func json(_ response: HTTPServer.Response) -> [String: Any] {
         (try? JSONSerialization.jsonObject(with: response.body)) as? [String: Any] ?? [:]
     }
+}
+
+/// Where a request's answer lands once it has one.
+@MainActor
+private final class Answer {
+    var response: HTTPServer.Response?
 }
 
 /// Stands in for the socket's "client has gone" signal.

@@ -47,12 +47,15 @@ package enum OperatorToolsKnowledge {
             "is waiting and leave the answer to the operator.",
         "Listing, minting or revoking scoped tokens and webhooks — \(cited(where: \.isTokenManagement)) — " +
             "takes the control token itself and answers 403 for this token too.",
-        "A call that changes configuration — hiring, editing or removing an agent, settings, autopilot, " +
-            "routines, MCP servers, memory and knowledge, editing or deleting a backlog item — does not " +
+        "A call that changes what agents are allowed to do or what Kiteloop does unattended — hiring, " +
+            "editing or removing an agent, a project's or the app's settings, autopilot, the coordinator's " +
+            "refill and scheduling, routines, MCP servers — does not " +
             "apply until the operator approves it in the app: the request stays open, with no time limit, " +
             "until they answer. Say that you are waiting on their approval and give the call a long " +
             "timeout; a request cut off before the answer applies nothing, so ask again. " +
-            "**403 \"declined by the person\"** means they said no — do not retry it or look for another route.",
+            "**403 \"declined by the person\"** means they said no — do not retry it or look for another route. " +
+            "Everyday work is not held and applies at once: editing or deleting a backlog item, stamping " +
+            "a template, memory facts, shared context, memory notes and knowledge files.",
         "Everything else works the same as it does for the operator's terminal session. Every path " +
             "below is relative to `$KITELOOP_CONTROL_URL`, which already ends in `/v1`. For query " +
             "parameters and request bodies read `GET $KITELOOP_CONTROL_URL/openapi.json`; the full " +

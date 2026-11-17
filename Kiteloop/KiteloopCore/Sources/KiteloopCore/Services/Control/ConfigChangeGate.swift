@@ -5,15 +5,18 @@ import Foundation
 ///
 /// The one place that is decided. It keys on the credential: the same route
 /// called with the person's own token, or from a paired phone, is never held.
-/// The routes are not a list kept here — they are the ones `ControlRoute.scope`
-/// already says need `configure`, less the reads among them, so a route added
-/// to that classification is held without anyone remembering to add it.
+/// Which routes is not a list kept here: `ControlRoute.changesConfiguration`
+/// classifies every route — the ones that change what agents are allowed to
+/// do or what Kiteloop does unattended — in a switch with no `default:`, so a
+/// route added later is held or not by a line someone had to write. Everyday
+/// work that needs the `configure` scope (a backlog item, memory, knowledge)
+/// is checked against the token's scope and not held.
 package enum ConfigChangeGate {
 
-    /// Whether `route`, called with `method`, changes how a team, a project or
-    /// the app is set up.
+    /// Whether `route`, called with `method`, changes what agents are allowed
+    /// to do or what Kiteloop does unattended.
     package static func isConfigurationChange(route: ControlRoute, method: String) -> Bool {
-        method.uppercased() != "GET" && route.scope == .configure
+        method.uppercased() != "GET" && route.changesConfiguration
     }
 
     /// Whether this call waits on a person: a configuration change, made with

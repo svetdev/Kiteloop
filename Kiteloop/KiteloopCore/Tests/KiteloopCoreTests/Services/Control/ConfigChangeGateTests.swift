@@ -11,16 +11,87 @@ final class ConfigChangeGateTests: XCTestCase {
     /// The person's own, and a request with none.
     private let persons: [ControlCredential?] = [.full, .paired, nil]
 
-    /// Nothing an agent's token can change about the setup gets through
-    /// unheld: every configure route that is not a read.
-    func testEveryMutatingConfigureRouteIsHeldForTheOperatorAndScopedTokens() {
-        let mutating = endpoints.filter { $0.method != "GET" && $0.scope == .configure }
-        XCTAssertFalse(mutating.isEmpty)
-        for endpoint in mutating {
+    /// The calls that change what agents are allowed to do or what Kiteloop
+    /// does unattended, as method and path.
+    private let held: Set<String> = [
+        "POST /v1/agents", "PATCH /v1/agents", "DELETE /v1/agents",
+        "PUT /v1/projects/settings",
+        "PUT /v1/mcp-servers/:name", "DELETE /v1/mcp-servers/:name",
+        "PUT /v1/settings",
+        "PUT /v1/autopilot", "POST /v1/autopilot/reset",
+        "PUT /v1/coordinator/refill", "PUT /v1/coordinator/scheduling",
+        "PUT /v1/routines/:id", "DELETE /v1/routines/:id",
+        "POST /v1/devices/push", "POST /v1/devices/activity", "POST /v1/pair"
+    ]
+
+    private func isHeld(_ endpoint: ControlRouter.Endpoint, for credential: ControlCredential?) -> Bool {
+        ConfigChangeGate.waitsOnAPerson(route: endpoint.route, method: endpoint.method, credential: credential)
+    }
+
+    /// Every route of the table, for every credential that is not the
+    /// person's: held exactly when it is one of the calls above, so a route
+    /// classified as held later fails here until it is named.
+    func testExactlyTheConfigurationChangesAreHeldForTheOperatorAndScopedTokens() {
+        let table = Set(endpoints.map { "\($0.method) \($0.path)" })
+        XCTAssertEqual(held.subtracting(table), [], "every held call is a route of the table")
+        for endpoint in endpoints {
+            let expected = held.contains("\(endpoint.method) \(endpoint.path)")
             for credential in agents {
-                XCTAssertTrue(
-                    ConfigChangeGate.waitsOnAPerson(route: endpoint.route, method: endpoint.method, credential: credential),
-                    "\(endpoint.method) \(endpoint.path) must wait on a person for \(credential)")
+                XCTAssertEqual(isHeld(endpoint, for: credential), expected,
+                               "\(endpoint.method) \(endpoint.path) for \(credential)")
+            }
+        }
+    }
+
+    /// The hold only ever narrows what the `configure` scope lets through:
+    /// nothing below that scope is held, and no route a credential is refused
+    /// outright — a human gate, token and webhook management — is held either.
+    func testAHeldRouteNeedsConfigureAndIsNeitherAHumanGateNorTokenManagement() {
+        for endpoint in endpoints where endpoint.route.changesConfiguration {
+            let name = "\(endpoint.method) \(endpoint.path)"
+            XCTAssertEqual(endpoint.scope, .configure, name)
+            XCTAssertNotEqual(endpoint.method, "GET", name)
+            XCTAssertFalse(endpoint.route.isHumanGate, name)
+            XCTAssertFalse(endpoint.route.isTokenManagement, name)
+        }
+    }
+
+    /// Everyday work is not held, though each of these still needs the
+    /// `configure` scope of a scoped token.
+    func testEverydayWritesAreNotHeld() {
+        let everyday: [(String, String)] = [
+            ("PATCH", "/v1/backlog/items"), ("DELETE", "/v1/backlog/items"),
+            ("POST", "/v1/backlog/templates/stamp"),
+            ("POST", "/v1/memory/facts"), ("PUT", "/v1/memory/facts"), ("DELETE", "/v1/memory/facts"),
+            ("PUT", "/v1/memory/shared"), ("PUT", "/v1/memory/claude"), ("DELETE", "/v1/memory/claude"),
+            ("PUT", "/v1/knowledge/file"), ("DELETE", "/v1/agents/chats"),
+            ("POST", "/v1/projects/reorder"), ("POST", "/v1/projects/pin"), ("POST", "/v1/projects/close")
+        ]
+        for (method, path) in everyday {
+            guard let route = ControlRouter.match(method: method, path: path) else {
+                XCTFail("\(method) \(path) is not a route")
+                continue
+            }
+            XCTAssertEqual(route.scope, .configure, "\(method) \(path) still needs its scope")
+            for credential in agents {
+                XCTAssertFalse(ConfigChangeGate.waitsOnAPerson(route: route, method: method, credential: credential),
+                               "\(method) \(path) for \(credential)")
+            }
+            XCTAssertNotNil(ControlAccess.refusal(of: .scoped(.operate), calling: route, as: "\(method) \(path)"),
+                            "\(method) \(path) is refused below configure")
+            XCTAssertNil(ControlAccess.refusal(of: .scoped(.configure), calling: route, as: "\(method) \(path)"))
+        }
+    }
+
+    /// Token and webhook management is refused for an agent's credential
+    /// ahead of the hold, so no card is ever filed for it.
+    func testTokenAndHookManagementIsRefusedNotHeld() {
+        let managed = endpoints.filter(\.route.isTokenManagement)
+        XCTAssertFalse(managed.isEmpty)
+        for endpoint in managed {
+            for credential in agents {
+                XCTAssertNotNil(ControlAccess.refusal(of: credential, calling: endpoint.route, as: endpoint.path))
+                XCTAssertFalse(isHeld(endpoint, for: credential), "\(endpoint.method) \(endpoint.path)")
             }
         }
     }
@@ -50,9 +121,8 @@ final class ConfigChangeGateTests: XCTestCase {
     /// let through for an agent's token.
     func testRoutesBelowConfigureAreNotHeld() {
         for endpoint in endpoints where endpoint.scope != .configure {
-            XCTAssertFalse(
-                ConfigChangeGate.waitsOnAPerson(route: endpoint.route, method: endpoint.method, credential: .operatorToken),
-                "\(endpoint.method) \(endpoint.path) is not a configuration change")
+            XCTAssertFalse(isHeld(endpoint, for: .operatorToken),
+                           "\(endpoint.method) \(endpoint.path) is not a configuration change")
         }
     }
 
@@ -63,30 +133,6 @@ final class ConfigChangeGateTests: XCTestCase {
         XCTAssertTrue(ConfigChangeGate.waitsOnAPerson(route: route, method: "PUT", credential: .scoped(.configure)))
         XCTAssertFalse(ConfigChangeGate.waitsOnAPerson(route: route, method: "PUT", credential: .full))
         XCTAssertFalse(ConfigChangeGate.waitsOnAPerson(route: route, method: "PUT", credential: .paired))
-    }
-
-    /// The changes the gap named, by path — each one held.
-    func testTheNamedChangesAreAllHeld() {
-        let named: [(String, String)] = [
-            ("POST", "/v1/agents"), ("PATCH", "/v1/agents"), ("DELETE", "/v1/agents"),
-            ("PUT", "/v1/mcp-servers/github"), ("DELETE", "/v1/mcp-servers/github"),
-            ("PUT", "/v1/settings"), ("PUT", "/v1/projects/settings"),
-            ("PUT", "/v1/routines/nightly"), ("DELETE", "/v1/routines/nightly"),
-            ("POST", "/v1/hooks"), ("DELETE", "/v1/hooks/deploy"),
-            ("PUT", "/v1/autopilot"), ("POST", "/v1/autopilot/reset"),
-            ("PUT", "/v1/coordinator/refill"), ("PUT", "/v1/coordinator/scheduling"),
-            ("POST", "/v1/memory/facts"), ("PUT", "/v1/memory/facts"), ("DELETE", "/v1/memory/facts"),
-            ("PUT", "/v1/memory/shared"), ("PUT", "/v1/memory/claude"), ("DELETE", "/v1/memory/claude"),
-            ("PUT", "/v1/knowledge/file")
-        ]
-        for (method, path) in named {
-            guard let route = ControlRouter.match(method: method, path: path) else {
-                XCTFail("\(method) \(path) is not a route")
-                continue
-            }
-            XCTAssertTrue(ConfigChangeGate.waitsOnAPerson(route: route, method: method, credential: .operatorToken),
-                          "\(method) \(path)")
-        }
     }
 
     /// The route that answers a held change is a human gate, so the token
