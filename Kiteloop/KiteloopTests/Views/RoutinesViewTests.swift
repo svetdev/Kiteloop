@@ -31,6 +31,33 @@ final class RoutinesViewTests: XCTestCase {
         XCTAssertEqual(RoutinesView.routines(in: all, for: root).map(\.id), ["a", "b"])
     }
 
+    func testThePageGroupsEveryRoutineByProjectTheTabsOwnFirst() {
+        let current = URL(fileURLWithPath: "/tmp/work/vault")
+        let other = URL(fileURLWithPath: "/tmp/work/garden")
+        let all = [routine("x", project: "away"), routine("a"), routine("g", project: "garden"),
+                   routine("b", project: "/tmp/work/vault"), routine("h", project: "/tmp/work/garden")]
+
+        let sections = RoutinesView.sections(in: all, openRoots: [other, current], current: current)
+
+        XCTAssertEqual(sections.map(\.title), ["vault", "garden", "Projects not open"])
+        XCTAssertEqual(sections.map(\.root), [current, other, nil])
+        XCTAssertEqual(sections.map { $0.routines.map(\.id) }, [["a", "b"], ["g", "h"], ["x"]])
+        XCTAssertEqual(sections.flatMap(\.routines).map(\.id).sorted(), all.map(\.id).sorted())
+    }
+
+    func testTheTabsOwnProjectKeepsItsSectionWhenItHasNoRoutines() {
+        let current = URL(fileURLWithPath: "/tmp/work/vault")
+        let other = URL(fileURLWithPath: "/tmp/work/garden")
+
+        let sections = RoutinesView.sections(in: [routine("g", project: "garden")],
+                                             openRoots: [current, other], current: current)
+
+        XCTAssertEqual(sections.map(\.title), ["vault", "garden"])
+        XCTAssertTrue(sections[0].routines.isEmpty)
+        XCTAssertFalse(RoutinesView.showsEmptyState(sections))
+        XCTAssertTrue(RoutinesView.showsEmptyState(RoutinesView.sections(in: [], openRoots: [current], current: current)))
+    }
+
     func testThePageSaysHowManyRoutinesThereAreAndHowManyAreArmed() {
         XCTAssertEqual(RoutinesView.subtitle(for: []), "Prompts sent to an agent on a schedule.")
         XCTAssertEqual(RoutinesView.subtitle(for: [routine("a", armed: false)]), "1 routine, none armed")

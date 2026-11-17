@@ -18,6 +18,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - The app's MCP servers are listed, added and removed over the API (`/v1/mcp-servers`), with their environment values never returned, and its default model, default effort, sound theme and update check are read and changed (`/v1/settings`).
 - A control token can be narrowed to read, operate or configure: mint one with the control token over `POST /v1/tokens`, list them with `GET /v1/tokens` and revoke one with `DELETE /v1/tokens/{id}`. A scoped token is refused with a 403 naming the scope it lacks on any route outside its scope, and never resolves a human gate.
 - `GET /v1/events` streams every open project's inbox notices — approvals waiting, questions, finished agents, errors — as one server-sent-events stream, and a client that reconnects with `Last-Event-ID` or `?after=` picks up the events it missed while they are still held in memory.
+- The Routines page lists every project's routines, grouped under one heading per project — the open tab's project first, then the other open projects, then routines for projects not open — and editing one keeps it in its own project.
 
 ## 0.7.1 — 2026-11-15
 
