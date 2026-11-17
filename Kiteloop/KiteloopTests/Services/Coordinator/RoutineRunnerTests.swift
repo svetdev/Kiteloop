@@ -24,6 +24,8 @@ final class RoutineRunnerTests: XCTestCase {
     /// The id each routine's agent goes by, and what happens inside its turn.
     private var agentIDs: [String: String] = [:]
     private var duringTurn: (() async -> Void)?
+    /// Who the runner asked to be told of a queued prompt's turn.
+    private var queuedTurn: (@MainActor (Bool) -> Void)?
     /// The project's folder, as the agent reports it.
     private var folder = URL(fileURLWithPath: "/tmp/vault")
 
@@ -64,7 +66,8 @@ final class RoutineRunnerTests: XCTestCase {
                     return self.turn
                 },
                 startFresh: { self.calls.append("fresh") },
-                agentID: self.agentIDs[routine.id]))
+                agentID: self.agentIDs[routine.id],
+                whenQueuedTurnRuns: { self.queuedTurn = $0 }))
         }
         runner.charge = { [unowned self] cost, _, attribution in
             self.charged.append(cost)
@@ -604,11 +607,13 @@ final class RoutineRunnerTests: XCTestCase {
         XCTAssertEqual(sent, [])
         let run = try XCTUnwrap(runner.lastRun(of: "on-error"))
         XCTAssertEqual(run.outcome, .refused)
-        XCTAssertEqual(run.reason, "the routine's own agent raised the event")
+        XCTAssertEqual(run.reason, RoutineRunner.ownAgentsEvent)
         XCTAssertEqual(run.event, "error")
     }
 
-    func testAnEventRaisedInsideARoutinesTurnFiresNoRoutine() async throws {
+    /// A chain a person set up: the brief's turn files a notice, and the
+    /// routine that notice fires is not one the chain has been through.
+    func testAnEventRaisedInsideARoutinesTurnFiresAnotherRoutine() async throws {
         agentIDs = ["brief": "chief-1", "on-error": "scout-1"]
         let feed = AppEventFeed()
         let runner = try runner([brief(), onError()], feed: feed)
@@ -616,19 +621,56 @@ final class RoutineRunnerTests: XCTestCase {
         // The brief's turn spans the real moment its agent files a notice.
         now = Date().addingTimeInterval(-60)
         duringTurn = { [unowned self] in
+            self.duringTurn = nil
             await feed.publish(NotificationItem(agentID: "chief-1", type: .error, title: "Chief hit an error",
                                                 body: "", projectPath: "/tmp/vault"))
-            self.now = Date().addingTimeInterval(60)
-            self.duringTurn = nil
+            try? await eventually("the notice's routine to finish") { runner.lastRun(of: "on-error")?.finishedAt != nil }
         }
 
         await runner.runNow("brief")?.value
-        try await eventually("the refusal on record") { runner.lastRun(of: "on-error") != nil }
 
-        XCTAssertEqual(sent, ["Write the brief."])
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertEqual(sent.first, "Write the brief.")
+        let run = try XCTUnwrap(runner.lastRun(of: "on-error"))
+        XCTAssertEqual(run.outcome, .started)
+        XCTAssertEqual(run.event, "error")
+    }
+
+    /// The loop: on-error's turn files a `complete`, which fires on-done,
+    /// whose turn files an `error` — and on-error is already in that chain.
+    func testAnEventRaisedInATurnTheRoutineLedToDoesNotFireItAgain() async throws {
+        agentIDs = ["on-error": "scout-1", "on-done": "chief-1"]
+        let onDone = Routine(id: "on-done", name: "On done", project: "vault", agent: "Chief", prompt: "Note it.",
+                             trigger: .init(on: "complete"), armed: true)
+        let feed = AppEventFeed()
+        let runner = try runner([onError(), onDone], feed: feed)
+        try await eventually("the runner to subscribe") { await feed.subscriberCount == 1 }
+        now = Date().addingTimeInterval(-60)
+        duringTurn = { [unowned self] in
+            // on-error's turn.
+            self.duringTurn = { [unowned self] in
+                // on-done's turn.
+                self.duringTurn = nil
+                await feed.publish(NotificationItem(agentID: "chief-1", type: .error, title: "Chief hit an error",
+                                                    body: "", projectPath: "/tmp/vault"))
+                try? await eventually("the refusal on record") { runner.lastRun(of: "on-error")?.outcome == .refused }
+            }
+            await feed.publish(NotificationItem(agentID: "scout-1", type: .complete, title: "Looked", body: "",
+                                                projectPath: "/tmp/vault"))
+            try? await eventually("on-done's turn to finish") { runner.lastRun(of: "on-done")?.finishedAt != nil }
+        }
+
+        await feed.publish(NotificationItem(agentID: "worker", type: .error, title: "Run failed", body: "",
+                                            projectPath: "/tmp/vault"))
+        try await eventually("the first turn to finish") {
+            runner.runs.contains { $0.routine == "on-error" && $0.finishedAt != nil }
+        }
+
+        XCTAssertEqual(sent.count, 2, "on-error once, on-done once")
         let run = try XCTUnwrap(runner.lastRun(of: "on-error"))
         XCTAssertEqual(run.outcome, .refused)
-        XCTAssertEqual(run.reason, "the event was raised inside a routine's turn")
+        XCTAssertEqual(run.reason, RoutineRunner.ownEvent)
+        XCTAssertEqual(runner.lastRun(of: "on-done")?.outcome, .started)
     }
 
     // MARK: - A watched folder
@@ -756,7 +798,9 @@ final class RoutineRunnerTests: XCTestCase {
         XCTAssertEqual(sent.count, 2)
     }
 
-    func testAChangeMadeInsideAnotherRoutinesTurnInTheProjectFiresNothing() async throws {
+    /// A chain a person set up: the brief writes into the folder another
+    /// routine watches.
+    func testAChangeMadeInsideAnotherRoutinesTurnFiresTheRoutineThatWatches() async throws {
         let runner = try runner([watched(), brief()])
         var inside: Task<Void, Never>?
         duringTurn = { [unowned self] in
@@ -767,8 +811,101 @@ final class RoutineRunnerTests: XCTestCase {
         await runner.runNow("brief")?.value
         await inside?.value
 
-        XCTAssertEqual(sent, ["Write the brief."])
+        XCTAssertEqual(sent.count, 2)
+        XCTAssertEqual(sent.first, "Write the brief.")
+        XCTAssertEqual(runner.lastRun(of: "inbox")?.outcome, .started)
+    }
+
+    /// A second routine, watching `name` in the folder `watched()` made.
+    private func watching(_ name: String) throws -> Routine {
+        try FileManager.default.createDirectory(at: folder.appending(path: name), withIntermediateDirectories: true)
+        return Routine(id: name, name: name, project: "vault", agent: "Chief", prompt: "Send what is here.",
+                       trigger: .init(watch: name), armed: true)
+    }
+
+    /// The loop: inbox's turn writes into outbox, whose turn writes into
+    /// inbox — and inbox is already in that chain.
+    func testTwoRoutinesWritingIntoEachOthersFoldersStopWhenTheFirstComesRound() async throws {
+        let runner = try runner([watched(), watching("outbox")])
+        let began = now
+        duringTurn = { [unowned self] in
+            self.duringTurn = nil
+            await runner.folderChanged("outbox")?.value
+            self.now = began.addingTimeInterval(60)
+        }
+        await runner.folderChanged("inbox")?.value
+        XCTAssertEqual(sent.count, 2, "inbox once, outbox once")
+
+        await runner.folderChanged("inbox", at: began.addingTimeInterval(30))?.value
+        await runner.folderChanged("inbox", at: began.addingTimeInterval(31))?.value
+
+        XCTAssertEqual(sent.count, 2)
+        let refusals = runner.runs.filter { $0.routine == "inbox" && $0.outcome == .refused }
+        XCTAssertEqual(refusals.map(\.reason), [RoutineRunner.ownChange])
+    }
+
+    /// The same loop where nobody saw how one turn reached the other: every
+    /// change falls outside the turns the runner knows of.
+    func testTwoRoutinesTakingTurnsUnseenStopAtTheFirstOnesSecondFiringUntilSomethingOutsideFires() async throws {
+        let runner = try runner([watched(), watching("outbox"), brief()])
+        func later() { now = now.addingTimeInterval(120) }
+
+        await runner.folderChanged("inbox")?.value
+        later()
+        await runner.folderChanged("outbox")?.value
+        later()
+        await runner.folderChanged("inbox")?.value
+        later()
+        await runner.folderChanged("inbox")?.value
+
+        XCTAssertEqual(sent.count, 2)
+        let refusals = runner.runs.filter { $0.routine == "inbox" && $0.outcome == .refused }
+        XCTAssertEqual(refusals.map(\.reason), [RoutineRunner.tookTurns], "written down once for the stretch")
+        XCTAssertEqual(refusals.first?.watch, "inbox")
+
+        later()
+        await runner.runNow("brief")?.value
+        later()
+        await runner.folderChanged("inbox")?.value
+        XCTAssertEqual(sent.count, 4, "the brief, and inbox again after it")
+    }
+
+    func testOneRoutineWhoseFolderKeepsChangingFromOutsideFiresEachTime() async throws {
+        let runner = try runner([watched(), watching("outbox")])
+        for _ in 0..<3 {
+            await runner.folderChanged("inbox")?.value
+            now = now.addingTimeInterval(120)
+        }
+        XCTAssertEqual(sent.count, 3)
+    }
+
+    /// A prompt that waited in a busy agent's queue is followed into the turn
+    /// it gets, so a change that turn makes is the routine's own.
+    func testAQueuedPromptsTurnIsFollowedAndAChangeItMakesFiresNothing() async throws {
+        busy = true
+        let runner = try runner([watched()])
+        let began = now
+        await runner.folderChanged("inbox")?.value
+        XCTAssertEqual(runner.lastRun(of: "inbox")?.outcome, .queued)
+        let turn = try XCTUnwrap(queuedTurn)
+
+        busy = false
+        await runner.folderChanged("inbox", at: began.addingTimeInterval(30))?.value
+        XCTAssertEqual(sent.count, 2, "before its turn begins the queued prompt has made nothing")
+
+        now = began.addingTimeInterval(60)
+        turn(true)
+        await runner.folderChanged("inbox", at: began.addingTimeInterval(90))?.value
+        now = began.addingTimeInterval(120)
+        turn(false)
+        await runner.folderChanged("inbox", at: began.addingTimeInterval(120))?.value
+
+        XCTAssertEqual(sent.count, 2)
         XCTAssertEqual(runner.lastRun(of: "inbox")?.reason, RoutineRunner.ownChange)
+
+        now = began.addingTimeInterval(180)
+        await runner.folderChanged("inbox")?.value
+        XCTAssertEqual(sent.count, 3)
     }
 
     func testAFolderALinkTookOutOfTheProjectFiresNothing() async throws {

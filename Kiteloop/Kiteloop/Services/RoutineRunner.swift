@@ -20,6 +20,10 @@ struct RoutineAgent {
     let startFresh: @MainActor () async -> Void
     /// The agent's id, as an event it raises names it; nil when nobody said.
     var agentID: String? = nil
+    /// Asks to be told about the turn of the text `send` is about to put in a
+    /// busy agent's queue: `true` when that turn begins, `false` when it ends.
+    /// Nil when the agent cannot say; the queued turn then goes unseen.
+    var whenQueuedTurnRuns: (@MainActor (@escaping @MainActor (Bool) -> Void) -> Void)? = nil
 }
 
 /// How a routine's turn ended.
@@ -47,16 +51,19 @@ struct RoutineTurn: Equatable {
 /// * **Its own budget.** A routine may carry a ceiling for a day or a month.
 ///   Once what its turns cost in that window reaches it, a scheduled or
 ///   webhook firing is refused; Run now is not.
-/// * **An event is not its own cause.** A routine an event fires is refused
-///   when its own agent raised the event, or when the event was raised by an
-///   agent inside a turn a routine started — so a routine's turn cannot fire
-///   itself again, nor two routines each other, through what the turn files.
+/// * **A routine is in a chain once.** What a routine's turn does may fire
+///   another routine — an event its agent raises, a change in a folder of its
+///   project — and that one a third, but never one already in the chain: a
+///   routine an event fires is refused when its own agent raised the event,
+///   and one an event or a folder fires is refused when the cause fell inside
+///   a turn it started or led to. A prompt that waited in a busy agent's
+///   queue is followed into the turn it gets. Where the cause fell inside no
+///   turn the runner saw, two routines that take turns firing are stopped at
+///   the first one's second firing, until a schedule, Run now or a webhook
+///   fires a routine in the project (`RoutineLoopGuard`).
 /// * **A watched folder is the project's own.** A `watch` trigger names a
 ///   folder inside the routine's project; one that resolves outside it —
-///   through `..` or a symbolic link — is never watched and never fires. A
-///   change made while a routine's turn was running in that project is taken
-///   for the turn's own and refused, so a routine that writes into the folder
-///   it watches does not fire itself again.
+///   through `..` or a symbolic link — is never watched and never fires.
 /// * **Nothing is dropped in silence.** Every firing — started, queued behind
 ///   a turn, skipped by its check, refused — is a line in
 ///   `~/.kiteloop/routine-runs.jsonl` with its reason.
@@ -97,12 +104,15 @@ final class RoutineRunner {
     /// event kind, and the task that listens to it.
     private let feed: AppEventFeed
     private var events: Task<Void, Never>?
-    /// The latest turn a routine started for each agent, by the agent's id:
-    /// when it began and, once it is over, when it ended.
-    private var routineTurns: [String: (from: Date, to: Date?)] = [:]
-    /// When routines' turns ran, by project folder: what tells a watched
-    /// folder's change apart from one a routine's own turn made.
+    /// When routines' turns ran, by project folder and by agent, and the
+    /// routines that led to each: what tells an event or a watched folder's
+    /// change a routine's turn made from one that came from outside.
     private var turns = RoutineTurnWindows()
+    /// What keeps routines from firing each other without end.
+    private var loops = RoutineLoopGuard()
+    /// When the turn of each prompt that waited in an agent's queue began,
+    /// for the ones still running.
+    private var queuedTurns: [UUID: Date] = [:]
     /// The watcher each armed routine with a `watch` trigger has, by routine
     /// id, with the trigger's text it was made for.
     private var watchers: [String: (watch: String, watcher: DirectoryWatcher)] = [:]
@@ -173,19 +183,58 @@ final class RoutineRunner {
         case .failure(let refusal):
             record(refused, refused: refusal.reason)
         case .success(let target):
-            if let echo = echo(event, for: target) { return record(refused, refused: echo) }
-            await fire(routine, from: .event(event), target: target)
+            // A routine's turn would otherwise answer the notices it files
+            // itself. The event's subject is the agent that raised it, when
+            // an agent did.
+            guard event.subject != target.agentID else { return record(refused, refused: Self.ownAgentsEvent) }
+            let cause = turns.chain(at: event.time, agent: event.subject).map(RoutineCause.chain) ?? .unattributed
+            guard admits(routine, on: cause, in: target, else: refused, inChain: Self.ownEvent) else { return }
+            await fire(routine, from: .event(event, cause), target: target)
         }
     }
 
-    /// Why `event` must not fire a routine whose agent is `target`: a routine's
-    /// turn would otherwise answer the notices it files itself, without end.
-    /// The event's subject is the agent that raised it, when an agent did.
-    private func echo(_ event: AppEventFeed.Event, for target: RoutineAgent) -> String? {
-        if event.subject == target.agentID { return "the routine's own agent raised the event" }
-        guard let turn = routineTurns[event.subject], event.time >= turn.from,
-              event.time <= turn.to ?? .distantFuture else { return nil }
-        return "the event was raised inside a routine's turn"
+    // MARK: - Routines firing routines
+
+    /// Why an event fires nothing: the routine's own agent raised it.
+    static let ownAgentsEvent = "the routine's own agent raised the event"
+    /// Why an event fires nothing: it was raised in a chain the routine is in.
+    static let ownEvent = "the event was raised inside a turn this routine started or led to"
+    /// Why a trigger fires nothing: routines are taking turns firing, with
+    /// nothing from outside between.
+    static let tookTurns = "it fired on its trigger, another routine did after it, and no schedule, Run now "
+        + "or webhook has fired a routine in its project since"
+
+    /// Whether `routine` may fire on `cause`, as `RoutineLoopGuard` has it.
+    /// When it may not, the refusal is written down — once for a stretch of
+    /// the same refusal, however many causes arrive in it.
+    private func admits(_ routine: Routine, on cause: RoutineCause, in target: RoutineAgent,
+                        else refused: RoutineRun, inChain: String) -> Bool {
+        guard let refusal = loops.refusal(of: routine.id, in: Self.project(target), cause: cause) else { return true }
+        let reason = refusal == .inItsOwnChain ? inChain : Self.tookTurns
+        let last = lastRun(of: routine.id)
+        if last?.outcome != .refused || last?.reason != reason { record(refused, refused: reason) }
+        return false
+    }
+
+    /// Puts `text` in a busy agent's queue and follows it into the turn it
+    /// gets, so what that turn does is known for a routine's doing, as a turn
+    /// the runner started itself is. A prompt taken back out of the queue
+    /// gets no turn and is never heard of again.
+    private func queue(_ text: String, for target: RoutineAgent, chain: Set<String>) async {
+        let project = Self.project(target)
+        let agent = target.agentID
+        let id = UUID()
+        target.whenQueuedTurnRuns? { [weak self] running in
+            guard let self else { return }
+            if running {
+                let began = self.clock()
+                self.queuedTurns[id] = began
+                self.turns.begin(in: project, at: began, agent: agent, chain: chain)
+            } else if let began = self.queuedTurns.removeValue(forKey: id) {
+                self.turns.end(in: project, from: began, at: self.clock(), agent: agent)
+            }
+        }
+        _ = await target.send(text)
     }
 
     /// A routine armed by editing the file carries no arming time, and one
@@ -306,9 +355,9 @@ final class RoutineRunner {
 
     // MARK: - A watched folder
 
-    /// Why a change to a watched folder fires nothing: it came while a
-    /// routine's turn was running in the folder's project.
-    static let ownChange = "the folder changed while a routine's turn was running in its project"
+    /// Why a change to a watched folder fires nothing: it came inside a turn
+    /// in the folder's project that the routine is in the chain of.
+    static let ownChange = "the folder changed inside a turn this routine started or led to"
 
     /// Sends `id` its prompt because the folder its trigger watches changed at
     /// `changed` — now, when nobody says. Autonomous, as a scheduled firing is.
@@ -337,17 +386,13 @@ final class RoutineRunner {
             guard WatchedFolder.resolve(watch, in: target.folder) != nil else {
                 return record(refused, refused: "\"watch\" is not a folder inside the project")
             }
-            guard !turns.covers(moment, in: Self.project(target)) else { return noteOwnChange(refused) }
-            await fire(routine, from: .watch(watch), target: target)
+            // A watcher cannot say who changed a file: a change is taken for
+            // the doing of whatever routines' turns were running in the
+            // project when it was made.
+            let cause = turns.chain(at: moment, in: Self.project(target)).map(RoutineCause.chain) ?? .unattributed
+            guard admits(routine, on: cause, in: target, else: refused, inChain: Self.ownChange) else { return }
+            await fire(routine, from: .watch(watch, cause), target: target)
         }
-    }
-
-    /// One refusal for a stretch of a turn's own changes, however many times
-    /// the folder is seen to change in it.
-    private func noteOwnChange(_ refused: RoutineRun) {
-        let last = lastRun(of: refused.routine)
-        guard last?.outcome != .refused || last?.reason != Self.ownChange else { return }
-        record(refused, refused: Self.ownChange)
     }
 
     /// The project a routine's turn runs in, as `turns` names it.
@@ -391,10 +436,12 @@ final class RoutineRunner {
         case person
         /// An outside service calling the routine's webhook.
         case hook(String, body: Data)
-        /// An event of the kind the routine's trigger names.
-        case event(AppEventFeed.Event)
-        /// A change in the folder the routine's trigger watches.
-        case watch(String)
+        /// An event of the kind the routine's trigger names, and what is
+        /// known of how it came about.
+        case event(AppEventFeed.Event, RoutineCause)
+        /// A change in the folder the routine's trigger watches, and what is
+        /// known of how it came about.
+        case watch(String, RoutineCause)
 
         var scheduledFor: Date? {
             if case .schedule(let occurrence) = self { return occurrence }
@@ -412,13 +459,21 @@ final class RoutineRunner {
         }
 
         var event: AppEventFeed.Event? {
-            if case .event(let event) = self { return event }
+            if case .event(let event, _) = self { return event }
             return nil
         }
 
         var watch: String? {
-            if case .watch(let folder) = self { return folder }
+            if case .watch(let folder, _) = self { return folder }
             return nil
+        }
+
+        /// What set the firing off, for `RoutineLoopGuard`.
+        var cause: RoutineCause {
+            switch self {
+            case .schedule, .person, .hook: return .outside
+            case .event(_, let cause), .watch(_, let cause): return cause
+            }
         }
 
         /// Whether the day's budget and the check have a say: everything but
@@ -446,20 +501,19 @@ final class RoutineRunner {
             Self.text(prompt: routine.prompt, command: routine.precheck, output: check.output,
                       body: source.body, event: source.event, watch: source.watch, note: note)
         }
+        let project = Self.project(target)
+        let chain = loops.sent(routine.id, in: project, cause: source.cause)
         guard !target.isBusy() else {
             run.outcome = .queued
             record(run)
-            _ = await target.send(text(nil))
-            return
+            return await queue(text(nil), for: target, chain: chain)
         }
         let note = await startFreshIfAsked(routine, target: target)
         run.outcome = .started
         record(run)
-        if let agent = target.agentID { routineTurns[agent] = (run.at, nil) }
-        turns.begin(in: Self.project(target), at: run.at)
+        turns.begin(in: project, at: run.at, agent: target.agentID, chain: chain)
         let turn = await target.send(text(note))
-        if let agent = target.agentID { routineTurns[agent] = (run.at, clock()) }
-        turns.end(in: Self.project(target), from: run.at, at: clock())
+        turns.end(in: project, from: run.at, at: clock(), agent: target.agentID)
         finish(run, with: turn, in: target.folder)
     }
 

@@ -64,8 +64,14 @@ class ChatViewModel {
     private(set) var messages: [Message] = []
     private(set) var isStreaming = false {
         didSet {
-            if isStreaming && !oldValue { costAtTurnStartUSD = costUSD }
-            if !isStreaming && oldValue { scheduleWaitingUnpromptedTurn() }
+            if isStreaming && !oldValue {
+                costAtTurnStartUSD = costUSD
+                queuedTurn.began()
+            }
+            if !isStreaming && oldValue {
+                queuedTurn.ended()
+                scheduleWaitingUnpromptedTurn()
+            }
         }
     }
     private(set) var streamingStartTime: Date?
@@ -108,8 +114,17 @@ class ChatViewModel {
         /// Who the text is from, kept so a command queued behind a turn runs
         /// on the terms it arrived on.
         var origin: ChatMessageOrigin = .person
+        /// Who asked to be told when this message's own turn begins and ends.
+        var turn: QueuedTurn.Observer?
     }
     private var pendingForwards: [QueuedMessage] = []
+    /// Told when the turn of the next message to join the queue begins
+    /// (`true`) and when it ends (`false`). Set just before a send that may
+    /// queue; the message takes it with it, and one handed back to the input
+    /// box or sent as a command gets no turn and tells nobody.
+    @ObservationIgnored var queuedTurnObserver: QueuedTurn.Observer?
+    /// Which queued message's turn is about to begin or is running.
+    @ObservationIgnored private var queuedTurn = QueuedTurn()
     /// The attachments of the queued or forwarded message `send()` is replaying,
     /// taken once; such a message never takes what the human staged in the tray.
     private var forwardedAttachments: [ChatAttachment] = []
@@ -483,7 +498,8 @@ class ChatViewModel {
     private func queue(_ text: String, from origin: ChatMessageOrigin) {
         guard !text.isEmpty || !pendingAttachments.isEmpty else { return }
         pendingForwards.append(QueuedMessage(text: text, attachments: pendingAttachments, typedByHuman: true,
-                                             origin: origin))
+                                             origin: origin, turn: queuedTurnObserver))
+        queuedTurnObserver = nil
         inputText = ""
         pendingAttachments = []
     }
@@ -1384,7 +1400,9 @@ class ChatViewModel {
             forwardedAttachments = message.attachments
             isReplayingTypedMessage = message.typedByHuman
             inputText = message.text
+            queuedTurn.replaying(message.turn)
             await send(from: message.origin)
+            queuedTurn.replaying(nil)
             forwardedAttachments = []
             isReplayingTypedMessage = false
             isForwardedMessage = false

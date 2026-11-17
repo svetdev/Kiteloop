@@ -56,32 +56,73 @@ package enum WatchedFolder {
     }
 }
 
-/// When routines' turns ran in each project, for telling a change a routine's
-/// own turn made from one that came from outside: the turns still running,
-/// and the stretch the finished ones last covered.
+/// When routines' turns ran, in each project and for each agent, and which
+/// routines led to each: what tells an event or a watched folder's change a
+/// routine's turn made from one that came from outside. It keeps the turns
+/// still running and the stretch the finished ones last covered.
+///
+/// A turn's **chain** is the routines that led to it, its own included: a
+/// routine its schedule fired has a chain of itself, and one fired by what
+/// that turn did has both.
 package struct RoutineTurnWindows: Sendable {
-    private var running: [String: [Date]] = [:]
-    private var finished: [String: ClosedRange<Date>] = [:]
+    /// The turns of one project, or of one agent.
+    private struct Turns: Sendable {
+        var running: [(start: Date, chain: Set<String>)] = []
+        var finished: (stretch: ClosedRange<Date>, chain: Set<String>)?
+
+        mutating func end(from start: Date, at end: Date) {
+            var chain: Set<String> = []
+            if let index = running.firstIndex(where: { $0.start == start }) { chain = running.remove(at: index).chain }
+            var from = start
+            if let last = finished, last.stretch.upperBound >= start {
+                from = min(last.stretch.lowerBound, start)
+                chain.formUnion(last.chain)
+            }
+            finished = (from...max(from, end), chain)
+        }
+
+        func chain(at moment: Date) -> Set<String>? {
+            var chains = running.filter { $0.start <= moment }.map(\.chain)
+            if let finished, finished.stretch.contains(moment) { chains.append(finished.chain) }
+            return chains.isEmpty ? nil : chains.reduce(into: Set<String>()) { $0.formUnion($1) }
+        }
+    }
+
+    private var projects: [String: Turns] = [:]
+    private var agents: [String: Turns] = [:]
 
     package init() {}
 
-    /// A routine's turn began in `project` at `start`.
-    package mutating func begin(in project: String, at start: Date) {
-        running[project, default: []].append(start)
+    /// A routine's turn began in `project` at `start`, for `agent` when the
+    /// agent is known, at the end of `chain`.
+    package mutating func begin(in project: String, at start: Date, agent: String? = nil,
+                                chain: Set<String> = []) {
+        projects[project, default: Turns()].running.append((start, chain))
+        if let agent { agents[agent, default: Turns()].running.append((start, chain)) }
     }
 
     /// The turn that began at `start` in `project` ended at `end`. Turns that
-    /// overlapped are kept as the one stretch they covered between them.
-    package mutating func end(in project: String, from start: Date, at end: Date) {
-        if let index = running[project]?.firstIndex(of: start) { running[project]?.remove(at: index) }
-        var from = start
-        if let last = finished[project], last.upperBound >= start { from = min(last.lowerBound, start) }
-        finished[project] = from...max(from, end)
+    /// overlapped are kept as the one stretch they covered between them, with
+    /// the chains of both.
+    package mutating func end(in project: String, from start: Date, at end: Date, agent: String? = nil) {
+        projects[project, default: Turns()].end(from: start, at: end)
+        if let agent { agents[agent, default: Turns()].end(from: start, at: end) }
     }
 
     /// Whether a routine's turn was running in `project` at `moment`.
     package func covers(_ moment: Date, in project: String) -> Bool {
-        if running[project]?.contains(where: { $0 <= moment }) == true { return true }
-        return finished[project]?.contains(moment) == true
+        chain(at: moment, in: project) != nil
+    }
+
+    /// The routines that led to the turns running in `project` at `moment`;
+    /// nil when no routine's turn was.
+    package func chain(at moment: Date, in project: String) -> Set<String>? {
+        projects[project]?.chain(at: moment)
+    }
+
+    /// The routines that led to the turn `agent` was in at `moment`; nil when
+    /// it was in no routine's turn.
+    package func chain(at moment: Date, agent: String) -> Set<String>? {
+        agents[agent]?.chain(at: moment)
     }
 }
