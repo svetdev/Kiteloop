@@ -59,6 +59,15 @@ final class KiteloopControlServerHealthTests: XCTestCase {
         XCTAssertEqual(body["activeRuns"] as? Int, 0)
     }
 
+    /// A server that keeps no routines has none to report: `routines` is an
+    /// empty array, present so a monitor need not branch on the key.
+    func testIdleServerReportsNoRoutines() async throws {
+        let (_, body) = try await harness.get("/health", bearer: nil)
+
+        let routines = try XCTUnwrap(body["routines"] as? [Any], "routines must be an array, even when empty")
+        XCTAssertTrue(routines.isEmpty)
+    }
+
     // MARK: - Uptime
 
     /// Uptime counts from when the server was built — app launch in production —

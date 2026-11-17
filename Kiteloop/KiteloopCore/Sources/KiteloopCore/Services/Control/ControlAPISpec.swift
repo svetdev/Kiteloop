@@ -2780,10 +2780,22 @@ package enum ControlAPISpec {
             "activeSubprocessCount": described(boundedInteger(min: 0), "Live Claude Code subprocesses."),
             "holds": described(array(of: ref("SchedulerHold")),
                                "Projects whose autonomous starts are being withheld by their own failed runs. Empty is the healthy state."),
+            "routines": described(array(of: ref("RoutineAttention")),
+                                  "Routines whose last run was refused (error), waiting (warning) or skipped (info). Empty is the healthy state."),
             "tools": described(array(of: ref("ProjectTools")),
                                "Per open project, the executables its verify commands run and where each resolved on the app's search path.")
         ], required: ["status", "version", "apiVersion", "uptimeSeconds", "projectsOpen", "activeRuns",
-                     "mainThreadLatencyMs", "hitchCount", "processMemoryMB", "activeSubprocessCount", "holds", "tools"]),
+                     "mainThreadLatencyMs", "hitchCount", "processMemoryMB", "activeSubprocessCount", "holds", "routines", "tools"]),
+
+        "RoutineAttention": object([
+            "routine": described(string, "The routine's id."),
+            "project": string,
+            "outcome": enumOf(["refused", "waiting", "skipped"]),
+            "reason": described(string, "Why it was refused, is waiting or was skipped; absent when the run gave none."),
+            "at": described(string, "When the run was handled, ISO 8601."),
+            "severity": described(enumOf(["error", "warning", "info"]),
+                                  "error for refused (the occurrence is lost), warning for waiting (it is owed), info for skipped.")
+        ], required: ["routine", "project", "outcome", "at", "severity"]),
 
         "ProjectTools": object([
             "project": string,
