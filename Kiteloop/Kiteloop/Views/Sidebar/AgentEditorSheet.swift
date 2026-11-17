@@ -23,6 +23,8 @@ struct AgentEditorSheet: View {
     @State private var pulledModels: [String]?
     @State private var permissionMode: String = Agent.defaultPermissionMode
     @State private var operatorToolsEnabled: Bool = false
+    @State private var autoCompactEnabled: Bool = false
+    @State private var autoCompactPercent: Int = 80
     @State private var avatar: String?
     @State private var toolsText: String = ""
     @State private var deniedText: String = ""
@@ -108,6 +110,16 @@ struct AgentEditorSheet: View {
                         .accessibilityIdentifier("agent-editor-operator-tools-toggle")
                 }
 
+                Section("Context") {
+                    Toggle("Compact automatically", isOn: $autoCompactEnabled)
+                        .help("After a turn, compacts this Claude agent's context once it reaches the percentage below. Off by default.")
+                        .accessibilityIdentifier("agent-editor-auto-compact-toggle")
+                    Stepper("At \(autoCompactPercent)% of the context window", value: $autoCompactPercent,
+                            in: ContextFillPolicy.thresholdRange, step: 5)
+                        .disabled(!autoCompactEnabled)
+                        .accessibilityIdentifier("agent-editor-auto-compact-percent")
+                }
+
                 Section("Tools") {
                     TextField("Tools (comma-separated)", text: $toolsText)
                         .accessibilityIdentifier("agent-editor-tools-field")
@@ -170,6 +182,8 @@ struct AgentEditorSheet: View {
         model = ModelCatalog.normalize(agent.model)
         permissionMode = agent.permissionMode
         operatorToolsEnabled = agent.operatorToolsEnabled
+        autoCompactEnabled = agent.contextCompactPercent != nil
+        autoCompactPercent = agent.contextCompactPercent ?? 80
         avatar = agent.avatar
         toolsText = agent.tools.joined(separator: ", ")
         deniedText = agent.denied.joined(separator: ", ")
@@ -191,6 +205,7 @@ struct AgentEditorSheet: View {
             agent.model = model
             agent.permissionMode = permissionMode
             agent.operatorToolsEnabled = operatorToolsEnabled
+            agent.contextCompactPercent = autoCompactEnabled ? autoCompactPercent : nil
             agent.avatar = avatar
             agent.tools = toolsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
             agent.denied = deniedText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }

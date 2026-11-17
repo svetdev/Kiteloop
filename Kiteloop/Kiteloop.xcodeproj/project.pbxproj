@@ -302,6 +302,7 @@
 		8B6879134F722CD4CFEAA18E /* gamma_responds_to_alpha.json in Resources */ = {isa = PBXBuildFile; fileRef = E0DE23A49225EEF6BDD8A7AF /* gamma_responds_to_alpha.json */; };
 		8CE4A95D397EF19F8A5D36B2 /* KiteloopControlServerAskProjectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C721B3E08BD1392E51CCE3CC /* KiteloopControlServerAskProjectTests.swift */; };
 		8D11461819E9FF1DEF26599A /* ChatViewModelSlashCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5C41A2A33749E16F19D8759 /* ChatViewModelSlashCommandTests.swift */; };
+		C0F1EC0A11A2B3C4D5E6F702 /* ChatViewModelContextFillTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0F1EC0A11A2B3C4D5E6F701 /* ChatViewModelContextFillTests.swift */; };
 		D4574005FB01738D3BCF05F0 /* ChatViewModelPlanCardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7699D8B67F5C2D95F155112D /* ChatViewModelPlanCardTests.swift */; };
 		C435908600A19B85D16D5512 /* ChatViewModelPermissionPromptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A993E34A13CDD799A9B45F72 /* ChatViewModelPermissionPromptTests.swift */; };
 		06CE6E9EC03E9606F5D287F6 /* ChatViewModelCostDeltaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 836CA3F14C1933759FBFCFF3 /* ChatViewModelCostDeltaTests.swift */; };
@@ -1149,6 +1150,7 @@
 		A51D1056BAB6FE19ABDF0C01 /* TraceSpan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraceSpan.swift; sourceTree = "<group>"; };
 		A587DE7E92986C0746DC9D99 /* HealthMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthMonitor.swift; sourceTree = "<group>"; };
 		A5C41A2A33749E16F19D8759 /* ChatViewModelSlashCommandTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelSlashCommandTests.swift; sourceTree = "<group>"; };
+		C0F1EC0A11A2B3C4D5E6F701 /* ChatViewModelContextFillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelContextFillTests.swift; sourceTree = "<group>"; };
 		7699D8B67F5C2D95F155112D /* ChatViewModelPlanCardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelPlanCardTests.swift; sourceTree = "<group>"; };
 		A993E34A13CDD799A9B45F72 /* ChatViewModelPermissionPromptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelPermissionPromptTests.swift; sourceTree = "<group>"; };
 		836CA3F14C1933759FBFCFF3 /* ChatViewModelCostDeltaTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModelCostDeltaTests.swift; sourceTree = "<group>"; };
@@ -2069,6 +2071,7 @@
 				BD4EB60EE0B64C58A8D44EE5 /* ChatViewModelRetryNoticeTests.swift */,
 				601972447F61F06588C27190 /* ChatViewModelSearchTests.swift */,
 				A5C41A2A33749E16F19D8759 /* ChatViewModelSlashCommandTests.swift */,
+				C0F1EC0A11A2B3C4D5E6F701 /* ChatViewModelContextFillTests.swift */,
 				7699D8B67F5C2D95F155112D /* ChatViewModelPlanCardTests.swift */,
 				A993E34A13CDD799A9B45F72 /* ChatViewModelPermissionPromptTests.swift */,
 				4359C2C86DE41FAC95BAE06F /* ChatViewModelTranscriptTests.swift */,
@@ -3029,6 +3032,7 @@
 				A1B2C3D4000200020003ABCD /* ChatViewModelMCPAuthTests.swift in Sources */,
 				458AD6DAEDDF114F98D46809 /* ChatViewModelSearchTests.swift in Sources */,
 				8D11461819E9FF1DEF26599A /* ChatViewModelSlashCommandTests.swift in Sources */,
+				C0F1EC0A11A2B3C4D5E6F702 /* ChatViewModelContextFillTests.swift in Sources */,
 				D4574005FB01738D3BCF05F0 /* ChatViewModelPlanCardTests.swift in Sources */,
 				C435908600A19B85D16D5512 /* ChatViewModelPermissionPromptTests.swift in Sources */,
 				599DE3ADE6C6A108EF9B2C82 /* ChatViewModelTranscriptTests.swift in Sources */,

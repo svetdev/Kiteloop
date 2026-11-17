@@ -654,6 +654,27 @@ class ChatViewModel {
         saveMessages()
     }
 
+    /// Whether a crossing of the agent's compact threshold may still compact
+    /// this session. Disarmed by the compaction it causes, so one crossing
+    /// compacts once; re-armed by a later turn below the threshold, or by a
+    /// new or switched-to chat.
+    private var contextCompactArmed = true
+
+    /// After a turn ends: compacts the session when the agent's
+    /// `contextCompactPercent` is set and the turn left the window at or past
+    /// it (`ContextFillPolicy`). An Ollama or Copilot agent has no
+    /// `contextOccupancy`, so this never fires for one.
+    private func compactIfContextFull() async {
+        let threshold = orchestrator.agents.first { $0.id == agentID }?.contextCompactPercent
+        guard let threshold, let occupancy = contextOccupancy, let percent = occupancy.percent else { return }
+        let policy = ContextFillPolicy(thresholdPercent: threshold)
+        if percent < Double(policy.thresholdPercent) { contextCompactArmed = true }
+        guard policy.shouldCompact(occupancy, armed: contextCompactArmed) else { return }
+        contextCompactArmed = false
+        postSystem("Context reached \(Int(percent))% against the \(policy.thresholdPercent)% threshold — compacting.")
+        await compactSession()
+    }
+
     /// Whether a compaction marker was appended at or after `index`.
     private func hasCompaction(since index: Int) -> Bool {
         messages.dropFirst(index).contains {
@@ -1253,6 +1274,7 @@ class ChatViewModel {
     /// restores, and a teammate's forwards wait until the agent is back.
     private func finishDeliveredTurn(receivedResult: Bool, cutOffText: String?) async {
         guard !receivedResult else {
+            await compactIfContextFull()
             await drainPendingForwards()
             return await reportTurnOutcome(receivedResult: true)
         }
@@ -4464,6 +4486,7 @@ class ChatViewModel {
         }
 
         quiesceForSessionChange()
+        contextCompactArmed = true
 
         let newSession = sessionStore.createSession(agentID: agentID)
         self.currentSession = newSession
@@ -4490,6 +4513,7 @@ class ChatViewModel {
         }
 
         quiesceForSessionChange()
+        contextCompactArmed = true
 
         // The store's copy, not the caller's: a row drawn before the chat was
         // left does not carry the draft saved on the way out.
