@@ -1254,10 +1254,11 @@ final class KiteloopControlServer {
     /// flight; without a depth alongside it, a project that has finished its work
     /// and one whose queue is nothing but ungroomed drafts both read as "idle",
     /// and finding out which cost a `GET /v1/backlog` per project.
-    private func listProjects() async -> HTTPServer.Response {
+    private func listProjects(_ entries: [ControlSessionRegistry.Entry]) async -> HTTPServer.Response {
         var projects: [[String: Any]] = []
-        for entry in registry.openProjects {
+        for entry in entries {
             let name = entry.session.project.rootURL.lastPathComponent
+            let config = entry.session.project.loadConfig()
             let queue = Self.queueJSON(Self.judgedBacklog(entry.session.backlogViewModel),
                                        refusedAtGate: Self.refusedAtGateCount(entry.session.backlogViewModel))
             let gateDetail = RunScheduling.gateFullDetail(
@@ -1273,8 +1274,9 @@ final class KiteloopControlServer {
                 "baseBranch": await Self.effectiveBaseBranch(entry) as Any,
                 "unattendedPermissions": "auto",
                 "paused": Self.isPaused(entry),
-                "pinned": entry.session.project.loadConfig().pinnedDocument as Any,
-                "companions": (entry.session.project.loadConfig().companions ?? []).map(\.json),
+                "pinned": config.pinnedDocument as Any,
+                "companions": (config.companions ?? []).map(\.json),
+                "space": config.space?.rawValue as Any,
                 "run": await Self.runState(entry.autopilot, clearingInconsistencyVia: "GET /v1/projects"),
                 "queue": queue,
                 // Null while the gate isn't full — the same reading `/health`'s
@@ -1286,6 +1288,16 @@ final class KiteloopControlServer {
             ])
         }
         return .json(["projects": projects])
+    }
+
+    /// The open projects, or with `?space=` only those labelled as that space
+    /// — `unassigned` for the ones no space has been set on.
+    private func listProjects(inSpace name: String?) async -> HTTPServer.Response {
+        guard let name else { return await listProjects(registry.openProjects) }
+        guard let filter = ProjectSpaceFilter(named: name) else {
+            return .error("\"space\" must be one of: \(ProjectSpaceFilter.names.joined(separator: ", "))", status: 400)
+        }
+        return await listProjects(registry.openProjects.filter { filter.admits($0.session.project.loadConfig().space) })
     }
 
     /// The branch this project's runs fork from and land on, resolved: the
@@ -2289,7 +2301,7 @@ final class KiteloopControlServer {
     /// The `/v1/projects…` family, dispatched from one arm of `route(_:)`.
     private func projectsRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
         switch route {
-        case .listProjects: return await listProjects()
+        case .listProjects: return await listProjects(inSpace: req.query["space"])
         case .openProject: return await openProject(body: req.body)
         case .reorderProjects: return await reorderProjects(body: req.body)
         case .askAboutProject: return await askAboutProject(body: req.body)

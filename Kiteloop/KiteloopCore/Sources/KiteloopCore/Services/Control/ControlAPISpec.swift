@@ -826,7 +826,10 @@ package enum ControlAPISpec {
             "what is every project doing, and what has it left to do?" is one call \
             rather than one GET /v1/autopilot and one GET /v1/backlog per project.
             """,
-            responses: [Status(code: 200, description: "Open projects.", schema: ref("ProjectList"))]
+            query: [QueryParameter(name: "space", required: false, schema: enumOf(ProjectSpaceFilter.names),
+                                   description: "Only the projects labelled as this space; `unassigned` for those with none. Without it, every open project.")],
+            responses: [Status(code: 200, description: "Open projects.", schema: ref("ProjectList")),
+                        errorStatus(400, "A `space` that is not work, personal or unassigned.")]
         )
     }
 
@@ -2896,9 +2899,10 @@ package enum ControlAPISpec {
                 /v1/autopilot/pause`). `POST /v1/runs` answers 409 for a paused \
                 project; `POST /v1/autopilot/resume` lifts it either way.
                 """),
+            "space": described(nullable(enumOf(ProjectSpace.names)), "The space the project is labelled as belonging to (`PUT /v1/projects/settings`), or null when it is unassigned."),
             "run": ref("AutopilotRunState"),
             "queue": ref("QueueDepth")
-        ], required: ["id", "name", "path", "autopilotReady", "baseBranch", "unattendedPermissions", "paused", "run", "queue"]),
+        ], required: ["id", "name", "path", "autopilotReady", "baseBranch", "unattendedPermissions", "paused", "space", "run", "queue"]),
 
         "QueueDepth": object([
             "ready": described(boundedInteger(min: 0), "Items at `ready`, groomed or not."),

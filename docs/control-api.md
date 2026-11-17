@@ -460,6 +460,7 @@ curl -s -H "$H" $B/projects
       "unattendedPermissions": "auto",
       "paused": false,
       "pinned": null,
+      "space": "work",
       "run": {
         "state": "running",
         "running": true,
@@ -583,6 +584,17 @@ the project's root, or `null` — set with
 when set, `baseBranch` — as `.kiteloop/config.json` names them; empty for a
 project with none. An item changes one by naming it in `repos:`
 ([backlog format](backlog-format.md#items-across-repositories)).
+
+**`space`** is the space the project is labelled as belonging to — `work` or
+`personal` — or `null` for a project nobody has assigned. It is set with
+[`PUT /v1/projects/settings`](#put-v1projectssettings). `?space=work` or
+`?space=personal` returns only the open projects in that space, and
+`?space=unassigned` only those with none; any other value is refused with
+**400**. The space is a label: it filters this list and isolates nothing.
+
+```bash
+curl -s -H "$H" "$B/projects?space=work"
+```
 
 To find the projects that are busy, or the ones that only think they are:
 
@@ -2757,10 +2769,12 @@ curl -s -H "$H" "$B/projects/settings?project=kiteloop"
 
 ```json
 {"model": null, "permissionMode": "auto", "effort": null, "maxBudgetUSD": null,
- "goal": null, "companions": [{"name": "site", "path": "../site", "base": "main"}]}
+ "goal": null, "space": "work",
+ "companions": [{"name": "site", "path": "../site", "base": "main"}]}
 ```
 
 A null `model` or `effort` follows the app's ([`GET /v1/settings`](#get-v1settings)).
+`space` is `work`, `personal`, or null for a project in neither.
 
 **Status:** 200 · 400 (missing `project`) · 409 (project not open)
 
@@ -2768,16 +2782,16 @@ A null `model` or `effort` follows the app's ([`GET /v1/settings`](#get-v1settin
 
 Changes them. The body names the project and any of the fields the read
 returns; the fields named are replaced and the rest stay. `null` clears
-`model`, `effort`, `maxBudgetUSD` and `goal`; an empty `companions` clears the
-list. Agents already hired keep their own values. Answers the settings as they
-now stand.
+`model`, `effort`, `maxBudgetUSD`, `goal` and `space`; an empty `companions`
+clears the list. `space` takes `work` or `personal`, in any case. Agents
+already hired keep their own values. Answers the settings as they now stand.
 
 ```bash
 curl -s -X PUT -H "$H" -d '{"project":"kiteloop","model":"opus","permissionMode":"acceptEdits"}' $B/projects/settings
 ```
 
-**Status:** 200 · 400 (a mistyped field, an unknown mode or effort, a companion
-without a name and a path, or nothing to change) · 409 (project not open) ·
+**Status:** 200 · 400 (a mistyped field, an unknown mode, effort or space, a
+companion without a name and a path, or nothing to change) · 409 (project not open) ·
 500 (the settings file could not be written)
 
 ### PATCH /v1/backlog/items

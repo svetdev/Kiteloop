@@ -205,6 +205,64 @@ final class KiteloopControlServerManagementTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: session.project.configURL), before, "the model beside a refused effort is not written")
     }
 
+    func testAProjectsSpaceIsSetReportedAndCleared() async throws {
+        let session = try registerProject()
+
+        let (status, body) = try await harness.put("/v1/projects/settings", ["project": "alpha", "space": "Work"])
+        let (_, read) = try await harness.get("/v1/projects/settings?project=alpha")
+
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(body["space"] as? String, "work")
+        XCTAssertEqual(read["space"] as? String, "work")
+        XCTAssertEqual(session.project.loadConfig().space, .work)
+
+        _ = try await harness.put("/v1/projects/settings", ["project": "alpha", "space": NSNull()])
+        let (_, cleared) = try await harness.get("/v1/projects/settings?project=alpha")
+        XCTAssertTrue(cleared["space"] is NSNull)
+        XCTAssertNil(session.project.loadConfig().space)
+    }
+
+    func testAnUnknownSpaceIsRefusedAndChangesNothing() async throws {
+        let session = try registerProject()
+        _ = try await harness.put("/v1/projects/settings", ["project": "alpha", "space": "personal"])
+        let before = try Data(contentsOf: session.project.configURL)
+
+        let (unknown, refusal) = try await harness.put("/v1/projects/settings", ["project": "alpha", "goal": "Ship.", "space": "office"])
+        let (mistyped, _) = try await harness.put("/v1/projects/settings", ["project": "alpha", "space": 3])
+
+        XCTAssertEqual([unknown, mistyped], [400, 400])
+        let message = try XCTUnwrap(refusal["error"] as? String)
+        XCTAssertTrue(message.contains("work, personal"), message)
+        XCTAssertEqual(try Data(contentsOf: session.project.configURL), before, "the goal beside a refused space is not written")
+    }
+
+    func testProjectsAreListedBySpace() async throws {
+        let alpha = try registerProject()
+        _ = try registerProject(named: "beta")
+        var config = alpha.project.loadConfig()
+        config.space = .work
+        try alpha.project.saveConfig(config)
+
+        let (_, everything) = try await harness.get("/v1/projects")
+        let (_, work) = try await harness.get("/v1/projects?space=work")
+        let (_, unassigned) = try await harness.get("/v1/projects?space=unassigned")
+        let (_, personal) = try await harness.get("/v1/projects?space=personal")
+        let (unknown, _) = try await harness.get("/v1/projects?space=office")
+
+        let all = try XCTUnwrap(everything["projects"] as? [[String: Any]])
+        XCTAssertEqual(all.map { $0["name"] as? String }, ["alpha", "beta"])
+        XCTAssertEqual(all.first?["space"] as? String, "work")
+        XCTAssertTrue(all.last?["space"] is NSNull, "an unassigned project carries the field, as null")
+        XCTAssertEqual(Self.names(work), ["alpha"])
+        XCTAssertEqual(Self.names(unassigned), ["beta"])
+        XCTAssertEqual(Self.names(personal), [])
+        XCTAssertEqual(unknown, 400)
+    }
+
+    private static func names(_ body: [String: Any]) -> [String] {
+        (body["projects"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
+    }
+
     // MARK: - Backlog items
 
     func testAnItemsLineAndDetailAreChanged() async throws {
@@ -469,8 +527,8 @@ final class KiteloopControlServerManagementTests: XCTestCase {
     /// four-item backlog: ready, draft with no detail file, active, and one
     /// waiting at its gate.
     @discardableResult
-    private func registerProject() throws -> ProjectSession {
-        let root = tempDir.appendingPathComponent("alpha", isDirectory: true)
+    private func registerProject(named name: String = "alpha") throws -> ProjectSession {
+        let root = tempDir.appendingPathComponent(name, isDirectory: true)
         try FileManager.default.createDirectory(at: root.appending(path: "backlog"), withIntermediateDirectories: true)
         let rootURL = URL(fileURLWithPath: root.path(percentEncoded: false), isDirectory: false)
         let project = KiteloopProject(rootURL: rootURL)

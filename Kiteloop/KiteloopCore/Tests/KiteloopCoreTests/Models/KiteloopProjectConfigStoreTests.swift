@@ -150,6 +150,67 @@ final class KiteloopProjectConfigStoreTests: XCTestCase {
         XCTAssertEqual(pending.count, 0)
     }
 
+    // MARK: - The space label
+
+    func testAConfigWithoutASpaceLoadsUnassignedAndASpaceRoundTrips() throws {
+        try Data(#"{"permissionMode": "acceptEdits", "deniedTools": ["Bash"], "goal": "Ship."}"#.utf8)
+            .write(to: project.configURL)
+        var config = project.loadConfig()
+        XCTAssertNil(config.space)
+        XCTAssertEqual(config.permissionMode, "acceptEdits")
+
+        config.space = .work
+        try project.saveConfig(config)
+        XCTAssertEqual(project.loadConfig().space, .work)
+        XCTAssertEqual(try savedKeys()["space"] as? String, "work")
+    }
+
+    func testSavingAnUnassignedConfigWritesNoSpaceAndKeepsTheOtherFields() throws {
+        var config = ProjectConfig(permissionMode: "plan", deniedTools: ["Bash"], goal: "Ship.", space: .personal)
+        try project.saveConfig(config)
+        config.space = nil
+        try project.saveConfig(config)
+
+        let keys = try savedKeys()
+        XCTAssertNil(keys["space"])
+        XCTAssertEqual(keys["permissionMode"] as? String, "plan")
+        XCTAssertEqual(keys["goal"] as? String, "Ship.")
+        let loaded = project.loadConfig()
+        XCTAssertNil(loaded.space)
+        XCTAssertEqual(loaded.deniedTools, ["Bash"])
+    }
+
+    /// A space this build has no name for is not a reason to move the whole
+    /// file aside: it reads as unassigned and everything beside it stands.
+    func testAnUnknownSpaceReadsAsUnassignedWithoutRefusingTheFile() throws {
+        try Data(#"{"permissionMode": "plan", "deniedTools": [], "space": "office"}"#.utf8).write(to: project.configURL)
+
+        let loaded = project.loadConfig()
+
+        XCTAssertNil(loaded.space)
+        XCTAssertEqual(loaded.permissionMode, "plan")
+        XCTAssertEqual(try quarantined(besides: project.configURL).count, 0)
+    }
+
+    func testASpaceAndItsFilterAreReadFromTheirNamesInAnyCase() {
+        XCTAssertEqual(ProjectSpace(named: " Work "), .work)
+        XCTAssertNil(ProjectSpace(named: "office"))
+        XCTAssertEqual(ProjectSpaceFilter(named: "PERSONAL"), .space(.personal))
+        XCTAssertEqual(ProjectSpaceFilter(named: "unassigned"), .unassigned)
+        XCTAssertNil(ProjectSpaceFilter(named: "office"))
+        XCTAssertNil(ProjectSpaceFilter(named: ""))
+        XCTAssertTrue(ProjectSpaceFilter.space(.work).admits(.work))
+        XCTAssertFalse(ProjectSpaceFilter.space(.work).admits(.personal))
+        XCTAssertFalse(ProjectSpaceFilter.space(.work).admits(nil))
+        XCTAssertTrue(ProjectSpaceFilter.unassigned.admits(nil))
+        XCTAssertFalse(ProjectSpaceFilter.unassigned.admits(.personal))
+        XCTAssertEqual(ProjectSpaceFilter.names, ["work", "personal", "unassigned"])
+    }
+
+    private func savedKeys() throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: project.configURL)) as? [String: Any])
+    }
+
     // MARK: - The removed permission dials
 
     /// A `config.json` written before auto mode and the per-project permission

@@ -40,6 +40,7 @@ struct ProjectSetupEndpoints {
             "effort": config.effort ?? NSNull(),
             "maxBudgetUSD": config.maxBudgetUSD ?? NSNull(),
             "goal": config.goal ?? NSNull(),
+            "space": config.space?.rawValue ?? NSNull(),
             "companions": (config.companions ?? []).map { repo -> [String: Any] in
                 var row: [String: Any] = ["name": repo.name, "path": repo.path]
                 if let base = repo.baseBranch { row["base"] = base }
@@ -143,7 +144,7 @@ struct ProjectSetupEndpoints {
 
 /// The fields of a project's settings a request names, checked and applied.
 struct ProjectSettingsEdit {
-    static let fields = ["model", "permissionMode", "effort", "maxBudgetUSD", "goal", "companions"]
+    static let fields = ["model", "permissionMode", "effort", "maxBudgetUSD", "goal", "space", "companions"]
 
     let fields: [String: Any]
     private(set) var changed = false
@@ -170,6 +171,20 @@ struct ProjectSettingsEdit {
         try applyMode(to: &config)
         try applyBudget(to: &config)
         try applyCompanions(to: &config)
+        try applySpace(to: &config)
+    }
+
+    private mutating func applySpace(to config: inout ProjectConfig) throws {
+        guard let value = fields["space"] else { return }
+        if value is NSNull {
+            config.space = nil
+        } else {
+            guard let space = (value as? String).flatMap(ProjectSpace.init(named:)) else {
+                throw ControlRefusal("\"space\" must be null or one of: \(ProjectSpace.names.joined(separator: ", "))", status: 400)
+            }
+            config.space = space
+        }
+        changed = true
     }
 
     private mutating func applyMode(to config: inout ProjectConfig) throws {
