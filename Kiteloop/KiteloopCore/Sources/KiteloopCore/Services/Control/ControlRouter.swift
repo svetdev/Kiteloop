@@ -278,6 +278,52 @@ package enum ControlRoute: Equatable {
             return managed.scope
         }
     }
+
+    /// Whether a call to this route changes what agents are allowed to do or
+    /// what Kiteloop does unattended — the team and each agent's tools and
+    /// permissions, a project's or the app's settings, MCP servers, autopilot,
+    /// the coordinator, routines, and the devices the app reports to. These
+    /// are the calls `ConfigChangeGate` holds for a credential that is not
+    /// the person's own. Everyday work — a backlog item, memory, knowledge —
+    /// is not one, whatever scope it needs. Exhaustive with no `default:`, so
+    /// a route added without saying which it is does not compile.
+    package var changesConfiguration: Bool {
+        switch self {
+        case .hireAgent, .updateAgent, .removeAgent,
+             .setAutopilot, .resetAutopilot, .setCoordinatorRefill, .setCoordinatorScheduling,
+             .putRoutine, .deleteRoutine,
+             // A phone told where to send pushes, and a pairing code claimed
+             // for a token that is the person's own.
+             .registerPushDevice, .registerLiveActivity, .claimPairingCode:
+            return true
+        case .health, .listProjects, .listAgents, .agentTranscript, .agentEvents,
+             .listQuickReplies, .workspaceChanges, .workspaceFile, .previewScreenshot,
+             .listAgentTasks, .backlogItemDetail, .backlogItemDiff, .listTemplates,
+             .listBacklog, .listMetrics, .listEstimates, .listGrooming, .portfolioReport,
+             .getAutopilot, .sittingSummary, .fleetStatus, .usage, .spend, .spendForecast,
+             .attention, .appEvents, .listMemoryProposals,
+             .getCoordinatorRefill, .getCoordinatorScheduling, .listProposals,
+             .listRoutines, .listRoutineRuns, .openAPIDocument,
+             .listRuns, .runStatus, .runResult, .runEvents, .runLog,
+             // Driving the work.
+             .openProject, .askAboutProject, .messageAgent, .interruptAgent, .stopAgentTask,
+             .releaseBacklogItem, .refreshBacklogItem, .groomBacklogItem, .moveBacklogItem,
+             .setBacklogItemLane, .fileBacklogItem, .stampTemplate,
+             .reorderProjects, .pinProjectDocument,
+             .pauseAutopilot, .resumeAutopilot, .quiesceFleet, .resumeFleet,
+             .approveProposal, .dismissProposal,
+             .runRoutine, .fireHook, .startRun, .cancelRun, .steerRun,
+             // Human gates: refused for these credentials, never held.
+             .approveBacklogItem, .landBacklogItem, .approveRun, .answerConfigChange,
+             .answerAgentPlan, .answerAgentQuestion, .answerAgentPermission, .answerAgentChoices,
+             .setAgentMode, .approveMemoryProposal, .rejectMemoryProposal,
+             // Tokens and webhooks: the control token's alone, refused likewise.
+             .listTokens, .mintToken, .revokeToken, .mintHook, .revokeHook:
+            return false
+        case .manage(let managed):
+            return managed.changesConfiguration
+        }
+    }
 }
 
 /// The control API's routing table, split out of `KiteloopControlServer` so that

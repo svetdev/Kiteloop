@@ -84,7 +84,8 @@ operator token cannot clear a card — its own included — by calling the API.
 
 #### Configuration changes wait on a person
 
-A call that changes how a team, a project or the app is set up, made with the
+A call that changes what agents are allowed to do or what Kiteloop does
+unattended, made with the
 **operator token or a scoped token**, does not apply when it arrives. The
 server files one card — a row in the app's **Waiting on you** drawer and in
 [`GET /v1/attention`](#get-v1attention) — and **holds the request open, with no
@@ -100,20 +101,33 @@ time limit,** until a person answers it:
   marked as no longer waiting; answering it applies nothing and is logged as
   `abandoned`. Give a held call a long client timeout (`curl --max-time 0`).
 
-Which calls: every route that needs the `configure` scope and is not a read.
-That is `POST`/`PATCH`/`DELETE /v1/agents` (tools, refused calls, always-ask
-rules and `permissionMode` included), `PUT`/`DELETE /v1/mcp-servers/{name}`,
-`PUT /v1/settings`, `PUT /v1/projects/settings`, `POST /v1/projects/close`,
-`/reorder` and `/pin`, `PUT`/`DELETE /v1/routines/{id}`, `PUT /v1/autopilot`
-(the autonomy dial and `approveReviewPassedRuns` included),
-`POST /v1/autopilot/reset`, `PUT /v1/coordinator/refill` and `/scheduling`,
-every write under `/v1/memory` and `/v1/knowledge`, `PATCH`/`DELETE
-/v1/backlog/items`, `POST /v1/backlog/templates/stamp`, `DELETE
-/v1/agents/chats` and the two `/v1/devices` registrations. The set is read off
-the scope each route already carries, so a configure route added later is held
-too. Reads, and the `operate` routes — messaging an agent, starting a run,
-moving an item, pausing — are not held. `/v1/tokens` and `/v1/hooks` answer
-403 for these tokens before any card is filed.
+Which calls — the ones that change what agents are allowed to do or what
+Kiteloop does unattended:
+
+- `POST`/`PATCH`/`DELETE /v1/agents` — tools, refused calls, always-ask rules
+  and `permissionMode` included;
+- `PUT /v1/projects/settings` and `PUT /v1/settings`;
+- `PUT`/`DELETE /v1/mcp-servers/{name}`;
+- `PUT /v1/autopilot` (the autonomy dial and `approveReviewPassedRuns`
+  included) and `POST /v1/autopilot/reset`;
+- `PUT /v1/coordinator/refill` and `PUT /v1/coordinator/scheduling`;
+- `PUT`/`DELETE /v1/routines/{id}`;
+- `POST /v1/devices/push` and `POST /v1/devices/activity`, and `POST /v1/pair`
+  when it is sent with one of these tokens.
+
+**Everyday work is not held.** `PATCH`/`DELETE /v1/backlog/items`,
+`POST /v1/backlog/templates/stamp`, every write under `/v1/memory` (facts,
+shared context, the Claude memory notes) and `/v1/knowledge`, `DELETE
+/v1/agents/chats`, and `POST /v1/projects/reorder`, `/pin` and `/close` apply
+at once; a scoped token still needs the `configure` scope for them. Reads, and
+the `operate` routes — messaging an agent, starting a run, moving an item,
+pausing — are not held either. `/v1/tokens` and `/v1/hooks` answer 403 for
+these tokens before any card is filed, as every [human gate](#human-gates)
+does.
+
+Each route is classified once, in the routing code, as a configuration change
+or not; a route added later has to be classified to compile, so none is held
+or let through by omission.
 
 **The control token and a paired phone are never held**, and neither is
 anything done in the app itself: the decision is made on the credential, not
