@@ -716,7 +716,7 @@ final class KiteloopControlServer {
     private func agentsRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
         switch route {
         case .hireAgent: return hireAgent(body: req.body)
-        case .updateAgent: return updateAgent(body: req.body)
+        case .updateAgent: return await updateAgent(body: req.body)
         case .removeAgent: return removeAgent(query: req.query)
         case .listAgents: return listAgents(project: req.query["project"])
         case .messageAgent: return await messageAgent(body: req.body)
@@ -5215,7 +5215,7 @@ final class KiteloopControlServer {
     }
 
     /// Changes an agent already on the team, as saving its editor does.
-    private func updateAgent(body: Data) -> HTTPServer.Response {
+    private func updateAgent(body: Data) async -> HTTPServer.Response {
         let json = Self.jsonBody(body)
         let target = agentTarget(json)
         guard case .found(let entry, let agent) = target else { return target.refusal }
@@ -5233,7 +5233,11 @@ final class KiteloopControlServer {
         }
         let effect = entry.session.editAgent(agent.id, edit)
         let saved = entry.session.orchestrator.agents.first { $0.id == agent.id } ?? agent
-        return .json(["agent": saved.id, "name": saved.name, "model": saved.model, "applies": effect.rawValue])
+        let orchestrator = entry.session.orchestrator
+        let sections = await orchestrator.memoryManager.systemContextSections(
+            agent: saved, skillRegistry: orchestrator.skillRegistry)
+        return .json(["agent": saved.id, "name": saved.name, "model": saved.model, "applies": effect.rawValue,
+                      "firstTurn": FirstTurnCost(sections: sections).json])
     }
 
     /// Takes an agent off the team, as Remove Agent does in the sidebar. An

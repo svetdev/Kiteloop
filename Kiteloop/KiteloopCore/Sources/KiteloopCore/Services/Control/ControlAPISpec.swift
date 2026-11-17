@@ -983,6 +983,19 @@ package enum ControlAPISpec {
         route == .updateAgent ? updateAgentDetail() : removeAgentDetail()
     }
 
+    /// `FirstTurnCost.json`.
+    private static var firstTurnSchema: [String: Any] {
+        let section = object([
+            "name": described(string, "prompt, projectInstructions, projectContext, identity, knowledgeIndex, domainKnowledge, memory or skill:<name>."),
+            "bytes": integer
+        ], required: ["name", "bytes"])
+        return described(object([
+            "bytes": described(integer, "The sections' sum."),
+            "sections": described(array(of: section), "The parts that have text, in the order they are joined.")
+        ], required: ["bytes", "sections"]),
+        "The system prompt Kiteloop composes for the saved agent, part by part, measured in bytes of UTF-8 text.")
+    }
+
     private static func updateAgentDetail() -> Detail {
         return Detail(
             id: "updateAgent",
@@ -1014,8 +1027,9 @@ package enum ControlAPISpec {
             responses: [
                 Status(code: 200, description: "Changed.", schema: object([
                     "agent": string, "name": string, "model": string,
-                    "applies": described(string, "now, restarted or nextStart.")
-                ], required: ["agent", "name", "model", "applies"])),
+                    "applies": described(string, "now, restarted or nextStart."),
+                    "firstTurn": firstTurnSchema
+                ], required: ["agent", "name", "model", "applies", "firstTurn"])),
                 errorStatus(400, "A missing or mistyped field, a blank name, no field to change, or a permission mode."),
                 errorStatus(404, "No such agent in this project."),
                 errorStatus(409, "Project not open in Kiteloop, or a teammate already has that name.")

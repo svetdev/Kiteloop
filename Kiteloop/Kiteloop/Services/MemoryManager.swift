@@ -447,50 +447,53 @@ actor MemoryManager: MemoryManaging {
     }
 
     func composeSystemContext(agent: Agent, skillRegistry: SkillRegistry?) async -> String {
-        var parts: [String] = []
-        parts.append(agent.systemPrompt)
+        await systemContextSections(agent: agent, skillRegistry: skillRegistry)
+            .map(\.text).joined(separator: Self.sectionSeparator)
+    }
 
-        let instructions = loadClaudeMDChain(projectRoot: project.rootURL)
-        if !instructions.isEmpty {
-            parts.append("# Project Instructions\n\n\(instructions)")
+    private static let sectionSeparator = "\n\n---\n\n"
+
+    /// The parts of the system prompt, named, in the order they are joined —
+    /// `composeSystemContext` is exactly these, so what `FirstTurnCost`
+    /// measures is what the agent is given.
+    func systemContextSections(agent: Agent, skillRegistry: SkillRegistry?) async -> [(name: String, text: String)] {
+        var sections = [(name: "prompt", text: agent.systemPrompt)]
+        sections += Self.headed("projectInstructions", "# Project Instructions", loadClaudeMDChain(projectRoot: project.rootURL))
+        sections += Self.headed("projectContext", "# Project Context", sharedContext())
+        sections += await knowledgeSections(agentID: agent.id)
+        sections += Self.headed("memory", "# Your Memory", injectedMemory(agentID: agent.id))
+        if let skillRegistry {
+            sections += await skillSections(agent.skills, in: skillRegistry)
         }
+        return sections
+    }
 
-        let context = sharedContext()
-        if !context.isEmpty {
-            parts.append("# Project Context\n\n\(context)")
-        }
+    /// A section under its heading, or none when there is nothing to put there.
+    private static func headed(_ name: String, _ heading: String, _ body: String) -> [(name: String, text: String)] {
+        body.isEmpty ? [] : [(name: name, text: "\(heading)\n\n\(body)")]
+    }
 
+    /// The identity and the knowledge index when there is a recall service,
+    /// the whole domain knowledge when there is only a provider.
+    private func knowledgeSections(agentID: String) async -> [(name: String, text: String)] {
         if let recallService = knowledgeRecallService {
-            let identity = await recallService.identityTier(for: agent.id)
-            if !identity.isEmpty {
-                parts.append("# Agent Identity\n\n\(identity)")
-            }
-            let index = await recallService.indexTier(for: agent.id)
-            if !index.isEmpty {
-                parts.append("# Available Knowledge\n\n\(index)")
-            }
-        } else if let knowledge = knowledgeProvider?.knowledgeContent(for: agent.id) {
-            parts.append("# Domain Knowledge\n\n\(knowledge)")
+            return Self.headed("identity", "# Agent Identity", await recallService.identityTier(for: agentID))
+                + Self.headed("knowledgeIndex", "# Available Knowledge", await recallService.indexTier(for: agentID))
         }
+        guard let knowledge = knowledgeProvider?.knowledgeContent(for: agentID) else { return [] }
+        return [(name: "domainKnowledge", text: "# Domain Knowledge\n\n\(knowledge)")]
+    }
 
-        let memory = injectedMemory(agentID: agent.id)
-        if !memory.isEmpty {
-            parts.append("# Your Memory\n\n\(memory)")
+    /// One section per skill the registry resolves. The first carries the
+    /// `# Active Skills` heading, so joined they read as the one block.
+    private func skillSections(_ names: [String], in registry: SkillRegistry) async -> [(name: String, text: String)] {
+        var sections: [(name: String, text: String)] = []
+        for name in names {
+            guard let skill = await registry.skill(named: name) else { continue }
+            let heading = sections.isEmpty ? "# Active Skills\n\n" : ""
+            sections.append((name: "skill:\(skill.name)", text: "\(heading)## \(skill.name)\n\n\(skill.body)"))
         }
-
-        if let registry = skillRegistry, !agent.skills.isEmpty {
-            var skillParts: [String] = []
-            for skillName in agent.skills {
-                if let skill = await registry.skill(named: skillName) {
-                    skillParts.append("## \(skill.name)\n\n\(skill.body)")
-                }
-            }
-            if !skillParts.isEmpty {
-                parts.append("# Active Skills\n\n\(skillParts.joined(separator: "\n\n---\n\n"))")
-            }
-        }
-
-        return parts.joined(separator: "\n\n---\n\n")
+        return sections
     }
 
     // MARK: - Memory tiers

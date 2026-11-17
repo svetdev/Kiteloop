@@ -380,3 +380,10 @@ Entry format:
 **Why:** A routine can do only what its agent could already be asked to, in its project; a folder anywhere on the Mac would let a file dropped by anything start a turn. A watcher cannot say who changed a file, so the only bound on a routine that writes where it watches is when the change happened — the same idea as an event raised inside a routine's turn.
 **Evidence:** `WatchedFolder.resolve`, `RoutineTurnWindows`, `RoutineRunner.folderChanged`; `WatchedFolderTests`, `RoutineRunnerTests`.
 **Status:** holds — a prompt queued behind a busy agent's turn is not tracked as a routine's turn, so a change it makes is bounded by the budgets alone.
+
+## [2026-11-17] What a configuration costs before its first turn is reported in bytes, not tokens
+**Kind:** decision
+**What:** `firstTurn` on the `PATCH /v1/agents` reply gives each part of the composed system prompt its size in bytes of UTF-8 text. No token figure is derived from it.
+**Why:** The repo holds no characters-per-token ratio and no tokenizer, so a token count would be an invented constant presented beside `contextTokens`, which is measured. Bytes are measured and still show which part is heavy.
+**Evidence:** `FirstTurnCost`, `MemoryManager.systemContextSections`; `FirstTurnCostTests`. `composeSystemContext` is those sections joined, so the two cannot drift.
+**Status:** holds — MCP tool schemas, built-in tools and the CLI's own prompt are outside the figure.
