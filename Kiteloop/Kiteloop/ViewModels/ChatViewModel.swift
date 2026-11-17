@@ -124,6 +124,14 @@ class ChatViewModel {
         let runtime = orchestrator.agents.first { $0.id == agentID }?.resolvedRuntimeKind ?? .claude
         return runtime == .claude ? reportedContextWindowSize : nil
     }
+    /// How full the context window is — the one figure the chat header,
+    /// /context and `GET /v1/agents` read. Nil on an Ollama or Copilot agent,
+    /// the same rule `contextWindowSize` follows.
+    var contextOccupancy: ContextOccupancy? {
+        guard runtimeKind == .claude else { return nil }
+        return ContextOccupancy(inputTokens: lastInputTokens, cacheReadTokens: cacheReadTokens,
+                                cacheCreationTokens: cacheCreationTokens, windowSize: contextWindowSize)
+    }
     /// The runtime this agent resolves to — `.claude` once the agent is gone.
     var runtimeKind: RuntimeKind {
         orchestrator.agents.first { $0.id == agentID }?.resolvedRuntimeKind ?? .claude
@@ -891,15 +899,9 @@ class ChatViewModel {
            agent.resolvedRuntimeKind != .claude {
             return reportUnknownContextWindow(for: agent)
         }
-        let pctStr: String
-        // input_tokens is only the uncached delta; the prior conversation lives in
-        // cache_read/cache_creation. Output tokens are NOT context window occupancy.
-        let total = lastInputTokens + cacheReadTokens + cacheCreationTokens
-        if let windowSize = contextWindowSize, windowSize > 0 {
-            pctStr = "\(Int(Double(total) / Double(windowSize) * 100))%"
-        } else {
-            pctStr = "unknown"
-        }
+        guard let occupancy = contextOccupancy else { return }
+        let total = occupancy.tokens
+        let pctStr = occupancy.percent.map { "\(Int($0))%" } ?? "unknown"
         var cacheStr = ""
         if cacheReadTokens > 0 || cacheCreationTokens > 0 {
             let hitRate = total > 0 ? Double(cacheReadTokens) / Double(total) * 100 : 0

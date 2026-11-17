@@ -380,8 +380,8 @@ struct ChatView: View {
             }
 
 
-            if viewModel.contextWindowSize != nil, let contextPct = statusLine.contextWindowPercent {
-                Text("\(Int(contextPct))%")
+            if let occupancy = viewModel.contextOccupancy, let contextPct = occupancy.percent {
+                Text("\(occupancy.headerText) · \(Int(contextPct))%")
                     .font(.caption2)
                     .foregroundStyle(contextPct > 80 ? .red : contextPct > 50 ? .orange : .secondary)
                     .help("Context window usage")
