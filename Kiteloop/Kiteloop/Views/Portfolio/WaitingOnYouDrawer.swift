@@ -169,6 +169,7 @@ private struct WaitingRow: View {
         case .approval: "hand.raised"
         case .question: "questionmark.circle"
         case .stale: "clock.badge.exclamationmark"
+        case .configChange: "gearshape.2"
         }
     }
 
@@ -177,6 +178,7 @@ private struct WaitingRow: View {
         case .approval: .orange
         case .question: .blue
         case .stale: .yellow
+        case .configChange: .orange
         }
     }
 
@@ -191,6 +193,8 @@ private struct WaitingRow: View {
             "Open \(row.agentName ?? agentID)'s chat in \(row.projectName) to answer"
         case .stale(let itemID):
             "Open \(itemID)'s page in \(row.projectName) — nothing has touched it in a while"
+        case .configChange:
+            "Open the change \(row.agentName ?? "an agent") asked for, to approve or decline it"
         }
     }
 }

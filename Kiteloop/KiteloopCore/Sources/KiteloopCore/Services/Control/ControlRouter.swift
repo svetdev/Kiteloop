@@ -132,6 +132,9 @@ package enum ControlRoute: Equatable {
     case attention
     /// `GET /v1/events` — every open project's inbox notices as one SSE stream.
     case appEvents
+    /// `POST /v1/config-changes/{id}/answer` — approve or decline a
+    /// configuration change an agent asked for over this API.
+    case answerConfigChange(id: String)
 
     // Memory
     case listMemoryProposals
@@ -211,7 +214,7 @@ package enum ControlRoute: Equatable {
     /// branch, collapses the sandbox → PR → human-gate model (ADR-0001).
     package var isHumanGate: Bool {
         switch self {
-        case .approveBacklogItem, .approveRun, .landBacklogItem: return true
+        case .approveBacklogItem, .approveRun, .landBacklogItem, .answerConfigChange: return true
         default: return false
         }
     }
@@ -246,7 +249,8 @@ package enum ControlRoute: Equatable {
              .groomBacklogItem, .moveBacklogItem, .setBacklogItemLane, .fileBacklogItem,
              .pauseAutopilot, .resumeAutopilot, .quiesceFleet, .resumeFleet,
              .approveMemoryProposal, .rejectMemoryProposal, .approveProposal, .dismissProposal,
-             .runRoutine, .fireHook, .startRun, .approveRun, .cancelRun, .steerRun:
+             .runRoutine, .fireHook, .startRun, .approveRun, .cancelRun, .steerRun,
+             .answerConfigChange:
             return .operate
         case .reorderProjects, .pinProjectDocument, .hireAgent, .updateAgent, .removeAgent,
              .claimPairingCode, .registerPushDevice, .registerLiveActivity, .stampTemplate,
@@ -407,6 +411,7 @@ package enum ControlRouter {
         Row("GET",  "/v1/spend/forecast")       { _ in .spendForecast },
         Row("GET",  "/v1/attention")            { _ in .attention },
         Row("GET",  "/v1/events")               { _ in .appEvents },
+        Row("POST", "/v1/config-changes/:id/answer") { .answerConfigChange(id: $0[0]) },
 
         Row("GET",  "/v1/memory/proposals")             { _ in .listMemoryProposals },
         Row("POST", "/v1/memory/proposals/approve")     { _ in .approveMemoryProposal },

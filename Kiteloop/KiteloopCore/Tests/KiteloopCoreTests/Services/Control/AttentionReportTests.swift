@@ -101,6 +101,55 @@ final class AttentionReportTests: XCTestCase {
 
     // MARK: - Helpers
 
+    // MARK: - Held configuration changes
+
+    /// A change an agent asked for over the API is a row of its own kind,
+    /// answered by the call that carries its id; one that names no project
+    /// is the app's.
+    func testAHeldConfigurationChangeIsARowAnsweredByItsOwnCall() throws {
+        let change = HeldConfigChange(id: "c1", caller: "operator", route: "PUT /v1/settings",
+                                      summary: #"{"defaultModel":"opus"}"#, project: nil, askedAt: earlier)
+        let waiting = WaitingOnYou.capture(projects: [], configChanges: [change])
+        let payload = AttentionReport.payload(waiting)
+        let row = try XCTUnwrap(rows(of: payload).first)
+
+        XCTAssertEqual(payload["summary"] as? String, "1 change to approve")
+        XCTAssertEqual(row["kind"] as? String, "configChange")
+        XCTAssertEqual(row["title"] as? String, "PUT /v1/settings")
+        XCTAssertEqual(row["detail"] as? String, #"{"defaultModel":"opus"}"#)
+        XCTAssertEqual(row["caller"] as? String, "operator")
+        XCTAssertEqual(row["since"] as? String, earlier.formatted(.iso8601))
+        XCTAssertTrue(row["itemId"] is NSNull)
+        XCTAssertTrue(row["agentId"] is NSNull)
+        let answer = try XCTUnwrap(row["answer"] as? [String: String])
+        XCTAssertEqual(answer, ["method": "POST", "path": "/v1/config-changes/c1/answer"])
+        let project = try XCTUnwrap(row["project"] as? [String: String])
+        XCTAssertEqual(project, ["id": "", "name": "Kiteloop", "path": ""])
+    }
+
+    func testAChangeThatNamesAnOpenProjectCarriesItAndOtherRowsCarryNoCaller() throws {
+        let change = HeldConfigChange(id: "c2", caller: "ci (configure)", route: "PUT /v1/autopilot", summary: "",
+                                      project: .init(id: "p-alpha", name: "alpha", path: "/tmp/alpha"), askedAt: later)
+        let waiting = WaitingOnYou.capture(projects: [reading(gated: [.init(id: "item-1", title: "One")])],
+                                           configChanges: [change])
+        let rows = try rows(of: AttentionReport.payload(waiting))
+
+        XCTAssertEqual(rows.map { $0["kind"] as? String }, ["approval", "configChange"])
+        XCTAssertTrue(rows[0]["caller"] is NSNull)
+        XCTAssertEqual((rows[1]["project"] as? [String: String])?["id"], "p-alpha")
+        XCTAssertEqual(waiting.rows[1].subtitle, "ci (configure) · alpha")
+    }
+
+    /// A card whose caller hung up says so, where the row is read.
+    func testAChangeWhoseCallerHasGoneSaysSo() throws {
+        var change = HeldConfigChange(id: "c3", caller: "operator", route: "DELETE /v1/agents", summary: "agent=Ada",
+                                      project: nil, askedAt: earlier)
+        change.callerGone = true
+        let row = try XCTUnwrap(WaitingOnYou.capture(projects: [], configChanges: [change]).rows.first)
+
+        XCTAssertEqual(row.detail, "the caller has gone — answering clears this and applies nothing · agent=Ada")
+    }
+
     private func reading(gated: [WaitingOnYou.ProjectReading.GatedItem] = [],
                          asking: [WaitingOnYou.ProjectReading.AskingAgent] = [],
                          stale: [WaitingOnYou.ProjectReading.StaleItem] = []) -> WaitingOnYou.ProjectReading {

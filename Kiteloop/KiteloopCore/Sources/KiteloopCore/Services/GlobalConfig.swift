@@ -75,6 +75,11 @@ package struct GlobalConfig: Codable, Sendable {
     /// waits. `"team"` — `hire_agent` and `fire_agent` — is the only kind
     /// recognised; an unknown kind is ignored.
     package var agentChangesNeedingApproval: [String]?
+    /// Whether a configuration change made over the control API with the
+    /// operator token or a scoped one waits on a person's approval before it
+    /// applies (`ConfigChangeGate`). Nil is the shipped default: it does.
+    /// Only `false` lets those changes apply at once.
+    package var agentAPIChangesNeedApproval: Bool?
 
     /// The memberwise init, spelled out: a `package` type's synthesised one is
     /// internal to the package, and the app constructs this.

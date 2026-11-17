@@ -340,6 +340,7 @@ final class NotificationService {
         case .approval: "leaving|approval|\(row.projectName)|\(row.title)"
         case .question: "leaving|question|\(row.projectName)|\(row.detail ?? row.subtitle)"
         case .stale: nil
+        case .configChange: "leaving|\(row.id)"
         }
     }
 
@@ -369,6 +370,9 @@ final class NotificationService {
                        destination: BannerDestination(kind: .question, project: row.projectID, id: agentID))
             case .stale:
                 break
+            case .configChange:
+                banner(title: "\(row.agentName ?? "An agent") asks to change configuration",
+                       body: String(row.title.prefix(120)), gate: gate)
             }
         }
     }

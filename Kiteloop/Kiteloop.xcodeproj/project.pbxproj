@@ -28,6 +28,7 @@
 		0319C25970B9B88E167AD6F7 /* MainWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C77873CBC6991FFCFBC8656D /* MainWindow.swift */; };
 		035F77FE9E553C0502AC6408 /* DebateOrchestrator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FF24CB796F3412BA59DBEA8 /* DebateOrchestrator.swift */; };
 		0398CFF1B4D64DE529839C70 /* WaitingOnYouDrawer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D19321706A07B6CE26983947 /* WaitingOnYouDrawer.swift */; };
+		831B9D9215A612C485990E62 /* HeldConfigChangeCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00CC95312023223F35151EC /* HeldConfigChangeCard.swift */; };
 		03CEF756B2D5173D2236787B /* MultilineTextInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6E5D75D6BB77ED6CE2B841 /* MultilineTextInput.swift */; };
 		0496068773DC53CEF94D0DC3 /* RunEconomicsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0AC2FF64B39334510027E0 /* RunEconomicsTests.swift */; };
 		04A0C89CEEA79CD186B36F7B /* AutopilotQueueList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CAC40F34084319D0FEFB79D /* AutopilotQueueList.swift */; };
@@ -677,6 +678,7 @@
 		9209BD6D9ACB695685B077A6 /* PushRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */; };
 		63042440C7986509B43C723F /* RoutineEndpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */; };
 		C0A7A6E00000000000000003B /* KiteloopControlServer+AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A7A6E00000000000000003A /* KiteloopControlServer+AppSettings.swift */; };
+		F3AD42CB9665B75BC54A8116 /* KiteloopControlServer+ConfigChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98235FBC92CA9F5BC12BEDFC /* KiteloopControlServer+ConfigChanges.swift */; };
 		C0A7A6E00000000000000002B /* KiteloopControlServer+Memory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A7A6E00000000000000002A /* KiteloopControlServer+Memory.swift */; };
 		686BFD4958F1B06CC120884F /* KiteloopControlServer+Spend.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4CE05D1AF100AB162C194E /* KiteloopControlServer+Spend.swift */; };
 		C0A7A6E00000000000000001B /* KiteloopControlServer+ProjectSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A7A6E00000000000000001A /* KiteloopControlServer+ProjectSetup.swift */; };
@@ -1226,6 +1228,7 @@
 		CD83A494F7B44551F4E916E5 /* BacklogFlowSettingsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogFlowSettingsTests.swift; sourceTree = "<group>"; };
 		CDA8AB70EC98A3CB20A220BC /* FleetQuiesceControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FleetQuiesceControl.swift; sourceTree = "<group>"; };
 		D19321706A07B6CE26983947 /* WaitingOnYouDrawer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaitingOnYouDrawer.swift; sourceTree = "<group>"; };
+		F00CC95312023223F35151EC /* HeldConfigChangeCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeldConfigChangeCard.swift; sourceTree = "<group>"; };
 		D1E9174EFAFBE08317B00FD7 /* MemoryViewModelSharedContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewModelSharedContextTests.swift; sourceTree = "<group>"; };
 		CE9442B861725CF9A6650D32 /* MemoryViewModelArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewModelArchiveTests.swift; sourceTree = "<group>"; };
 		4935479F03FA2B2D5CC85EAC /* MemoryViewModelPendingCountTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryViewModelPendingCountTests.swift; sourceTree = "<group>"; };
@@ -1394,6 +1397,7 @@
 		30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushRelay.swift; sourceTree = "<group>"; };
 		D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineEndpoints.swift; sourceTree = "<group>"; };
 		C0A7A6E00000000000000003A /* KiteloopControlServer+AppSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+AppSettings.swift"; sourceTree = "<group>"; };
+		98235FBC92CA9F5BC12BEDFC /* KiteloopControlServer+ConfigChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+ConfigChanges.swift"; sourceTree = "<group>"; };
 		C0A7A6E00000000000000002A /* KiteloopControlServer+Memory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+Memory.swift"; sourceTree = "<group>"; };
 		EC4CE05D1AF100AB162C194E /* KiteloopControlServer+Spend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+Spend.swift"; sourceTree = "<group>"; };
 		C0A7A6E00000000000000001A /* KiteloopControlServer+ProjectSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KiteloopControlServer+ProjectSetup.swift"; sourceTree = "<group>"; };
@@ -1910,6 +1914,7 @@
 				DF3C9C6C49E59C32E009EBCA /* PortfolioView.swift */,
 				50C4C8D6B396C3E49C63EF1D /* TaskInsightsView.swift */,
 				D19321706A07B6CE26983947 /* WaitingOnYouDrawer.swift */,
+				F00CC95312023223F35151EC /* HeldConfigChangeCard.swift */,
 			);
 			path = Portfolio;
 			sourceTree = "<group>";
@@ -1920,6 +1925,7 @@
 				30DFF9C027E1B4D7A42AE41C /* PushRelay.swift */,
 				D9C53301229DEC56C26793B7 /* RoutineEndpoints.swift */,
 				C0A7A6E00000000000000003A /* KiteloopControlServer+AppSettings.swift */,
+				98235FBC92CA9F5BC12BEDFC /* KiteloopControlServer+ConfigChanges.swift */,
 				C0A7A6E00000000000000002A /* KiteloopControlServer+Memory.swift */,
 				EC4CE05D1AF100AB162C194E /* KiteloopControlServer+Spend.swift */,
 				C0A7A6E00000000000000001A /* KiteloopControlServer+ProjectSetup.swift */,
@@ -2639,6 +2645,7 @@
 				9209BD6D9ACB695685B077A6 /* PushRelay.swift in Sources */,
 				63042440C7986509B43C723F /* RoutineEndpoints.swift in Sources */,
 				C0A7A6E00000000000000003B /* KiteloopControlServer+AppSettings.swift in Sources */,
+				F3AD42CB9665B75BC54A8116 /* KiteloopControlServer+ConfigChanges.swift in Sources */,
 				C0A7A6E00000000000000002B /* KiteloopControlServer+Memory.swift in Sources */,
 				686BFD4958F1B06CC120884F /* KiteloopControlServer+Spend.swift in Sources */,
 				C0A7A6E00000000000000001B /* KiteloopControlServer+ProjectSetup.swift in Sources */,
@@ -2854,6 +2861,7 @@
 				0F5086EF6C04CD1444ADEC35 /* UITestingSupport.swift in Sources */,
 				353DC4B32958AA95C13BE017 /* UnattendedIndicator.swift in Sources */,
 				0398CFF1B4D64DE529839C70 /* WaitingOnYouDrawer.swift in Sources */,
+				831B9D9215A612C485990E62 /* HeldConfigChangeCard.swift in Sources */,
 				E7856ABBEF28544B6737A1CF /* WebPreviewPanel.swift in Sources */,
 				7B499F6FC5F1B9EAD2A6CC6B /* WebPreviewViewModel.swift in Sources */,
 				A54D832128789CD35B041F0B /* WebView.swift in Sources */,

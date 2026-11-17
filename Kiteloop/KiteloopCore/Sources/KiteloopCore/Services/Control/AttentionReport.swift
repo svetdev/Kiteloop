@@ -23,7 +23,7 @@ package enum AttentionReport {
 
     /// A row's kind, as the payload names it.
     package enum Kind: String, Sendable {
-        case approval, question, plan, prompt, stale
+        case approval, question, plan, prompt, stale, configChange
     }
 
     /// The call that answers a row of this kind.
@@ -34,7 +34,15 @@ package enum AttentionReport {
         case .plan: return ("POST", "/v1/agents/plan")
         case .prompt: return ("POST", "/v1/agents/permission")
         case .stale: return ("GET", "/v1/backlog/detail")
+        case .configChange: return ("POST", "/v1/config-changes/{id}/answer")
         }
+    }
+
+    /// The call that answers `row`: its kind's, with a held configuration
+    /// change's own id in the path.
+    static func answer(for row: WaitingOnYou.Row, kind: Kind) -> (method: String, path: String) {
+        guard case .configChange(let requestID) = row.gate else { return answer(for: kind) }
+        return ("POST", "/v1/config-changes/\(requestID)/answer")
     }
 
     /// The whole payload: `count`, `summary` and `rows`, in the list's order.
@@ -53,6 +61,7 @@ package enum AttentionReport {
         switch row.gate {
         case .approval: return .approval
         case .stale: return .stale
+        case .configChange: return .configChange
         case .question:
             switch agentWait(row) {
             case .question: return .question
@@ -63,7 +72,7 @@ package enum AttentionReport {
     }
 
     private static func rowJSON(_ row: WaitingOnYou.Row, kind: Kind) -> [String: Any] {
-        let answer = answer(for: kind)
+        let answer = answer(for: row, kind: kind)
         return [
             "id": row.id,
             "kind": kind.rawValue,
@@ -73,6 +82,7 @@ package enum AttentionReport {
             "title": row.title,
             "detail": row.detail ?? NSNull(),
             "since": row.since.map { $0.formatted(.iso8601) } ?? NSNull(),
+            "caller": caller(of: row) ?? NSNull(),
             "gateRefusal": row.gateRefusal ?? NSNull(),
             "staleFileCount": row.staleFileCount ?? NSNull(),
             "answer": ["method": answer.method, "path": answer.path]
@@ -82,8 +92,14 @@ package enum AttentionReport {
     private static func itemID(of row: WaitingOnYou.Row) -> String? {
         switch row.gate {
         case .approval(let itemID), .stale(let itemID): return itemID
-        case .question: return nil
+        case .question, .configChange: return nil
         }
+    }
+
+    /// For a configuration change: the credential that asked for it.
+    private static func caller(of row: WaitingOnYou.Row) -> String? {
+        if case .configChange = row.gate { return row.agentName }
+        return nil
     }
 
     private static func agentID(of row: WaitingOnYou.Row) -> String? {

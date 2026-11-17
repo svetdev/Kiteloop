@@ -18,6 +18,10 @@ package final class HTTPServer: @unchecked Sendable {
         package let query: [String: String]
         package let headers: [String: String]
         package let body: Data
+        /// Registers something to run once the client has hung up — how a
+        /// handler that holds its request open learns nobody is waiting for
+        /// the answer. Nil for a request that came over no socket.
+        package var whenClientGone: (@Sendable (@escaping @Sendable () -> Void) -> Void)?
 
         /// Case-insensitive header lookup.
         package func header(_ name: String) -> String? {
@@ -176,7 +180,8 @@ package final class HTTPServer: @unchecked Sendable {
     /// caller keeps reading.
     private func answer(_ connection: SocketConnection, _ outcome: ParseOutcome) -> Bool {
         switch outcome {
-        case .request(let request):
+        case .request(var request):
+            request.whenClientGone = { connection.whenReadEnds($0) }
             Task { @MainActor in
                 let response = await self.handler(request)
                 self.send(connection, response)
