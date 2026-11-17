@@ -165,10 +165,10 @@ package struct PackInstallPlan {
     }
 
     /// The line the configuration change log keeps of the install.
-    package func logRecord(at moment: Date) -> ConfigChangeLog.Record {
+    package func logRecord(at moment: Date, project: String? = nil) -> ConfigChangeLog.Record {
         ConfigChangeLog.Record(requestedBy: "person", kind: "pack", tool: "Install Pack", before: "",
                                after: "\(pack.name) \(pack.version) from \(folder.path): \(added)",
-                               decision: .approved, at: moment)
+                               decision: .approved, at: moment, project: project)
     }
 
     // MARK: - Copying

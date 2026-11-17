@@ -59,8 +59,8 @@ extension ProjectSession {
         }
         join(packages, as: plan.agents, appDefaultEffort: globalConfig.config.defaultEffort)
         do {
-            try ConfigChangeLog.append(plan.logRecord(at: .now),
-                                       to: ConfigChangeLog.url(projectPath: project.rootURL.path(percentEncoded: false)))
+            try ConfigChangeLog.append(plan.logRecord(at: .now, project: project.rootURL.path(percentEncoded: false)),
+                                       to: globalConfig.configChangeLogURL)
         } catch {
             packInstallLog.error("Failed to log a pack install: \(error.localizedDescription, privacy: .public)")
         }
