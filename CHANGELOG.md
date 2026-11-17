@@ -32,6 +32,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - The Autopilot tab no longer lists the project's routines; they are on the Routines page.
 
 ### Fixes
+- A table in a chat reply lines up when a cell holds ✅/❌, another emoji or CJK text, honours `:---`, `:---:` and `---:` column alignment, and is drawn as a table when written without the outer pipes.
 - A chat follows the conversation again. The list stays on the newest line as a reply is written, as a call's result comes in and when the turn ends, instead of leaving the end of a reply below the window; it still stays put for a reader who scrolled up. Sending a message always takes you to the bottom.
 - A shell command that did not exit 0 is marked red in the chat and shows the first lines of what it printed, where it wore a green mark beside "Exit code 1".
 - In a chat drawn terminal-style, only the tool's name in a call line is bold.

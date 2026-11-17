@@ -36,13 +36,9 @@ struct MarkdownRenderer {
             let line = lines[i]
 
             // Markdown table block
-            if isTableRow(line) {
-                var tableLines: [String] = []
-                while i < lines.count && isTableRow(lines[i]) {
-                    tableLines.append(lines[i])
-                    i += 1
-                }
-                result.append(renderTable(tableLines, isDark: isDark))
+            if let table = tableBlock(in: lines, from: i) {
+                i = table.end
+                result.append(renderTable(table.rows, isDark: isDark))
                 result.append(NSAttributedString(string: "\n", attributes: [.font: baseFont]))
                 continue
             }
@@ -581,6 +577,115 @@ struct MarkdownRenderer {
         return trimmed.hasPrefix("|") && trimmed.hasSuffix("|") && trimmed.count > 2
     }
 
+    /// The table that starts at `start`, as outer-piped rows, and the index of the
+    /// first line after it — or nil when no table starts there. An outer-piped row
+    /// starts one on its own; a row without the outer pipes only does when a
+    /// separator row sits directly under it, so prose like `a | b` stays text.
+    private static func tableBlock(in lines: [String], from start: Int) -> (rows: [String], end: Int)? {
+        if isTableRow(lines[start]) {
+            return collectRows(lines, from: start, while: isTableRow)
+        }
+        guard start + 1 < lines.count, hasUnescapedPipe(lines[start]),
+              isPipelessSeparator(lines[start + 1], under: lines[start]) else { return nil }
+        let rest = collectRows(lines, from: start + 2) { line in
+            hasUnescapedPipe(line) && !line.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+        let rows = [lines[start], lines[start + 1]] + rest.rows
+        return (rows.map(addingOuterPipes), rest.end)
+    }
+
+    /// The lines from `start` on while `belongs` holds, and the index after them.
+    private static func collectRows(_ lines: [String], from start: Int, while belongs: (String) -> Bool) -> (rows: [String], end: Int) {
+        var end = start
+        while end < lines.count && belongs(lines[end]) { end += 1 }
+        return (Array(lines[start..<end]), end)
+    }
+
+    /// Whether `line` holds a `|` that is not escaped as `\|`.
+    private static func hasUnescapedPipe(_ line: String) -> Bool {
+        var escaped = false
+        for ch in line {
+            if !escaped && ch == "|" { return true }
+            escaped = !escaped && ch == "\\"
+        }
+        return false
+    }
+
+    /// A separator row under a header written without its outer pipes: only
+    /// dashes, colons and pipes, one cell per header cell, each with a dash.
+    private static func isPipelessSeparator(_ line: String, under header: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, isSeparatorRow(trimmed) else { return false }
+        let cells = tableCells(addingOuterPipes(trimmed))
+        return cells.count == tableCells(addingOuterPipes(header)).count && cells.allSatisfy { $0.contains("-") }
+    }
+
+    /// `line` with the leading and trailing pipe it was written without.
+    private static func addingOuterPipes(_ line: String) -> String {
+        var row = line.trimmingCharacters(in: .whitespaces)
+        if !row.hasPrefix("|") { row = "|" + row }
+        if !row.hasSuffix("|") || row.hasSuffix("\\|") { row += "|" }
+        return row
+    }
+
+    /// How a column's cells sit in its width, as its separator cell's colons say.
+    private enum ColumnAlignment {
+        case left, center, right
+
+        init(separatorCell cell: String) {
+            switch (cell.hasPrefix(":"), cell.hasSuffix(":")) {
+            case (true, true): self = .center
+            case (false, true): self = .right
+            default: self = .left
+            }
+        }
+
+        /// The spaces before and after a cell `padding` columns short of its width;
+        /// a centred cell's odd space goes after it.
+        func split(_ padding: Int) -> (before: Int, after: Int) {
+            switch self {
+            case .left: return (0, padding)
+            case .right: return (padding, 0)
+            case .center: return (padding / 2, padding - padding / 2)
+            }
+        }
+    }
+
+    /// Each column's alignment, read off the table's separator row; every column
+    /// is left-aligned when the table has none.
+    private static func columnAlignments(_ lines: [String]) -> [ColumnAlignment] {
+        let trimmed = lines.map { $0.trimmingCharacters(in: .whitespaces) }
+        guard let separator = trimmed.first(where: isSeparatorRow) else { return [] }
+        return tableCells(separator).map { ColumnAlignment(separatorCell: $0) }
+    }
+
+    /// How many fixed-pitch columns `text` takes on screen: a wide East Asian
+    /// character or an emoji takes two, a mark that joins its neighbour none.
+    private static func displayWidth(_ text: String) -> Int {
+        text.reduce(0) { $0 + displayWidth(of: $1) }
+    }
+
+    private static func displayWidth(of character: Character) -> Int {
+        let scalars = character.unicodeScalars
+        guard let first = scalars.first else { return 0 }
+        if zeroWidthCategories.contains(first.properties.generalCategory) { return 0 }
+        if first.properties.isEmojiPresentation || scalars.contains("\u{FE0F}") { return 2 }
+        return wideRanges.contains { $0.contains(first.value) } ? 2 : 1
+    }
+
+    /// Combining marks, variation selectors and joiners: drawn on their neighbour.
+    private static let zeroWidthCategories: Set<Unicode.GeneralCategory> = [
+        .nonspacingMark, .enclosingMark, .format
+    ]
+
+    /// East Asian Wide and Fullwidth blocks: Hangul, CJK, kana, fullwidth forms.
+    private static let wideRanges: [ClosedRange<UInt32>] = [
+        0x1100...0x115F, 0x2E80...0x303E, 0x3041...0x33FF, 0x3400...0x4DBF,
+        0x4E00...0x9FFF, 0xA000...0xA4CF, 0xA960...0xA97F, 0xAC00...0xD7A3,
+        0xF900...0xFAFF, 0xFE30...0xFE4F, 0xFF00...0xFF60, 0xFFE0...0xFFE6,
+        0x20000...0x3FFFD
+    ]
+
     /// The cells between a row's leading and trailing pipes, reading `\|` as a
     /// literal pipe inside the cell it sits in rather than a cell boundary.
     private static func tableCells(_ line: String) -> [String] {
@@ -626,18 +731,19 @@ struct MarkdownRenderer {
 
         let colCount = rows.map(\.count).max() ?? 0
         let colWidths = columnWidths(rows, colCount: colCount, font: monoFont, textColor: textColor, paragraphStyle: style)
+        let alignments = columnAlignments(lines)
 
         let result = NSMutableAttributedString()
         for (rowIdx, row) in rows.enumerated() {
             let isHeader = rowIdx == 0
             let font = isHeader ? boldMonoFont : monoFont
-            let lineText = renderRow(row, widths: colWidths, font: font, textColor: textColor, paragraphStyle: style)
+            let lineText = renderRow(row, widths: colWidths, alignments: alignments, font: font, textColor: textColor, paragraphStyle: style)
             lineText.addAttribute(.backgroundColor, value: bgColor, range: NSRange(location: 0, length: lineText.length))
             result.append(lineText)
             result.append(NSAttributedString(string: "\n", attributes: [.font: monoFont]))
 
             if isHeader {
-                let divider = String(repeating: "\u{2500}", count: lineText.length)
+                let divider = String(repeating: "\u{2500}", count: displayWidth(lineText.string))
                 result.append(NSAttributedString(string: divider, attributes: [
                     .font: monoFont,
                     .foregroundColor: separatorColor,
@@ -659,15 +765,16 @@ struct MarkdownRenderer {
         for row in rows {
             for (col, cell) in row.enumerated() where col < colCount {
                 let rendered = parseInline(cell, baseFont: font, textColor: textColor, paragraphStyle: paragraphStyle)
-                widths[col] = max(widths[col], rendered.length)
+                widths[col] = max(widths[col], displayWidth(rendered.string))
             }
         }
         return widths
     }
 
     /// One row, each cell run through the same inline parse an ordinary line
-    /// gets, then padded on what it renders to.
-    private static func renderRow(_ row: [String], widths: [Int], font: NSFont, textColor: NSColor, paragraphStyle: NSParagraphStyle) -> NSMutableAttributedString {
+    /// gets, then padded on the columns it takes on screen, on the side its
+    /// column's alignment puts the padding.
+    private static func renderRow(_ row: [String], widths: [Int], alignments: [ColumnAlignment], font: NSFont, textColor: NSColor, paragraphStyle: NSParagraphStyle) -> NSMutableAttributedString {
         let attrs: [NSAttributedString.Key: Any] = [
             .font: font, .foregroundColor: textColor, .paragraphStyle: paragraphStyle
         ]
@@ -677,9 +784,11 @@ struct MarkdownRenderer {
                 line.append(NSAttributedString(string: " \u{2502} ", attributes: attrs))
             }
             let cell = parseInline(col < row.count ? row[col] : "", baseFont: font, textColor: textColor, paragraphStyle: paragraphStyle)
+            let alignment = col < alignments.count ? alignments[col] : .left
+            let padding = alignment.split(max(0, width - displayWidth(cell.string)))
+            line.append(NSAttributedString(string: String(repeating: " ", count: padding.before), attributes: attrs))
             line.append(cell)
-            let padding = max(0, width - cell.length)
-            line.append(NSAttributedString(string: String(repeating: " ", count: padding), attributes: attrs))
+            line.append(NSAttributedString(string: String(repeating: " ", count: padding.after), attributes: attrs))
         }
         line.append(NSAttributedString(string: " ", attributes: attrs))
         return line
