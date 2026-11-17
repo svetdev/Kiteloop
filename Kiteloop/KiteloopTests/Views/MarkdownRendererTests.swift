@@ -1116,6 +1116,85 @@ final class MarkdownRendererTests: XCTestCase {
         XCTAssertEqual(lines[1].count, lines[2].count, "The divider must match the row it divides")
     }
 
+    // MARK: - Table columns as the reader sees them
+
+    /// `✅` takes two columns on screen, so it pads its column as `ok` does and
+    /// the `│` after it sits in the same column on every row.
+    func testEmojiCellPadsAsTwoColumns() {
+        let table = """
+            | s | n |
+            |---|---|
+            | ✅ | 1 |
+            | ok | 2 |
+            """
+        let lines = MarkdownRenderer.render(table, isDark: false).string
+            .components(separatedBy: "\n")
+
+        XCTAssertEqual(lines[0], " s  \u{2502} n ")
+        XCTAssertEqual(lines[2], " ✅ \u{2502} 1 ")
+        XCTAssertEqual(lines[3], " ok \u{2502} 2 ")
+        XCTAssertEqual(lines[1], String(repeating: "\u{2500}", count: 8), "The divider is as wide as the header")
+    }
+
+    /// A CJK character takes two columns, so `日本` is as wide as `abcd`.
+    func testCJKCellPadsAsTwoColumnsPerCharacter() {
+        let table = """
+            | w | x |
+            |---|---|
+            | 日本 | a |
+            | abcd | b |
+            """
+        let lines = MarkdownRenderer.render(table, isDark: false).string
+            .components(separatedBy: "\n")
+
+        XCTAssertEqual(lines[0], " w    \u{2502} x ")
+        XCTAssertEqual(lines[2], " 日本 \u{2502} a ")
+        XCTAssertEqual(lines[3], " abcd \u{2502} b ")
+    }
+
+    /// `---:` pads before the text and `:---:` splits the padding, the odd space
+    /// after; a column with no colon stays left-aligned.
+    func testSeparatorColonsAlignTheirColumns() {
+        let table = """
+            | a | b | c |
+            |---|---:|:---:|
+            | x | 1 | y |
+            | x | 1234 | yyyy |
+            """
+        let lines = MarkdownRenderer.render(table, isDark: false).string
+            .components(separatedBy: "\n")
+
+        XCTAssertEqual(lines[0], " a \u{2502}    b \u{2502}  c   ")
+        XCTAssertEqual(lines[2], " x \u{2502}    1 \u{2502}  y   ")
+        XCTAssertEqual(lines[3], " x \u{2502} 1234 \u{2502} yyyy ")
+    }
+
+    /// A table written without its outer pipes is still a table: the header rule,
+    /// `│` between cells, its separator's alignment, and no `---` row.
+    func testTableWithoutOuterPipesRendersAsATable() {
+        let table = """
+            name | n
+            --- | ---:
+            a | 1
+            """
+        let rendered = MarkdownRenderer.render(table, isDark: false).string
+
+        XCTAssertEqual(
+            rendered,
+            " name \u{2502} n \n" + String(repeating: "\u{2500}", count: 10) + "\n a    \u{2502} 1 "
+        )
+        XCTAssertFalse(rendered.contains("---"))
+    }
+
+    /// A prose line holding ` | ` with no separator under it stays text.
+    func testProseLineWithAPipeIsNotATable() {
+        let rendered = MarkdownRenderer.render("use a | b here\nand more", isDark: false).string
+
+        XCTAssertEqual(rendered, "use a | b here\nand more")
+        XCTAssertFalse(rendered.contains("\u{2502}"))
+        XCTAssertFalse(rendered.contains("\u{2500}"))
+    }
+
     // MARK: - Copying one code block on its own
 
     /// Every index `needle` covers in the rendered string.
