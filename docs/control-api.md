@@ -2303,6 +2303,8 @@ curl -s -H "$H" "$B/spend?by=project&days=1"
   "from": "2026-11-17T08:00:00Z",
   "to": "2026-11-17T19:42:10Z",
   "basis": "token-equivalent",
+  "rateLimit": { "status": "allowed_warning", "window": "five_hour",
+                 "resetsAt": "2026-11-17T21:00:00Z", "utilization": 0.8 },
   "totalUSD": 6.4,
   "rows": [
     { "key": "/Users/me/code/kiteloop", "costUSD": 5.1, "count": 12 },
@@ -2315,6 +2317,7 @@ curl -s -H "$H" "$B/spend?by=project&days=1"
 |---|---|
 | `from`, `to` | The window, ISO 8601: local midnight `days − 1` days ago, through now |
 | `basis` | What kind of figure the dollars are: `usd` (billed spend), `token-equivalent` (a subscription login, where the CLI's figure is not a bill) or `mixed` when the window holds both |
+| `rateLimit` | The headroom subscription spend is drawn from: the rate-limit reading closest to its limit among every open project's agents — `status`, `window`, `resetsAt` (ISO 8601) and `utilization` (0…1) — when `basis` is `token-equivalent` or `mixed`. `null` for `usd` spend, or when no agent has reported a reading this launch. The same reading [`GET /v1/usage`](#get-v1usage) serves |
 | `totalUSD` | The sum of every row in the window |
 | `rows` | One per key, costliest first: `key`, `costUSD` and `count` (how many ledger rows it sums). A row with nothing to group by — no routine, no model — is under `unknown` |
 

@@ -200,6 +200,7 @@ Legend: `[x]` = implemented + tested, `[~]` = implemented, no test, `[ ]` = plan
 | [~] | Agent templates (save/load/instantiate) | `Services/TeamConfigManager.swift` | — |
 | [x] | Template store (CRUD persistence layer) | `Services/AgentCatalogStore.swift` | `AgentCatalogStoreTests.swift` |
 | [x] | Agent catalog store (task specialists) | `Services/AgentCatalogStore.swift` | `AgentCatalogStoreTests.swift` |
+| [x] | Pack inspection (File > Inspect Pack…: what a `pack.json` folder would add and be allowed to do, read-only, secret names never values) | `Models/PackManifest.swift`, `Services/PackInspector.swift` | `Services/PackInspectorTests.swift` |
 | [~] | Agent catalog UI | `Views/Settings/AgentCatalogView.swift` | — |
 | [~] | Template editor UI | `Views/Settings/AgentCatalogView.swift` | — |
 | [x] | Multi-project support (recent projects, switching) | `Services/ProjectStore.swift` | `Services/ProjectStoreTests.swift` |

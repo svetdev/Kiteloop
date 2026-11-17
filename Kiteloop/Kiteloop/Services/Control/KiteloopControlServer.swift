@@ -856,7 +856,8 @@ final class KiteloopControlServer {
         case .quiesceFleet: return await quiesceFleet(body: req.body)
         case .resumeFleet: return await resumeFleet()
         case .usage: return usage()
-        case .spend: return await SpendEndpoints(ledger: spendLedger).answer(req.query)
+        case .spend:
+            return await SpendEndpoints(ledger: spendLedger, readings: rateLimitReadings()).answer(req.query)
         case .attention: return await attention()
         case .appEvents: return appEvents(req)
         default: return Self.notThisArea(route)
@@ -912,9 +913,7 @@ final class KiteloopControlServer {
     /// `GET /v1/usage`: how close the agents are to their rate limit, and
     /// where the last day's spend went.
     private func usage() -> HTTPServer.Response {
-        let readings = registry.openProjects.flatMap { entry in
-            entry.session.chatViewModels.values.compactMap { $0.agentActivity.rateLimit }
-        }
+        let readings = rateLimitReadings()
         return .json([
             "rateLimit": UsageSummary.closest(readings).map(Self.rateLimitJSON) as Any? ?? NSNull(),
             "agentsReporting": readings.count,
@@ -922,7 +921,16 @@ final class KiteloopControlServer {
         ])
     }
 
-    private static func rateLimitJSON(_ reading: AgentActivityEvent.RateLimitInfo) -> [String: Any] {
+    /// The rate-limit reading each open project's agents last reported, for
+    /// `GET /v1/usage` and `GET /v1/spend` alike.
+    func rateLimitReadings() -> [AgentActivityEvent.RateLimitInfo] {
+        registry.openProjects.flatMap { entry in
+            entry.session.chatViewModels.values.compactMap { $0.agentActivity.rateLimit }
+        }
+    }
+
+    /// One reading as both endpoints serve it.
+    static func rateLimitJSON(_ reading: AgentActivityEvent.RateLimitInfo) -> [String: Any] {
         [
             "status": reading.status,
             "window": reading.window ?? NSNull(),
