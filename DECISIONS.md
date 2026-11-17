@@ -352,3 +352,10 @@ Entry format:
 **Why:** The verdict was computed at grooming and acted on only at pickup, when the model that wrote the citation was gone and the only one left to fix it was a person finding a parked draft. The bound is borrowed because the case is the same one — a machine check refused the work and its author gets the refusal — and a second number would have to be argued for separately.
 **Evidence:** `BacklogGroomer.propose`, `BacklogViewModel.writeGrooming`, `GroomingCorrectionTests.testTheRewordingThePromptAsksForClearsTheCheck`.
 **Status:** holds
+
+## [2026-11-17] Starting a run is answered by the autopilot's decision, not by a wait
+**Kind:** decision
+**What:** `POST /v1/runs` is held until the start is decided and has two answers: 202 with the execution's id, or 409/422 with the reason no run exists. The 202 `starting` reply with no id, and the background watch behind it, are gone. A start whose queue was accepted and which returns without creating an execution is decided as a refusal, `workflow-did-not-start`.
+**Why:** A fixed wait is a guess at how long deciding takes, and each time it was short the caller was told "don't know" and left to find out some other way whether a run existed. The pickup gates and the base check routinely decide later than any window worth holding.
+**Evidence:** `AttemptDecisions`, `BacklogAutopilot.awaitStartDecision(afterAttempt:)`, `settleStartDecision(since:)`; `AttemptDecisionsTests`, `KiteloopControlServerStartRunTests`.
+**Status:** holds — a second `start()` refused as `run-in-flight` while the first is still spinning up decides nothing; the first one's outcome answers both callers.

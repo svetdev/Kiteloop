@@ -2575,10 +2575,14 @@ package enum ControlAPISpec {
             still tearing down waits up to 30s for it rather than 409ing immediately. \
             Answers 202 with the workflow execution id — the runId every other run \
             endpoint takes, and which keeps answering after a restart as a historical \
-            record. A run that has not named itself within the spin-up window answers \
-            202 with status "starting" and no runId: it was accepted and is running, \
-            and the id can be read from GET /v1/autopilot (run.runId). A refusal is \
-            reported only when a gate actually refused, in that gate's words.
+            record. The request is held until the autopilot has decided: either it \
+            created the execution, and this answers 202 with its id, or no run will \
+            exist, and this answers 409 or 422 with the reason. It is never answered \
+            in between, so the wait covers the pickup gates (Definition-of-Ready, \
+            grounding), the base merge-verify check on a project that lands its own \
+            work, and agent spin-up — set the client timeout for that rather than \
+            for a quick acknowledgement. A refusal is reported only when a gate \
+            actually refused, in that gate's words.
             """,
             requestBody: object([
                 "project": described(string, "Project identifier."),
@@ -2586,10 +2590,10 @@ package enum ControlAPISpec {
                 "itemId": described(string, "Accepted as an alias for \"item\".")
             ], required: ["project"], anyOfRequired: [["item"], ["itemId"]]),
             responses: [
-                Status(code: 202, description: "The run has started, or was accepted and is still spinning up.", schema: ref("RunStarted")),
+                Status(code: 202, description: "The run has started: its workflow execution exists and runId names it.", schema: ref("RunStarted")),
                 errorStatus(400, "Body is missing \"project\" or \"item\"."),
                 errorStatus(404, "No such backlog item in this project."),
-                errorStatus(409, "A condition of the moment, not a verdict on the item: project not open, autopilot still busy, worker/reviewer not configured, agents without a session, or a spent daily ceiling. Come back."),
+                errorStatus(409, "A condition of the moment, not a verdict on the item: project not open, autopilot still busy, worker/reviewer not configured, agents without a session, a spent daily ceiling, or a queue that was accepted and ended before any workflow execution was created. Come back."),
                 errorStatus(422, "The pickup gates refused this item — not ready (Definition-of-Ready), not grounded, retired by the retry ceiling, or in a status autopilot doesn't run. True until the item is re-groomed, so a driver may drop it.")
             ]
         )
@@ -3580,13 +3584,11 @@ package enum ControlAPISpec {
         ], required: ["period", "summary", "empty", "rows", "total", "omittedProjects"]),
 
         "RunStarted": object([
-            "runId": described(string, "The workflow execution id — the runId every other run endpoint takes. Absent when status is \"starting\": the run was accepted but had not named itself before the response went out, and inventing an id would name a transcript that doesn't exist."),
+            "runId": described(string, "The workflow execution id — the runId every other run endpoint takes."),
             "item": string,
             "title": string,
-            "status": described(enumOf(["running", "starting"]),
-                                "\"starting\" means accepted and spinning up, not refused — read run.runId from GET /v1/autopilot, or post the item again (while it is in flight that answers 409 naming the run rather than starting it twice)."),
-            "detail": described(string, "Where to find the id. Present only when status is \"starting\".")
-        ], required: ["item", "title", "status"]),
+            "status": described(enumOf(["running"]), "Always \"running\": a 202 is sent only once the execution exists.")
+        ], required: ["runId", "item", "title", "status"]),
 
         "RunSummary": object(withRunCost([
             "runId": string,

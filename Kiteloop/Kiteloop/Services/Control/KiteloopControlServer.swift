@@ -3863,156 +3863,26 @@ final class KiteloopControlServer {
         // instant, and the opening lines ("Executing: …", the cost-cap line) are
         // written in that gap.
         let startedAt = Date()
-        let priorExec = autopilot.currentExecutionID
         let priorAttempt = autopilot.lastStartOutcome?.attempt ?? 0
         autopilot.selectedItemIDs = [itemId]
+        // Asked for and waited on in that order with nothing suspending in
+        // between: the wait is registered before the start has run a line, so
+        // its decision cannot land unobserved.
         Task { await autopilot.start() }
 
-        switch await awaitStart(autopilot: autopilot, priorExecutionID: priorExec,
-                                priorAttempt: priorAttempt,
-                                timeoutMilliseconds: Self.startPollMilliseconds) {
+        // Held until the autopilot has decided — an execution exists, or there
+        // will not be one — and for no particular length of time. This used to
+        // look for four seconds and then answer "accepted and spinning up" with
+        // no id, which left a driver to find out by other means whether the run
+        // existed; the pickup gates on a large tree, and the base check behind
+        // them, routinely decide later than any window worth holding a guess to.
+        switch await autopilot.awaitStartDecision(afterAttempt: priorAttempt) {
         case .started(let runId):
             track(RunInfo(runId: runId, projectID: entry.session.project.id, itemId: itemId, title: item.title, startedAt: startedAt))
             return .json(["runId": runId, "item": itemId, "title": item.title, "status": "running"], status: 202)
 
         case .refused(let outcome):
             return .error("Run did not start: \(outcome.detail)", status: Self.httpStatus(for: outcome))
-
-        case .pending:
-            // Nothing refused this. The workflow is spinning up and has not named
-            // itself yet, and the one thing this must not do is call that a
-            // failure: a driver reads 422 as permanent and drops the item for
-            // good — twice on 2026-08-10, once for an item that was executing as
-            // it read the refusal. 202 with no id says what is true, and points
-            // at the two places the id turns up once it exists.
-            watchPendingStart(entry: entry, autopilot: autopilot, item: item,
-                              priorExecutionID: priorExec, priorAttempt: priorAttempt, startedAt: startedAt)
-            return Self.startingReply(item: item)
-        }
-    }
-
-    /// The undecided answer: 202, no id, and where the id — or a late refusal —
-    /// will turn up.
-    private static func startingReply(item: BacklogItem) -> HTTPServer.Response {
-        .json([
-            "item": item.id,
-            "title": item.title,
-            "status": "starting",
-            "detail": "The run was accepted and is spinning up; its id was not available within "
-                    + "\(startPollMilliseconds) ms. Read it from GET /v1/autopilot?project= "
-                    + "(run.runId) or GET /v1/projects, or post this item again — while it is in "
-                    + "flight the 409 names the run rather than starting it twice. A pickup gate "
-                    + "that refuses it after this reply closes a did-not-run record in "
-                    + "GET /v1/runs?project= with the gate's reason, and writes it to the item's Notes."
-        ], status: 202)
-    }
-
-    /// Keeps watching a start this request answered `starting` for, until the
-    /// autopilot decides it, so a refusal that lands after the reply is not lost.
-    ///
-    /// The undecided 202 was right — a false 422 had dropped executing items —
-    /// but what followed it was silence: on 2026-09-03 the grounding check refused
-    /// an item after the window had closed, the refusal went to the metrics ledger
-    /// as a pickup refusal and nowhere a driver reads, and the reason only
-    /// appeared when the item was posted a second time. A started run needs
-    /// nothing from here (`adoptRun` opens it the moment the execution exists);
-    /// a refused one gets the record and the note it would have had inside the
-    /// window, and a watch that runs out of its own window records nothing.
-    private func watchPendingStart(entry: ControlSessionRegistry.Entry, autopilot: BacklogAutopilot,
-                                   item: BacklogItem, priorExecutionID: String?, priorAttempt: Int,
-                                   startedAt: Date) {
-        Task { [weak self] in
-            guard let self else { return }
-            let resolution = await self.awaitStart(autopilot: autopilot, priorExecutionID: priorExecutionID,
-                                                   priorAttempt: priorAttempt,
-                                                   timeoutMilliseconds: Self.pendingWatchMilliseconds)
-            guard case .refused(let outcome) = resolution else { return }
-            self.recordRefusedStart(entry: entry, item: item, outcome: outcome, startedAt: startedAt)
-        }
-    }
-
-    /// A pickup refusal as a run that did not run: one closed record, so
-    /// `GET /v1/runs` and `/result` answer for it, and one Notes line, so the
-    /// item itself says why nothing happened. The id carries the shape because
-    /// no execution ever existed to name it.
-    private func recordRefusedStart(entry: ControlSessionRegistry.Entry, item: BacklogItem,
-                                    outcome: BacklogAutopilot.StartOutcome, startedAt: Date) {
-        let run = RunInfo(runId: "did-not-run-" + UUID().uuidString.lowercased(),
-                          projectID: entry.session.project.id, itemId: item.id,
-                          title: item.title, startedAt: startedAt)
-        track(run)
-        closeAsDidNotRun(run, entry: entry, reason: outcome.detail)
-        entry.session.backlogViewModel.appendNote(itemID: item.id, "run did not start: \(outcome.detail)")
-    }
-
-    /// How long a `starting` reply's watch keeps waiting for the autopilot to
-    /// decide. Longer than the reply's own window because the pickup gates that
-    /// decide late do real work first — the grounding index reads every source
-    /// file in the tree — and a watch that gives up before them is the silence
-    /// this exists to end.
-    #if DEBUG
-    static var pendingWatchMilliseconds = 120_000
-    #else
-    static let pendingWatchMilliseconds = 120_000
-    #endif
-
-    /// How long `POST /v1/runs` waits for a starting run to name itself before it
-    /// answers `starting` instead of an id.
-    ///
-    /// Spin-up is agent sessions, possibly a worktree, then the workflow — usually
-    /// well inside this, occasionally not. What matters is that running out of it
-    /// is not an answer about whether the run started, only about whether this
-    /// request could name it yet.
-    #if DEBUG
-    /// A `var` under DEBUG only, so a test can reach the slow-spin-up path without
-    /// waiting the production window out.
-    static var startPollMilliseconds = 4_000
-    #else
-    static let startPollMilliseconds = 4_000
-    #endif
-
-    /// How often `awaitStart` looks.
-    private static let startPollStepMilliseconds = 100
-
-    /// What a start this server asked for turned out to be.
-    enum StartResolution: Equatable {
-        /// The workflow spun up; this is the id it is addressable by.
-        case started(runID: String)
-        /// A gate refused it, in that gate's own words.
-        case refused(BacklogAutopilot.StartOutcome)
-        /// Undecided: nothing refused it and no execution has appeared yet. Not a
-        /// refusal, and must never be reported as one.
-        case pending
-    }
-
-    /// Watches a start already asked for until a spinning-up run can be told
-    /// apart from a refused one.
-    ///
-    /// Polls rather than awaiting `start()`, which does not return until the whole
-    /// queue is done — waiting on it would mean answering the HTTP request when
-    /// the run was over. The refusal is read from `lastStartOutcome`, whose
-    /// `attempt` must be past `priorAttempt`: an earlier run's refusal is not an
-    /// answer about this request.
-    func awaitStart(
-        autopilot: BacklogAutopilot,
-        priorExecutionID: String?,
-        priorAttempt: Int,
-        timeoutMilliseconds: Int
-    ) async -> StartResolution {
-        var waited = 0
-        while true {
-            if let id = autopilot.currentExecutionID, id != priorExecutionID {
-                return .started(runID: id)
-            }
-            if let outcome = autopilot.lastStartOutcome, outcome.attempt > priorAttempt,
-               !outcome.isAccepted {
-                return .refused(outcome)
-            }
-            // An accepted outcome is not an answer yet — the id is still coming —
-            // so the wait runs on either way until the window closes.
-            guard waited < timeoutMilliseconds else { return .pending }
-            try? await Task.sleep(nanoseconds: UInt64(Self.startPollStepMilliseconds) * 1_000_000)
-            waited += Self.startPollStepMilliseconds
         }
     }
 
