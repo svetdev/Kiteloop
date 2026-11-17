@@ -1,8 +1,9 @@
 # knowledge/
 
 Agent packages live here. `agents/` starts empty on purpose — the app also
-loads the two bundled examples from `Kiteloop/examples/agents/`, so a fresh
-clone has a working pair without anything in this directory.
+loads the bundled packages from `Kiteloop/examples/agents/` — two examples and
+`project-setup` — so a fresh clone has a working pair without anything in this
+directory.
 
 This `knowledge/` is the repo's own; it is not inside any project you open.
 The app scans (`KnowledgePathResolver`) the knowledge repository you configure in
@@ -33,7 +34,9 @@ required: `handle` (`@name`, matching `^@[a-z0-9-]+$`), `version` (semver),
 `haiku` — concrete IDs resolve per backend) and `systemPrompt` (the prompt
 file's path, e.g. `profile.md`) — and `knowledge`, with its `critical`, `files`
 and `imports` lists. There is no `id`; the handle is the identity. `avatar`,
-`group`, a one-line `description` and the rest are optional. The app decodes
+`group`, a one-line `description` and the rest are optional —
+`operatorToolsEnabled: true` among them, which turns Operator tools on for the
+agent, off when absent; the setup wizard lists such a package unticked. The app decodes
 the file on load and refuses one missing a required key; the schema's patterns
 and enums are documentation for you, not something the app checks. What the
 agent sees is what `knowledge` declares: `critical` files are inlined into its

@@ -372,7 +372,8 @@ final class WorkspaceGeneratorTests: XCTestCase {
                     permissionMode: nil,
                     effort: nil,
                     thinkingEnabled: nil,
-                    runtimeKind: nil
+                    runtimeKind: nil,
+                    operatorToolsEnabled: nil
                 ),
                 knowledge: KnowledgeConfig(critical: critical, files: files, imports: imports)
             ),

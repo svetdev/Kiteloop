@@ -27,6 +27,10 @@ struct PackageTemplate: Codable, Sendable {
     let effort: String?
     let thinkingEnabled: Bool?
     let runtimeKind: String?
+    /// The "Operator tools" grant — control API credentials in the agent's
+    /// environment. Optional so a package written before the key still decodes;
+    /// absent means off.
+    let operatorToolsEnabled: Bool?
 }
 
 struct KnowledgeConfig: Codable, Sendable {
@@ -57,7 +61,8 @@ extension AgentPackage {
             description: template.description ?? "",
             avatar: template.avatar,
             group: template.group,
-            runtimeKind: template.runtimeKind
+            runtimeKind: template.runtimeKind,
+            operatorToolsEnabled: template.operatorToolsEnabled ?? false
         )
     }
 }

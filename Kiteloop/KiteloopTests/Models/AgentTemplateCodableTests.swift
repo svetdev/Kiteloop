@@ -472,4 +472,80 @@ final class AgentTemplateCodableTests: XCTestCase {
         XCTAssertEqual(AgentTemplate(from: decoded.instantiateAgent()).askFirst, ["Bash(gh pr comment:*)"])
         XCTAssertEqual(try decode(#"{ "name": "Old" }"#).askFirst, [], "a team file from before the field asks about nothing")
     }
+
+    // MARK: - Agent packages
+
+    private func package(operatorTools: String = "") throws -> AgentPackage {
+        try JSONDecoder().decode(AgentPackage.self, from: Data("""
+        {
+          "handle": "@desk", "version": "1.0.0",
+          "template": { "name": "Desk", "model": "sonnet", "systemPrompt": "profile.md"\(operatorTools) },
+          "knowledge": { "critical": [], "files": [], "imports": [] }
+        }
+        """.utf8))
+    }
+
+    func testAPackageThatTurnsOperatorToolsOnYieldsATemplateWithTheGrant() throws {
+        let granted = try package(operatorTools: #", "operatorToolsEnabled": true"#)
+
+        XCTAssertTrue(granted.toAgentTemplate().operatorToolsEnabled)
+        XCTAssertTrue(granted.toAgentTemplate(id: "desk-2").operatorToolsEnabled)
+    }
+
+    /// Every `agent.json` written before the key existed has none; it must keep
+    /// decoding, and must not gain the grant.
+    func testAPackageWithoutTheOperatorToolsKeyYieldsATemplateWithoutTheGrant() throws {
+        XCTAssertFalse(try package().toAgentTemplate().operatorToolsEnabled)
+        XCTAssertFalse(try package(operatorTools: #", "operatorToolsEnabled": false"#).toAgentTemplate().operatorToolsEnabled)
+    }
+
+    private func bundledPackage(_ name: String) throws -> (package: AgentPackage, directory: URL) {
+        let examples = try XCTUnwrap(KnowledgePathResolver.resolveBuiltInPath(), "the bundled examples were not found")
+        let directory = examples.appending(path: "agents/\(name)")
+        let data = try Data(contentsOf: directory.appending(path: "agent.json"))
+        return (try JSONDecoder().decode(AgentPackage.self, from: data), directory)
+    }
+
+    func testTheBundledSetupAgentDecodesWithTheGrantOnAndItsFilesPresent() throws {
+        let (package, directory) = try bundledPackage("project-setup")
+        let template = package.toAgentTemplate()
+
+        XCTAssertEqual(package.handle, "@project-setup")
+        XCTAssertTrue(template.operatorToolsEnabled)
+        XCTAssertEqual(template.denied, ["Edit", "Write"])
+        XCTAssertTrue(template.tools.contains("ask_human"))
+        XCTAssertEqual(package.knowledge.files, ["setup-interview.md"])
+        let files = [package.template.systemPrompt] + package.knowledge.files.map { "knowledge/\($0)" }
+        for file in files {
+            let path = directory.appending(path: file).path(percentEncoded: false)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: path), "\(file) is missing from the package")
+        }
+    }
+
+    /// The profile leaves the endpoints to the operator-tools note, which derives
+    /// them from the routing table; a list written here would drift from it.
+    func testTheSetupAgentsProfileAsksBeforeApplyingAndListsNoEndpoints() throws {
+        let (package, directory) = try bundledPackage("project-setup")
+        let profile = try String(contentsOf: directory.appending(path: package.template.systemPrompt), encoding: .utf8)
+
+        XCTAssertTrue(profile.contains("ask_human"))
+        XCTAssertFalse(profile.contains("KITELOOP_CONTROL_URL"))
+        XCTAssertFalse(profile.contains("/v1/"))
+    }
+
+    func testTheBundledExamplesGainNoOperatorTools() throws {
+        for name in ["example-coder", "example-reviewer"] {
+            XCTAssertFalse(try bundledPackage(name).package.toAgentTemplate().operatorToolsEnabled, name)
+        }
+    }
+
+    /// The wizard ticks every package it finds, and what is ticked is hired into
+    /// the home workspace — so a package carrying control API credentials is
+    /// listed unticked, for the person to choose.
+    func testTheSetupWizardDoesNotPreselectAPackageWithOperatorTools() throws {
+        let plain = try package()
+        let setup = try bundledPackage("project-setup").package
+
+        XCTAssertEqual(SetupWizardViewModel.preselectedAgentIDs(among: [plain, setup]), ["desk"])
+    }
 }
