@@ -60,7 +60,7 @@ final class OperatorToolsKnowledgeCoverageTests: XCTestCase {
 
     func testHumanGatesAppearOnlyInTheParagraphThatSaysTheyAnswer403() {
         let gates = ControlRouter.endpoints.filter(\.route.isHumanGate)
-        XCTAssertEqual(gates.count, 10)
+        XCTAssertEqual(gates.count, 11)
         let paragraphs = note.components(separatedBy: "\n\n")
         for gate in gates {
             let citation = "`\(OperatorToolsKnowledge.citation(gate))`"

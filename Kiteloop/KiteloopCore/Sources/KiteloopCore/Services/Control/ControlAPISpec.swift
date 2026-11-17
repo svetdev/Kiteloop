@@ -206,7 +206,8 @@ package enum ControlAPISpec {
              .listMetrics, .listEstimates, .listGrooming, .portfolioReport:
             return backlogDetail(for: route)
         case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot, .sittingSummary,
-             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents:
+             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents,
+             .answerConfigChange:
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
@@ -1982,7 +1983,8 @@ package enum ControlAPISpec {
         case .getAutopilot, .setAutopilot, .resetAutopilot,
              .pauseAutopilot, .resumeAutopilot, .sittingSummary:
             return autopilotDetail(for: route)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents,
+             .answerConfigChange:
             return fleetDetail(for: route)
         default:
             preconditionFailure("\(route) is not a queue route")
@@ -2187,9 +2189,39 @@ package enum ControlAPISpec {
         case .spendForecast: return spendForecastDetail()
         case .attention: return attentionDetail()
         case .appEvents: return appEventsDetail()
+        case .answerConfigChange: return answerConfigChangeDetail()
         default:
             preconditionFailure("\(route) is not a fleet route")
         }
+    }
+
+    private static func answerConfigChangeDetail() -> Detail {
+        return Detail(
+            id: "answerConfigChange",
+            summary: "Approve or decline a configuration change an agent asked for",
+            description: """
+            A configuration change made with the operator token or a scoped token does \
+            not apply until a person answers it: its request stays open, and GET \
+            /v1/attention lists it as a `configChange` row whose `answer` is this call. \
+            Approving writes the decision to the change log and then lets the held \
+            request apply and answer as it would have; declining answers it 403. A \
+            change whose caller has hung up applies nothing whatever is answered \
+            (`abandoned`). Only the control token or a paired phone may call this.
+            """,
+            requestBody: object([
+                "approve": described(bool, "true applies the change, false declines it.")
+            ], required: ["approve"]),
+            responses: [
+                Status(code: 200, description: "The change was answered.", schema: object([
+                    "id": string,
+                    "decision": described(string, "approved, denied or abandoned.")
+                ], required: ["id", "decision"])),
+                errorStatus(400, "The body has no boolean \"approve\"."),
+                errorStatus(403, "The caller holds the operator token or a scoped token: only a person answers this."),
+                errorStatus(404, "No change with this id is waiting."),
+                errorStatus(500, "The approval could not be written to the change log, so the change was refused.")
+            ]
+        )
     }
 
     private static func appEventsDetail() -> Detail {
@@ -2226,13 +2258,14 @@ package enum ControlAPISpec {
         ], required: ["method", "path"])
         let row = object([
             "id": string,
-            "kind": described(string, "approval, question, plan, prompt or stale."),
+            "kind": described(string, "approval, question, plan, prompt, stale or configChange."),
             "project": project,
             "itemId": described(nullable(string), "For approval and stale rows."),
             "agentId": described(nullable(string), "For question, plan and prompt rows."),
             "title": string,
             "detail": nullable(string),
             "since": described(nullable(string), "When it started waiting, ISO 8601; null when its notice is gone."),
+            "caller": described(nullable(string), "For a configChange row: the credential that asked — operator, or a scoped token's name and scope."),
             "gateRefusal": described(nullable(string), "The merge gate's refusal, for an approval row it refused."),
             "staleFileCount": described(nullable(integer), "Files that conflict with the base, for an approval row."),
             "answer": answer
@@ -2244,8 +2277,10 @@ package enum ControlAPISpec {
             The same list the app's waiting drawer draws, oldest first — a row whose \
             notice is gone (`since` null) at the top: items at the approval gate, agents \
             holding an unanswered `ask_human` (question), an open plan card (plan) or an \
-            open permission or choices card (prompt), and items nothing has touched in a \
-            while (stale). Each row's `answer` names the call that deals with it. A \
+            open permission or choices card (prompt), items nothing has touched in a \
+            while (stale), and configuration changes an agent asked for over this API \
+            that wait on your approval (configChange — its `project` fields are empty \
+            strings when the change is to the app as a whole). Each row's `answer` names the call that deals with it. A \
             snapshot; GET /v1/events streams the notices behind it.
             """,
             responses: [

@@ -1,8 +1,9 @@
 import Foundation
 
-/// Every configuration change an agent asked for through its own tools that
-/// waited on a person's approval (`GlobalConfig.agentChangesNeedingApproval`),
-/// approved or denied — one line each.
+/// Every configuration change an agent asked for that waited on a person's
+/// approval, one line each: through its own tools
+/// (`GlobalConfig.agentChangesNeedingApproval`), approved or denied, or over
+/// the control API (`ConfigChangeGate`), approved, denied or abandoned.
 ///
 /// Project-local, JSONL-backed at `<project>/.kiteloop/config-changes.jsonl`,
 /// written the way `FindingOverrideLedger` is.
@@ -12,6 +13,9 @@ package enum ConfigChangeLog {
     package enum Decision: String, Codable, Sendable {
         case approved
         case denied
+        /// A change asked for over the control API whose caller hung up
+        /// before the answer: nothing was applied, whatever was answered.
+        case abandoned
     }
 
     /// One decided request: who asked, what kind of change through which tool,
@@ -35,6 +39,20 @@ package enum ConfigChangeLog {
             self.decision = decision
             self.at = at
         }
+
+        /// A change asked for over the control API, in the same columns: the
+        /// credential's name as who asked, `api` as the kind, the method and
+        /// path as the tool, and the request's summary as what it asked for.
+        package init(caller: String, route: String, summary: String, decision: Decision, at: Date) {
+            self.init(requestedBy: caller, kind: "api", tool: route, before: "", after: summary,
+                      decision: decision, at: at)
+        }
+    }
+
+    /// Where the log of changes to the app as a whole lives: those a call
+    /// names no open project for, such as an MCP server or an app setting.
+    package static func url(appDirectory: URL) -> URL {
+        appDirectory.appending(path: "config-changes.jsonl")
     }
 
     /// Where a project's change log lives.

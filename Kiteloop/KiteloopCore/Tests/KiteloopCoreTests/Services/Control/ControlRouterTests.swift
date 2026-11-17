@@ -100,6 +100,7 @@ final class ControlRouterTests: XCTestCase {
             ("GET",  "/v1/spend/forecast",      .spendForecast),
             ("GET",  "/v1/attention",           .attention),
             ("GET",  "/v1/events",              .appEvents),
+            ("POST", "/v1/config-changes/c1/answer", .answerConfigChange(id: "c1")),
             ("GET",  "/v1/memory/proposals",    .listMemoryProposals),
             ("POST", "/v1/memory/proposals/approve", .approveMemoryProposal),
             ("POST", "/v1/memory/proposals/reject",  .rejectMemoryProposal),
@@ -146,6 +147,7 @@ final class ControlRouterTests: XCTestCase {
         let expected: [(ControlRoute, ControlScope)] = [
             (.listBacklog, .read),
             (.attention, .read),
+            (.answerConfigChange(id: "c"), .operate),
             (.sittingSummary, .read),
             (.runStatus(runID: "r"), .read),
             (.agentTranscript, .read),
@@ -292,6 +294,9 @@ final class ControlRouterTests: XCTestCase {
         XCTAssertTrue(ControlRoute.approveBacklogItem.isHumanGate)
         XCTAssertTrue(ControlRoute.approveRun(runID: "exec-1").isHumanGate)
         XCTAssertTrue(ControlRoute.landBacklogItem.isHumanGate)
+        // Answering a configuration change an agent asked for is a person's
+        // call for the same reason: the agent must not approve its own.
+        XCTAssertTrue(ControlRoute.answerConfigChange(id: "c1").isHumanGate)
 
         let everythingElse: [ControlRoute] = [
             .health, .listProjects, .openProject, .reorderProjects, .hireAgent, .listBacklog,

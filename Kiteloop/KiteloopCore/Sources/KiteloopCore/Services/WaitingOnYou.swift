@@ -49,6 +49,10 @@ package struct WaitingOnYou: Equatable, Sendable {
             /// same question: what does only a person here move forward. The
             /// row goes to the item's own page.
             case stale(itemID: String)
+            /// A configuration change an agent asked for over the control
+            /// API, held until a person approves or declines it
+            /// (`HeldConfigChanges`). The row opens the card that answers it.
+            case configChange(requestID: String)
         }
 
         /// Keyed on the gate rather than on the notice: the notice can be
@@ -82,7 +86,8 @@ package struct WaitingOnYou: Equatable, Sendable {
         package let gateRefusal: String?
         /// For a `.question` row: the asking agent's display name. The gate
         /// keeps the id, which is what the chat is opened by; this is only
-        /// what the row says. Nil for the other kinds.
+        /// what the row says. For a `.configChange` row: the credential that
+        /// asked. Nil for the other kinds.
         package let agentName: String?
 
         /// The row's second line: what it is, and where.
@@ -96,6 +101,7 @@ package struct WaitingOnYou: Equatable, Sendable {
                 return "\(base) · stale · \(staleFileCount) \(files)\(refused)"
             case .question(let agentID): return "\(agentName ?? agentID) · \(projectName)"
             case .stale(let itemID): return "\(itemID) · \(projectName)"
+            case .configChange: return "\(agentName ?? "an agent") · \(projectName)"
             }
         }
 
@@ -231,6 +237,11 @@ package struct WaitingOnYou: Equatable, Sendable {
         rows.count { if case .stale = $0.gate { true } else { false } }
     }
 
+    /// Configuration changes asked for over the control API, waiting on an answer.
+    package var configChanges: Int {
+        rows.count { if case .configChange = $0.gate { true } else { false } }
+    }
+
     /// The footer's line: what is waiting, by kind. A gate, a question and a
     /// stale flag are each cleared (or, for a flag, simply noticed) in a
     /// different place and take a different amount of a person, so the
@@ -241,6 +252,9 @@ package struct WaitingOnYou: Equatable, Sendable {
         if approvals > 0 { parts.append("\(approvals) \(approvals == 1 ? "approval" : "approvals")") }
         if questions > 0 { parts.append("\(questions) \(questions == 1 ? "question" : "questions")") }
         if staleFlags > 0 { parts.append("\(staleFlags) stale") }
+        if configChanges > 0 {
+            parts.append("\(configChanges) \(configChanges == 1 ? "change" : "changes") to approve")
+        }
         return parts.joined(separator: " · ")
     }
 
@@ -253,8 +267,32 @@ package struct WaitingOnYou: Equatable, Sendable {
     /// things, and either way it has been sitting there longer than anything
     /// that still has a timestamp. Ties break on project then id, so a refresh
     /// that changes nothing redraws the same order.
-    package static func capture(projects: [ProjectReading]) -> WaitingOnYou {
-        WaitingOnYou(rows: projects.flatMap(rows(for:)).sorted(by: precedes))
+    package static func capture(projects: [ProjectReading],
+                                configChanges: [HeldConfigChange] = []) -> WaitingOnYou {
+        WaitingOnYou(rows: (projects.flatMap(rows(for:)) + configChanges.map(row(for:))).sorted(by: precedes))
+    }
+
+    /// What a change to the app as a whole is filed under, where a row names
+    /// its project.
+    package static let wholeApp = "Kiteloop"
+
+    /// A held configuration change as a row: the call as its title, what it
+    /// would change as its detail. One that names no open project carries
+    /// empty project fields and reads as the app's.
+    private static func row(for change: HeldConfigChange) -> Row {
+        Row(
+            id: "config-change:\(change.id)",
+            projectID: change.project?.id ?? "",
+            projectName: change.project?.name ?? wholeApp,
+            projectPath: change.project?.path ?? "",
+            gate: .configChange(requestID: change.id),
+            title: change.route,
+            detail: change.callerGone
+                ? "the caller has gone — answering clears this and applies nothing · \(change.summary)"
+                : change.summary,
+            since: change.askedAt,
+            agentName: change.caller
+        )
     }
 
     /// One project's gates, dressed with whatever its inbox is still holding

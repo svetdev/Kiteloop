@@ -121,9 +121,15 @@ final class KiteloopControlServerAuthTests: XCTestCase {
     }
 
     /// A config write — `PUT /v1/autopilot` — is authorized under the operator
-    /// token exactly as under the full one, per the acceptance criterion: the
-    /// operator token authorizes a config write, a run start, and every read.
+    /// token exactly as under the full one once the hold on an agent's
+    /// configuration changes is switched off. With it on, the default, the
+    /// call waits on a card (`KiteloopControlServerConfigChangeGateTests`).
     func testOperatorTokenReachesAConfigWriteRouteHandler() async throws {
+        let settings = GlobalConfigStore(
+            storageURL: try makeTemporaryDirectory(prefix: "control-auth").appending(path: "global.json"))
+        settings.setAgentAPIChangesNeedApproval(false)
+        harness.server.settings = settings
+        defer { withExtendedLifetime(settings) {} }
         let body = Data(#"{}"#.utf8)
         let (operatorStatus, _) = try await request(method: "PUT", path: "/v1/autopilot",
                                                      authorization: "Bearer \(operatorToken)", body: body)

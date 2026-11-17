@@ -353,6 +353,7 @@ struct MenuBarView: View {
         case .approval: "hand.raised"
         case .question: "questionmark.circle"
         case .stale: "clock.badge.exclamationmark"
+        case .configChange: "gearshape.2"
         }
     }
 
@@ -361,6 +362,7 @@ struct MenuBarView: View {
         case .approval: .orange
         case .question: .blue
         case .stale: .yellow
+        case .configChange: .orange
         }
     }
 

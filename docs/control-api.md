@@ -48,9 +48,9 @@ authorize:
 | Token | File | Authorized for |
 |---|---|---|
 | **Control token** | `~/.kiteloop/control-token` | The whole API. This is the operator's own credential. |
-| **Operator token** | `~/.kiteloop/operator-token` | The whole API **except** the endpoints that resolve a [human gate](#human-gates), which answer **403** for this token. |
+| **Operator token** | `~/.kiteloop/operator-token` | The whole API **except** the endpoints that resolve a [human gate](#human-gates), which answer **403** for this token. A [configuration change](#configuration-changes-wait-on-a-person) it makes waits on a card until you answer it. |
 | **Phone token** | `~/.kiteloop/control-devices.json` (its SHA-256 only) | The whole API, as the control token. Minted for that one phone when it claims the one-time code **Pair a phone** shows ([`POST /v1/pair`](#post-v1pair)); revoked alone under **Settings → Control API → Paired phones**, leaving the other phones and the control token working. |
-| **Scoped token** | `~/.kiteloop/control-scoped-tokens.json` (its SHA-256 only) | The routes inside its scope: `read`, `operate` or `configure`. Scopes nest — `configure` includes `operate`, which includes `read`. A route outside the scope answers **403** naming the scope the token lacks, e.g. `this token's scope is read; POST /v1/runs needs operate`. No scoped token resolves a [human gate](#human-gates), calls `/v1/tokens` or mints or revokes a [routine's webhook](#post-v1hooks): all answer **403**. Minted and revoked with the control token over [`/v1/tokens`](#post-v1tokens). |
+| **Scoped token** | `~/.kiteloop/control-scoped-tokens.json` (its SHA-256 only) | The routes inside its scope: `read`, `operate` or `configure`. Scopes nest — `configure` includes `operate`, which includes `read`. A route outside the scope answers **403** naming the scope the token lacks, e.g. `this token's scope is read; POST /v1/runs needs operate`. No scoped token resolves a [human gate](#human-gates), calls `/v1/tokens` or mints or revokes a [routine's webhook](#post-v1hooks): all answer **403**. Minted and revoked with the control token over [`/v1/tokens`](#post-v1tokens). A [configuration change](#configuration-changes-wait-on-a-person) made with a `configure` token waits on a card until you answer it. |
 
 #### Human gates
 
@@ -75,9 +75,73 @@ its scope, get **403** before the handler runs:
   [`POST /v1/agents/mode`](#post-v1agentsmode), and
   [`POST /v1/agents/message`](#post-v1agentsmessage) when the message is
   `/mode <name>`, which the chat would run as that change.
+- Answering a configuration change an agent asked for over this API:
+  [`POST /v1/config-changes/{id}/answer`](#post-v1config-changesidanswer) — see
+  [below](#configuration-changes-wait-on-a-person).
 
 Nothing in the app has one agent answer another's card, so an agent holding the
 operator token cannot clear a card — its own included — by calling the API.
+
+#### Configuration changes wait on a person
+
+A call that changes how a team, a project or the app is set up, made with the
+**operator token or a scoped token**, does not apply when it arrives. The
+server files one card — a row in the app's **Waiting on you** drawer and in
+[`GET /v1/attention`](#get-v1attention) — and **holds the request open, with no
+time limit,** until a person answers it:
+
+- **Approved** — the decision is written to the change log, then the call
+  applies and answers exactly as it would have.
+- **Declined** — the call answers **403** `{"error": "declined by the person"}`
+  and nothing changes.
+- **The log line cannot be written** — the call answers **500** with the
+  reason and nothing changes: a change is never applied unrecorded.
+- **The caller hangs up first** — the card stays, so you see what was asked,
+  marked as no longer waiting; answering it applies nothing and is logged as
+  `abandoned`. Give a held call a long client timeout (`curl --max-time 0`).
+
+Which calls: every route that needs the `configure` scope and is not a read.
+That is `POST`/`PATCH`/`DELETE /v1/agents` (tools, refused calls, always-ask
+rules and `permissionMode` included), `PUT`/`DELETE /v1/mcp-servers/{name}`,
+`PUT /v1/settings`, `PUT /v1/projects/settings`, `POST /v1/projects/close`,
+`/reorder` and `/pin`, `PUT`/`DELETE /v1/routines/{id}`, `PUT /v1/autopilot`
+(the autonomy dial and `approveReviewPassedRuns` included),
+`POST /v1/autopilot/reset`, `PUT /v1/coordinator/refill` and `/scheduling`,
+every write under `/v1/memory` and `/v1/knowledge`, `PATCH`/`DELETE
+/v1/backlog/items`, `POST /v1/backlog/templates/stamp`, `DELETE
+/v1/agents/chats` and the two `/v1/devices` registrations. The set is read off
+the scope each route already carries, so a configure route added later is held
+too. Reads, and the `operate` routes — messaging an agent, starting a run,
+moving an item, pausing — are not held. `/v1/tokens` and `/v1/hooks` answer
+403 for these tokens before any card is filed.
+
+**The control token and a paired phone are never held**, and neither is
+anything done in the app itself: the decision is made on the credential, not
+the route.
+
+The card says who asked (`operator`, or a scoped token's name and scope), the
+method and path, and the call's query and JSON body **with secrets left out**:
+every value inside an `env` or `headers` object, the value of any field named
+like a secret (`token`, `secret`, `password`, `authorization`, `credential`, or
+ending in `key`), and the user, password and query string of any URL are
+replaced with `<redacted>`. Names stay, so the card still says which variable
+or header is being set. An MCP server's `command` and `args` are shown as
+sent — a secret passed as a command-line argument is visible on the card and
+in the log.
+
+Every decision is one line of `config-changes.jsonl` — in
+`<project>/.kiteloop/` when the call names an open project, else in
+`~/.kiteloop/` — the same file and columns an agent's own
+`hire_agent`/`fire_agent` decisions use: `requestedBy` (the credential), `kind`
+(`api`), `tool` (the method and path), `after` (the redacted summary),
+`decision` (`approved`, `denied` or `abandoned`) and `at`.
+
+The hold is **on by default**. **Settings → General → Local Control API → Agents'
+configuration changes wait for my approval** switches it off, as does
+`"agentAPIChangesNeedApproval": false` over [`PUT /v1/settings`](#put-v1settings)
+— which, called with the operator token or a scoped token, is itself a held
+change, so the tokens the hold applies to cannot lift it. With it off, those
+tokens change configuration at once and nothing is logged.
 
 Both shared tokens are minted the same way, at first use, `0600`: `cat ~/.kiteloop/control-token`
 / `cat ~/.kiteloop/operator-token`. The Settings pane shows the control token's
@@ -188,6 +252,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | GET | `/v1/spend/forecast` | What each routine's next run and each project's month will probably cost, from the spend ledger |
 | GET | `/v1/attention` | Everything waiting on you across every open project, oldest first, each row naming the call that answers it |
 | GET | `/v1/events` | Every open project's inbox notices as one live, resumable SSE stream |
+| POST | `/v1/config-changes/{id}/answer` | Approve or decline a configuration change an agent asked for over this API — a [human gate](#human-gates) |
 | GET | `/v1/memory/proposals?project=` | List a project's pending memory proposals |
 | POST | `/v1/memory/proposals/approve` | Approve one — applies it to the agent's memory |
 | POST | `/v1/memory/proposals/reject` | Reject one — takes it off the list, writes nothing |
@@ -2541,15 +2606,44 @@ curl -s -H "$H" $B/attention
 | `count` | How many rows |
 | `summary` | What is waiting, by kind — `nothing is waiting on you` when the list is empty |
 | `rows` | Longest-waiting first; a row whose notice is gone (`since` null) sorts to the top. Ties break on project name, then row id |
-| `kind` | `approval` — an item at the approval gate; `question` — an agent holding an unanswered `ask_human`; `plan` — an agent with an open plan card; `prompt` — an agent stopped on a permission or choices card; `stale` — an open item nothing has touched in a while |
-| `itemId` / `agentId` | The item (approval, stale) or the agent (question, plan, prompt) the row is about; the other is `null` |
-| `title` / `detail` | What is waiting, and the notice's own words (for an approval refused at the merge gate, the refusal) |
+| `kind` | `approval` — an item at the approval gate; `question` — an agent holding an unanswered `ask_human`; `plan` — an agent with an open plan card; `prompt` — an agent stopped on a permission or choices card; `stale` — an open item nothing has touched in a while; `configChange` — a [configuration change](#configuration-changes-wait-on-a-person) an agent asked for over this API, held until you answer |
+| `itemId` / `agentId` | The item (approval, stale) or the agent (question, plan, prompt) the row is about; the other is `null`. Both are `null` on a `configChange` row |
+| `caller` | For a `configChange` row: the credential that asked — `operator`, or a scoped token's name and scope; else `null` |
+| `project` | The row's project. On a `configChange` row whose call names no open project — an app setting, an MCP server — `id` and `path` are empty and `name` is `Kiteloop` |
+| `title` / `detail` | What is waiting, and the notice's own words (for an approval refused at the merge gate, the refusal). For a `configChange` row: the method and path, and the call's query and body with secrets left out |
 | `since` | When it started waiting, ISO 8601 — the notice's time, or a stale item's last touch |
 | `gateRefusal` | For an approval row: the merge gate's refusal, verbatim, when it already ran and said no; else `null` |
 | `staleFileCount` | For an approval row: how many files conflict with the base right now; `null` when clean or unchecked |
-| `answer` | The call that deals with the row: approval → `POST /v1/backlog/approve`, question → `POST /v1/agents/answer`, plan → `POST /v1/agents/plan`, prompt → `POST /v1/agents/permission`, stale → `GET /v1/backlog/detail` |
+| `answer` | The call that deals with the row: approval → `POST /v1/backlog/approve`, question → `POST /v1/agents/answer`, plan → `POST /v1/agents/plan`, prompt → `POST /v1/agents/permission`, stale → `GET /v1/backlog/detail`, configChange → `POST /v1/config-changes/<its id>/answer` |
 
 **Status:** 200
+
+---
+
+### POST /v1/config-changes/{id}/answer
+
+Answers a [configuration change held for a person](#configuration-changes-wait-on-a-person).
+`{id}` is in the `answer.path` of its `configChange` row in
+[`GET /v1/attention`](#get-v1attention). A [human gate](#human-gates): the
+control token or a paired phone only.
+
+```bash
+curl -s -X POST -H "$H" -d '{"approve": true}' $B/config-changes/$ID/answer
+```
+
+```json
+{"id": "6F1C…", "decision": "approved"}
+```
+
+`approve` is required: `true` writes the decision to the change log and lets
+the held call apply; `false` answers it 403. `decision` is `approved`, `denied`
+or `abandoned` — the caller had hung up, so the card was cleared and nothing
+applied, whichever was sent.
+
+**Status:** 200 · 400 (no boolean `approve`) · 401 · 403 (the
+[operator token](#authentication) or a scoped token) · 404 (no change with that
+id is waiting) · 500 (the approval could not be written to the change log, so
+the change was refused)
 
 ---
 
@@ -3248,10 +3342,14 @@ Removes a server. Agents that name it keep the name and are given nothing for it
 The app's own settings.
 
 ```json
-{"defaultModel": null, "defaultEffort": "high", "soundTheme": "soft", "automaticUpdateChecks": true}
+{"defaultModel": null, "defaultEffort": "high", "soundTheme": "soft", "automaticUpdateChecks": true,
+ "agentAPIChangesNeedApproval": true}
 ```
 
 `soundTheme` is `soft` (Kiteloop's own sounds), `system` or `silent`.
+`agentAPIChangesNeedApproval` is whether a
+[configuration change](#configuration-changes-wait-on-a-person) made with the
+operator token or a scoped token waits on a card; `true` unless switched off.
 
 **Status:** 200 · 503 (no settings store attached)
 
@@ -3259,10 +3357,13 @@ The app's own settings.
 
 Changes them: any of the fields the read returns. `null` clears
 `defaultModel` or `defaultEffort`. The change is checked whole before any of it
-is written.
+is written. Like every configuration change, it is
+[held for a person](#configuration-changes-wait-on-a-person) when made with
+the operator token or a scoped token — `agentAPIChangesNeedApproval` included,
+so those tokens cannot switch the hold off themselves.
 
 **Status:** 200 · 400 (a mistyped field, an unknown effort or sound theme, or
-nothing to change) · 503
+nothing to change) · 403 (held, and declined by the person) · 503
 
 ### POST /v1/agents/message
 

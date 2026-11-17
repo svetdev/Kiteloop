@@ -82,7 +82,8 @@ struct AppSettingsEndpoints {
         var json: [String: Any] = [
             "defaultModel": settings.config.defaultModel ?? NSNull(),
             "defaultEffort": settings.config.defaultEffort ?? NSNull(),
-            "soundTheme": SoundTheme(stored: server.defaults.string(forKey: SoundTheme.defaultsKey)).rawValue
+            "soundTheme": SoundTheme(stored: server.defaults.string(forKey: SoundTheme.defaultsKey)).rawValue,
+            "agentAPIChangesNeedApproval": settings.config.agentAPIChangesNeedApproval ?? true
         ]
         if let updater = server.updater { json["automaticUpdateChecks"] = updater.automaticallyChecksForUpdates }
         return json
@@ -94,19 +95,23 @@ struct AppSettingsEndpoints {
         if let effort = edit.defaultEffort { settings.setDefaultEffort(effort) }
         if let theme = edit.soundTheme { server.defaults.set(theme.rawValue, forKey: SoundTheme.defaultsKey) }
         if let checks = edit.automaticUpdateChecks { server.updater?.automaticallyChecksForUpdates = checks }
+        if let held = edit.agentAPIChangesNeedApproval { settings.setAgentAPIChangesNeedApproval(held) }
         return .json(settingsJSON(settings))
     }
 }
 
 /// The app settings a request names, checked before any of them is written.
 struct AppSettingsEdit {
-    static let fields = ["defaultModel", "defaultEffort", "soundTheme", "automaticUpdateChecks"]
+    static let fields = ["defaultModel", "defaultEffort", "soundTheme", "automaticUpdateChecks",
+                         "agentAPIChangesNeedApproval"]
 
     /// `.some(nil)` clears the default.
     var defaultModel: String??
     var defaultEffort: String??
     var soundTheme: SoundTheme?
     var automaticUpdateChecks: Bool?
+    /// Whether an agent's configuration changes over the API wait on a person.
+    var agentAPIChangesNeedApproval: Bool?
 
     init(fields: [String: Any], canSetUpdateChecks: Bool) throws {
         guard Self.fields.contains(where: { fields[$0] != nil }) else {
@@ -118,7 +123,16 @@ struct AppSettingsEdit {
             throw ControlRefusal("\"defaultEffort\" must be null or one of: \(AgentEdit.effortLevels.joined(separator: ", "))", status: 400)
         }
         soundTheme = try Self.theme(fields["soundTheme"])
-        automaticUpdateChecks = try Self.updateChecks(fields["automaticUpdateChecks"], canSet: canSetUpdateChecks)
+        automaticUpdateChecks = try Self.updateChecks(fields, canSet: canSetUpdateChecks)
+        agentAPIChangesNeedApproval = try Self.flag(fields, "agentAPIChangesNeedApproval")
+    }
+
+    private static func flag(_ fields: [String: Any], _ key: String) throws -> Bool? {
+        guard let value = fields[key] else { return nil }
+        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
+            throw ControlRefusal("\"\(key)\" must be true or false", status: 400)
+        }
+        return number.boolValue
     }
 
     private static func optionalText(_ fields: [String: Any], _ key: String) throws -> String?? {
@@ -136,12 +150,9 @@ struct AppSettingsEdit {
         return theme
     }
 
-    private static func updateChecks(_ value: Any?, canSet: Bool) throws -> Bool? {
-        guard let value else { return nil }
-        guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
-            throw ControlRefusal("\"automaticUpdateChecks\" must be true or false", status: 400)
-        }
+    private static func updateChecks(_ fields: [String: Any], canSet: Bool) throws -> Bool? {
+        guard let checks = try flag(fields, "automaticUpdateChecks") else { return nil }
         guard canSet else { throw ControlRefusal("This Kiteloop has no updater attached", status: 503) }
-        return number.boolValue
+        return checks
     }
 }

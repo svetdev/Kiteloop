@@ -167,6 +167,14 @@ class GlobalConfigStore {
         save()
     }
 
+    /// Whether an agent's configuration changes over the control API wait on
+    /// a person (`ConfigChangeGate`). Holding them is the default, so `true`
+    /// is stored as unset.
+    func setAgentAPIChangesNeedApproval(_ held: Bool) {
+        config.agentAPIChangesNeedApproval = held ? nil : false
+        save()
+    }
+
     func setControlServer(enabled: Bool, port: Int) {
         config.controlServerEnabled = enabled
         config.controlServerPort = port

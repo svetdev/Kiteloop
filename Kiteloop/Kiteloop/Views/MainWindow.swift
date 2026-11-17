@@ -48,6 +48,10 @@ struct MainWindow: View {
     /// portfolio-wide and the gate it keeps is read on the path that starts
     /// runs; this window shows it and takes the operator's clicks.
     let fleetQuiesce: FleetQuiesceControl
+    /// The control server, for the configuration changes agents asked for
+    /// over it that wait on a person — the waiting drawer lists them and
+    /// their card answers through it.
+    let controlServer: KiteloopControlServer
 
     @State private var openProjects: [KiteloopProject] = []
     @State private var activeProjectID: String?
@@ -58,6 +62,8 @@ struct MainWindow: View {
     /// decides, through its configured mode (`Agent.initialPermissionMode`).
     @State private var selectedPermissionMode: String?
     @State private var showingNewAgent = false
+    /// The held configuration change whose card is up, by its request id.
+    @State private var answeringConfigChange: String?
     @State private var showingProjectSettings = false
     /// The page the settings sheet opens on: General from the sidebar entry,
     /// Autopilot from the gear on the Autopilot tab.
@@ -182,7 +188,7 @@ struct MainWindow: View {
     private var waitingOnYou: WaitingOnYou {
         WaitingOnYou.capture(projects: openProjects.compactMap { project in
             sessions[project.id]?.waitingReading(pending: pendingNotices[project.id] ?? [])
-        })
+        }, configChanges: controlServer.configChanges.waiting)
     }
 
     /// The grooming budget the footer reads, or nil with the loop unwired —
@@ -456,6 +462,7 @@ struct MainWindow: View {
                 )
             }
         }
+        .modifier(HeldConfigChangeSheet(controlServer: controlServer, requestID: $answeringConfigChange))
         .sheet(item: projectSettingsSheetPage) { page in
             if let session = currentSession {
                 ProjectSettingsView(
@@ -2009,6 +2016,12 @@ struct MainWindow: View {
     /// three gates in a row should not mean reopening it twice; each row leaves
     /// the list as its gate closes.
     private func openGate(_ row: WaitingOnYou.Row) {
+        // A held configuration change belongs to no tab: its card opens over
+        // whatever is in front.
+        if case .configChange(let requestID) = row.gate {
+            answeringConfigChange = requestID
+            return
+        }
         // The rows were built from `openProjects` in this same pass, so the only
         // way to miss here is a project closed between the draw and the click —
         // in which case its rows are gone on the next redraw anyway.
@@ -2032,6 +2045,8 @@ struct MainWindow: View {
             // approve or answer, only to look at — so this goes straight to
             // the item's own page, the same as an `ItemLink` would.
             pendingItemPages[project.id] = itemID
+        case .configChange(let requestID):
+            answeringConfigChange = requestID
         }
     }
 

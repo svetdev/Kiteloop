@@ -278,7 +278,8 @@ struct KiteloopApp: App {
                 dailySpendLedger: dailySpendLedger,
                 queueRefill: queueRefill,
                 runScheduler: runScheduler,
-                fleetQuiesce: fleetQuiesce
+                fleetQuiesce: fleetQuiesce,
+                controlServer: controlServer
             )
             .environment(routineRunner)
             .task {

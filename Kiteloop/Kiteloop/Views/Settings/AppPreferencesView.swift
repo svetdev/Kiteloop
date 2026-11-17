@@ -341,6 +341,16 @@ struct AppPreferencesView: View {
         return folderExists ? path : "\(path) (folder not found)"
     }
 
+    /// Whether a configuration change an agent makes over the API waits on a
+    /// card (`ConfigChangeGate`). On unless switched off here.
+    private var configChangeApprovalToggle: some View {
+        Toggle("Agents' configuration changes wait for my approval", isOn: Binding(
+            get: { globalConfigStore.config.agentAPIChangesNeedApproval ?? true },
+            set: { globalConfigStore.setAgentAPIChangesNeedApproval($0) }))
+            .help("A change made with the operator token or a scoped token — an agent, a setting, autopilot, a routine, an MCP server, memory — waits in Waiting on you until you approve or decline it, and each decision is logged. Your own token and paired phones are never held.")
+            .accessibilityIdentifier("settings-control-config-change-approval-toggle")
+    }
+
     /// Why the server is not listening, and who has the port — so a refused
     /// bind names the process to stop instead of only saying it failed.
     private var controlServerFailureDetail: some View {
@@ -448,6 +458,7 @@ struct AppPreferencesView: View {
                     }
                     tokenCopyNote
                     pairPhoneButton
+                    configChangeApprovalToggle
                 }
             }
             PairedPhonesSection(controlServer: controlServer)

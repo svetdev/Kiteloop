@@ -52,7 +52,8 @@ private extension WaitingOnYou.Row {
     var clearedByAPerson: Bool {
         switch gate {
         case .approval, .question: return true
-        case .stale: return false
+        // A held change is answered on its own card, not on a tab.
+        case .stale, .configChange: return false
         }
     }
 }

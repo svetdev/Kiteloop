@@ -44,6 +44,28 @@ final class ConfigChangeLogTests: XCTestCase {
         XCTAssertEqual(ConfigChangeLog.read(from: url), [first])
     }
 
+    /// A change asked for over the control API is one more line of the same
+    /// log: the credential as who asked, the call as the tool.
+    func testAnAPIChangeRoundTripsAsAnAbandonedRecord() throws {
+        let url = ConfigChangeLog.url(projectPath: project.path)
+        let asked = ConfigChangeLog.Record(caller: "operator", route: "PUT /v1/settings", summary: "{}",
+                                           decision: .abandoned, at: Date(timeIntervalSince1970: 1_756_684_800))
+
+        try ConfigChangeLog.append(record(decision: .approved, at: 0), to: url)
+        try ConfigChangeLog.append(asked, to: url)
+
+        let read = ConfigChangeLog.read(from: url)
+        XCTAssertEqual(read.last, asked)
+        XCTAssertEqual(read.last?.requestedBy, "operator")
+        XCTAssertEqual(read.last?.kind, "api")
+        XCTAssertEqual(read.last?.tool, "PUT /v1/settings")
+        XCTAssertEqual(read.last?.after, "{}")
+    }
+
+    func testTheAppsOwnLogLivesInTheDirectoryItIsGiven() {
+        XCTAssertEqual(ConfigChangeLog.url(appDirectory: project), project.appending(path: "config-changes.jsonl"))
+    }
+
     private func record(decision: ConfigChangeLog.Decision, at offset: TimeInterval) -> ConfigChangeLog.Record {
         ConfigChangeLog.Record(requestedBy: "Lead", kind: "team", tool: "hire_agent",
                                before: "Lead", after: "Lead, Coder", decision: decision,
