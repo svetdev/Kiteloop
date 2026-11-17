@@ -41,6 +41,9 @@ struct RoutineTurn: Equatable {
 /// * **The daily budget.** A scheduled firing, or one a webhook started, is autonomy: it is refused on a
 ///   day whose budget is spent, and what its turn cost is charged to that day.
 ///   A person pressing Run now is a person, and is not refused.
+/// * **Its own budget.** A routine may carry a ceiling for a day or a month.
+///   Once what its turns cost in that window reaches it, a scheduled or
+///   webhook firing is refused; Run now is not.
 /// * **Nothing is dropped in silence.** Every firing — started, queued behind
 ///   a turn, skipped by its check, refused — is a line in
 ///   `~/.kiteloop/routine-runs.jsonl` with its reason.
@@ -62,6 +65,9 @@ final class RoutineRunner {
     /// Why the day's budget refuses an autonomous turn in this project's
     /// folder; nil when it does not.
     var budgetRefusal: (@MainActor (URL) -> String?)?
+    /// What a routine has spent in its own budget's current day or month.
+    /// Asked only for a routine that has a budget.
+    var routineSpend: (@MainActor (Routine, SpendBudget) -> Double)?
     /// Files a finished turn's cost against the day, attributed to the routine.
     var charge: (@MainActor (_ costUSD: Double, _ folder: URL, _ attribution: SpendAttribution) -> Void)?
 
@@ -257,7 +263,9 @@ final class RoutineRunner {
     private func fire(_ routine: Routine, from source: Source, target: RoutineAgent) async {
         var run = RoutineRun(routine: routine.id, scheduledFor: source.scheduledFor, at: clock(), outcome: .refused,
                              hook: source.hook)
-        if source.isAutonomous, let refusal = budgetRefusal?(target.folder) { return record(run, refused: refusal) }
+        if source.isAutonomous, let refusal = budgetRefusal(for: routine, in: target.folder) {
+            return record(run, refused: refusal)
+        }
 
         let check = await check(routine, in: target.folder)
         if source.isAutonomous, let nothing = check.nothingToDo {
@@ -279,6 +287,15 @@ final class RoutineRunner {
         run.outcome = .started
         record(run)
         await finish(run, with: await target.send(text(note)), in: target.folder)
+    }
+
+    /// Why an autonomous firing of `routine` is refused: the day's budget
+    /// first, then the routine's own once its day or month is spent. Nil when
+    /// neither stands in the way.
+    private func budgetRefusal(for routine: Routine, in folder: URL) -> String? {
+        if let refusal = budgetRefusal?(folder) { return refusal }
+        guard let budget = routine.budget, let spent = routineSpend?(routine, budget) else { return nil }
+        return routine.budgetRefusal(spentUSD: spent)
     }
 
     /// For a routine that starts each run in a new chat: the note of how its

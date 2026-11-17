@@ -5219,6 +5219,10 @@ alone: a prompt names what it is about.
   spent — the portfolio's or the project's own — and what its turn cost is
   charged to that day. `POST /v1/routines/{id}/run` is your own start and is
   not refused.
+- **Its own budget.** A routine may carry a `budget`: a ceiling for the local
+  day or calendar month. Once the routine's own turns have cost that much in
+  the current window, a scheduled or webhook firing is refused with a reason
+  naming the routine's budget; `POST /v1/routines/{id}/run` is not.
 - **A Mac that was asleep.** A daily routine missed while the Mac slept runs
   when it wakes, with `scheduledFor` saying when it was due. A poll (`every`)
   is owed only until the next one would have come.
@@ -5262,6 +5266,7 @@ letters, digits and hyphens.
 | `name` | no | What a person calls it; the id when absent |
 | `precheck` | no | A shell command run in the project's folder before the turn. Failing, or printing nothing, skips the turn at no model cost; what it prints goes to the agent under the prompt. It has until the routine next falls |
 | `conversation` | no | `continues` (the default, and what a routine saved without the field reads as) sends the prompt into the agent's open chat; `fresh` starts the agent a new chat before each run, opened with a line giving the last started run's time and the first line of its reply. An agent mid-turn gets the prompt in its running chat either way. Absent on a replace keeps the routine's choice; any other value is refused with 400. Every routine is returned with it |
+| `budget` | no | The routine's own ceiling: `{"ceilingUSD": 5, "period": "day"}`. `ceilingUSD` is required and above zero; `period` is `day` (the default) or `month`, the Mac's local calendar day or month; `warnAtFraction` is the share of the ceiling at which the budget counts as nearly spent, above 0 and at most 1 (0.8 when absent); `consequence` is `refuse`, which is also what an absent one reads as — `ask` and `pause` are not yet available for routines and are refused with 400. Once the routine's turns have cost `ceilingUSD` in the current day or month, as the spend ledger has them (`GET /v1/spend?by=routine`), a scheduled or webhook firing is recorded `refused` with a reason such as `routine budget $5.00 per day exhausted ($5.20 spent today)`; Run now is never refused. Absent on a replace keeps the routine's budget; `null` clears it. A routine is returned with `budget` only when it has one |
 | `armed` | no | `false` for a new routine. A replacement that does not say keeps what it had |
 
 ```bash

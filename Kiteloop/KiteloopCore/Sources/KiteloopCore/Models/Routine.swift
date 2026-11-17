@@ -36,10 +36,14 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
     /// Which chat the prompt goes into. Nil — every routine saved before
     /// there was a choice — continues the agent's open chat.
     package var conversation: Conversation?
+    /// What its scheduled and webhook firings may spend in a day or a month.
+    /// Nil — every routine saved before it could have one — is no ceiling of
+    /// its own: only the day's budgets bound it.
+    package var budget: SpendBudget?
 
     package init(id: String, name: String, project: String, agent: String, prompt: String,
                  trigger: Trigger, precheck: String? = nil, armed: Bool = false, armedAt: Date? = nil,
-                 conversation: Conversation? = nil) {
+                 conversation: Conversation? = nil, budget: SpendBudget? = nil) {
         self.id = id
         self.name = name
         self.project = project
@@ -50,6 +54,7 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
         self.armed = armed
         self.armedAt = armedAt
         self.conversation = conversation
+        self.budget = budget
     }
 
     /// Which chat a routine's prompt goes into.
@@ -107,6 +112,7 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
                                   "prompt": prompt, "trigger": trigger.json, "armed": armed]
         if let precheck { out["precheck"] = precheck }
         out["conversation"] = (conversation ?? .continues).rawValue
+        if let budget { out["budget"] = budget.json }
         return out
     }
 }
@@ -149,7 +155,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
         case queued
         /// The check found nothing to do.
         case skipped
-        /// The day's budget, or a person's own Run now with nobody to send
+        /// The day's budget, the routine's own, or a person's own Run now with nobody to send
         /// it to; `reason` says which. Final: the occurrence is not retried.
         case refused
         /// The agent could not be reached — its project is not open, the

@@ -109,4 +109,14 @@ final class RoutineDraftTests: XCTestCase {
         XCTAssertEqual(draft.days, [])
         XCTAssertEqual(draft.problems, ["Choose at least one day."])
     }
+
+    func testEditingARoutineKeepsItsBudget() {
+        var capped = routine(.init(at: "07:00"))
+        capped.budget = SpendBudget(ceilingUSD: 5, period: .day, consequence: .refuse)
+        var draft = RoutineDraft(routine: capped)
+        draft.prompt = "Shorter."
+
+        XCTAssertEqual(draft.routine(id: "ignored", project: "ignored", existing: capped).budget, capped.budget)
+        XCTAssertNil(draft.routine(id: "new", project: "vault").budget)
+    }
 }

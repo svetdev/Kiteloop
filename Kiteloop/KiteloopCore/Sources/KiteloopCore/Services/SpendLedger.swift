@@ -191,3 +191,23 @@ package struct SpendBreakdown: Equatable, Sendable {
         return kinds.count > 1 ? .mixed : .usd
     }
 }
+
+// MARK: - A budget's window over the ledger
+
+extension SpendBudget {
+    /// What the matching rows cost in the budget's current window: the local
+    /// day `now` falls in, or its calendar month. A row belongs to the day it
+    /// was filed under (`SpendRow.day`, a `DayKey`), so a month is every day
+    /// key that shares today's `yyyy-MM`.
+    package func spent(in rows: [SpendRow], now: Date, calendar: Calendar,
+                       where matches: (SpendRow) -> Bool) -> Double {
+        let today = DayKey.string(for: now, timeZone: calendar.timeZone)
+        let window = period == .day ? today : String(today.prefix(Self.monthKeyLength))
+        return rows.reduce(0) { total, row in
+            row.day.hasPrefix(window) && matches(row) ? total + row.costUSD : total
+        }
+    }
+
+    /// `yyyy-MM`, the part of a day key that names its month.
+    private static let monthKeyLength = 7
+}

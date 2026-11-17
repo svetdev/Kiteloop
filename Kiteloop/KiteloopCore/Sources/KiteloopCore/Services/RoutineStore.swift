@@ -103,10 +103,12 @@ package struct RoutineStore: Sendable {
 extension Routine {
     /// The routine a request body describes, or what is wrong with it. `id`
     /// comes from the path; `existing` is the routine being replaced, whose
-    /// name, `armed` and `conversation` stand when the body does not say.
+    /// name, `armed`, `conversation` and `budget` stand when the body does
+    /// not say.
     package static func parse(_ json: [String: Any], id: String, existing: Routine?) -> Result<Routine, Refusal> {
         let trigger = json["trigger"] as? [String: Any] ?? [:]
         let conversation = parseConversation(json["conversation"], existing: existing)
+        let budget = parseBudget(json["budget"], existing: existing)
         let routine = Routine(
             id: id,
             name: json["name"] as? String ?? existing?.name ?? id,
@@ -119,9 +121,10 @@ extension Routine {
             precheck: (json["precheck"] as? String).flatMap { $0.isEmpty ? nil : $0 },
             armed: json["armed"] as? Bool ?? existing?.armed ?? false,
             armedAt: existing?.armedAt,
-            conversation: conversation.value
+            conversation: conversation.value,
+            budget: budget.value
         )
-        let problems = routine.problems + conversation.problems
+        let problems = routine.problems + conversation.problems + budget.problems
         return problems.isEmpty ? .success(routine) : .failure(Refusal(problems: problems))
     }
 
@@ -131,6 +134,33 @@ extension Routine {
         guard let value else { return (existing?.conversation, []) }
         if let text = value as? String, let conversation = Conversation(rawValue: text) { return (conversation, []) }
         return (existing?.conversation, ["\"conversation\" is \"continues\" or \"fresh\""])
+    }
+
+    /// The `budget` a body gives: absent keeps `existing`'s, `null` clears it,
+    /// and an object is the new one. A routine's budget refuses; the other
+    /// consequences are named as not yet available here.
+    private static func parseBudget(_ value: Any?, existing: Routine?) -> (value: SpendBudget?, problems: [String]) {
+        guard let value else { return (existing?.budget, []) }
+        if value is NSNull { return (nil, []) }
+        guard let object = value as? [String: Any] else {
+            return (existing?.budget, ["\"budget\" is an object, or null to clear it"])
+        }
+        let parsed = SpendBudget.parse(object)
+        guard let budget = parsed.value else { return (existing?.budget, parsed.problems) }
+        guard budget.consequence == .refuse else {
+            return (existing?.budget, ["\"budget.consequence\" \"\(budget.consequence.rawValue)\" is not yet available "
+                                       + "for routines: a routine's budget takes \"refuse\""])
+        }
+        return (budget, [])
+    }
+
+    /// Why this routine's own budget refuses an autonomous firing, given what
+    /// the routine has spent in the budget's current window; nil while it is
+    /// under its ceiling, and for a routine with no budget.
+    package func budgetRefusal(spentUSD: Double) -> String? {
+        guard let budget, budget.standing(spentUSD: spentUSD) == .atLimit else { return nil }
+        return String(format: "routine budget $%.2f per %@ exhausted ($%.2f spent %@)",
+                      budget.ceilingUSD, budget.period.rawValue, spentUSD, budget.windowWords)
     }
 
     /// Everything that stops this routine from being kept, in the words the

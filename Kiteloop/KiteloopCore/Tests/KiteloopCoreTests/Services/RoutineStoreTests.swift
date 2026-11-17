@@ -150,6 +150,114 @@ final class RoutineStoreTests: XCTestCase {
         XCTAssertEqual(refusal.problems, ["\"conversation\" is \"continues\" or \"fresh\""])
     }
 
+    // MARK: - A routine's budget
+
+    private let body: [String: Any] = ["project": "vault", "agent": "Chief", "prompt": "Go.",
+                                       "trigger": ["at": "07:00"]]
+
+    private func body(budget: Any) -> [String: Any] {
+        var withBudget = body
+        withBudget["budget"] = budget
+        return withBudget
+    }
+
+    func testABodySetsABudgetASilentOneKeepsItAndNullClearsIt() throws {
+        let monthly = SpendBudget(ceilingUSD: 40, period: .month, consequence: .refuse)
+
+        let set = try Routine.parse(body(budget: ["ceilingUSD": 40, "period": "month", "consequence": "refuse"]),
+                                    id: brief.id, existing: nil).get()
+        XCTAssertEqual(set.budget, monthly)
+
+        XCTAssertEqual(try Routine.parse(body, id: brief.id, existing: set).get().budget, monthly)
+        XCTAssertNil(try Routine.parse(body(budget: NSNull()), id: brief.id, existing: set).get().budget)
+        XCTAssertNil(try Routine.parse(body, id: brief.id, existing: nil).get().budget)
+    }
+
+    func testABudgetSentAsJSONTextIsReadTheSame() throws {
+        let text = #"{"project":"vault","agent":"Chief","prompt":"Go.","trigger":{"at":"07:00"},"#
+            + #""budget":{"ceilingUSD":5}}"#
+        let cleared = #"{"project":"vault","agent":"Chief","prompt":"Go.","trigger":{"at":"07:00"},"budget":null}"#
+        let json = { (text: String) in
+            try XCTUnwrap(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        }
+
+        let set = try Routine.parse(try json(text), id: brief.id, existing: nil).get()
+        XCTAssertEqual(set.budget, SpendBudget(ceilingUSD: 5, period: .day, consequence: .refuse))
+        XCTAssertNil(try Routine.parse(try json(cleared), id: brief.id, existing: set).get().budget)
+    }
+
+    func testABudgetThatCannotStandIsRefusedByName() {
+        let cases: [(budget: Any, problem: String)] = [
+            (["ceilingUSD": 0], "\"budget.ceilingUSD\" is above zero"),
+            (["ceilingUSD": -2], "\"budget.ceilingUSD\" is above zero"),
+            (["ceilingUSD": 5, "warnAtFraction": 0], "\"budget.warnAtFraction\" is above 0 and at most 1"),
+            (["ceilingUSD": 5, "warnAtFraction": 1.2], "\"budget.warnAtFraction\" is above 0 and at most 1"),
+            (["ceilingUSD": 5, "period": "week"], "\"budget.period\" is one of \"day\", \"month\""),
+            (["ceilingUSD": 5, "consequence": "ask"],
+             "\"budget.consequence\" \"ask\" is not yet available for routines: a routine's budget takes \"refuse\""),
+            (["ceilingUSD": 5, "consequence": "pause"],
+             "\"budget.consequence\" \"pause\" is not yet available for routines: a routine's budget takes \"refuse\""),
+            (5, "\"budget\" is an object, or null to clear it")
+        ]
+        for (budget, problem) in cases {
+            guard case .failure(let refusal) = Routine.parse(body(budget: budget), id: brief.id, existing: nil) else {
+                XCTFail("parsed \(budget)")
+                continue
+            }
+            XCTAssertEqual(refusal.problems, [problem])
+        }
+    }
+
+    func testABudgetsProblemsJoinTheRoutinesOwn() {
+        guard case .failure(let refusal) = Routine.parse(["agent": "Chief", "prompt": "Go.", "trigger": ["at": "07:00"],
+                                                          "budget": ["ceilingUSD": 0]],
+                                                         id: brief.id, existing: nil) else {
+            return XCTFail("parsed")
+        }
+
+        XCTAssertEqual(refusal.problems, ["\"project\" is required", "\"budget.ceilingUSD\" is above zero"])
+    }
+
+    func testARoutineSavedBeforeThereWereBudgetsHasNone() throws {
+        let store = try store()
+        let written = #"{"routines":[{"id":"old","name":"Old","project":"vault","agent":"Chief","prompt":"Go.","#
+            + #""trigger":{"at":"07:00"},"armed":false}]}"#
+        try Data(written.utf8).write(to: store.routinesURL)
+
+        let routine = try XCTUnwrap(store.routines().first)
+
+        XCTAssertNil(routine.budget)
+        XCTAssertNil(routine.json["budget"])
+    }
+
+    func testABudgetSurvivesASaveAndReloadAndIsInTheRoutinesJSON() throws {
+        let store = try store()
+        var capped = brief
+        capped.budget = SpendBudget(ceilingUSD: 5, period: .day, consequence: .refuse)
+
+        try store.save([capped])
+
+        XCTAssertEqual(store.routines(), [capped])
+        let json = try XCTUnwrap(capped.json["budget"] as? [String: Any])
+        XCTAssertEqual(json["ceilingUSD"] as? Double, 5)
+        XCTAssertEqual(json["period"] as? String, "day")
+        XCTAssertEqual(json["consequence"] as? String, "refuse")
+        XCTAssertNil(brief.json["budget"], "a routine with no budget says nothing of one")
+    }
+
+    func testARoutinesOwnBudgetRefusesFromItsCeilingAndNamesItself() {
+        var capped = brief
+        XCTAssertNil(capped.budgetRefusal(spentUSD: 100), "no budget, no refusal")
+
+        capped.budget = SpendBudget(ceilingUSD: 5, period: .day, consequence: .refuse)
+        XCTAssertNil(capped.budgetRefusal(spentUSD: 4.99))
+        XCTAssertEqual(capped.budgetRefusal(spentUSD: 5.2), "routine budget $5.00 per day exhausted ($5.20 spent today)")
+
+        capped.budget = SpendBudget(ceilingUSD: 40, period: .month, consequence: .refuse)
+        XCTAssertEqual(capped.budgetRefusal(spentUSD: 40),
+                       "routine budget $40.00 per month exhausted ($40.00 spent this month)")
+    }
+
     func testEveryProblemWithABodyIsNamedAtOnce() {
         guard case .failure(let refusal) = Routine.parse(["agent": " "], id: "Bad Id", existing: nil) else {
             return XCTFail("parsed")
