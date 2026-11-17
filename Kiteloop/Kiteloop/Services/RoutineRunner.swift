@@ -17,6 +17,8 @@ struct RoutineAgent {
     let send: @MainActor (String) async -> RoutineTurn
     /// Starts the agent a new chat, for a routine that wants each run in one.
     let startFresh: @MainActor () async -> Void
+    /// The agent's id, as an event it raises names it; nil when nobody said.
+    var agentID: String? = nil
 }
 
 /// How a routine's turn ended.
@@ -41,6 +43,10 @@ struct RoutineTurn: Equatable {
 /// * **The daily budget.** A scheduled firing, or one a webhook started, is autonomy: it is refused on a
 ///   day whose budget is spent, and what its turn cost is charged to that day.
 ///   A person pressing Run now is a person, and is not refused.
+/// * **An event is not its own cause.** A routine an event fires is refused
+///   when its own agent raised the event, or when the event was raised by an
+///   agent inside a turn a routine started — so a routine's turn cannot fire
+///   itself again, nor two routines each other, through what the turn files.
 /// * **Nothing is dropped in silence.** Every firing — started, queued behind
 ///   a turn, skipped by its check, refused — is a line in
 ///   `~/.kiteloop/routine-runs.jsonl` with its reason.
@@ -78,6 +84,9 @@ final class RoutineRunner {
     /// event kind, and the task that listens to it.
     private let feed: AppEventFeed
     private var events: Task<Void, Never>?
+    /// The latest turn a routine started for each agent, by the agent's id:
+    /// when it began and, once it is over, when it ended.
+    private var routineTurns: [String: (from: Date, to: Date?)] = [:]
     private var isStarted = false
 
     init(store: RoutineStore = RoutineStore(), clock: @escaping () -> Date = Date.init,
@@ -132,16 +141,30 @@ final class RoutineRunner {
     @discardableResult
     func fire(on event: AppEventFeed.Event) -> [Task<Void, Never>] {
         routines.filter { $0.matches(event) }.map { routine in
-            Task {
-                switch self.resolve(routine) {
-                case .failure(let refusal):
-                    self.record(RoutineRun(routine: routine.id, scheduledFor: nil, at: self.clock(), outcome: .refused,
-                                           event: event.kind), refused: refusal.reason)
-                case .success(let target):
-                    await self.fire(routine, from: .event(event), target: target)
-                }
-            }
+            Task { await self.fire(routine, on: event) }
         }
+    }
+
+    private func fire(_ routine: Routine, on event: AppEventFeed.Event) async {
+        let refused = RoutineRun(routine: routine.id, scheduledFor: nil, at: clock(), outcome: .refused,
+                                 event: event.kind)
+        switch resolve(routine) {
+        case .failure(let refusal):
+            record(refused, refused: refusal.reason)
+        case .success(let target):
+            if let echo = echo(event, for: target) { return record(refused, refused: echo) }
+            await fire(routine, from: .event(event), target: target)
+        }
+    }
+
+    /// Why `event` must not fire a routine whose agent is `target`: a routine's
+    /// turn would otherwise answer the notices it files itself, without end.
+    /// The event's subject is the agent that raised it, when an agent did.
+    private func echo(_ event: AppEventFeed.Event, for target: RoutineAgent) -> String? {
+        if event.subject == target.agentID { return "the routine's own agent raised the event" }
+        guard let turn = routineTurns[event.subject], event.time >= turn.from,
+              event.time <= turn.to ?? .distantFuture else { return nil }
+        return "the event was raised inside a routine's turn"
     }
 
     /// A routine armed by editing the file carries no arming time, and one
@@ -322,7 +345,10 @@ final class RoutineRunner {
         let note = await startFreshIfAsked(routine, target: target)
         run.outcome = .started
         record(run)
-        await finish(run, with: await target.send(text(note)), in: target.folder)
+        if let agent = target.agentID { routineTurns[agent] = (run.at, nil) }
+        let turn = await target.send(text(note))
+        if let agent = target.agentID { routineTurns[agent] = (run.at, clock()) }
+        finish(run, with: turn, in: target.folder)
     }
 
     /// For a routine that starts each run in a new chat: the note of how its

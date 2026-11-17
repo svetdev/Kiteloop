@@ -318,3 +318,10 @@ Entry format:
 **Why:** The inspection is what a person reads before letting someone else's setup in, and it is shown on screen and will be returned over the API, so a value in it is a value leaked. Listing every part by path means a pack holds exactly what its manifest says and cannot reach a file beside it.
 **Evidence:** `PackManifest`, `PackInspector.resolve`, `PackInspectorTests.testNoSecretValueAppearsAnywhereInTheInspection`, `testAListedPathThatLeavesThePackThroughASymlinkIsRefused`.
 **Status:** holds — a secret written into a connector's command line or URL is still shown, as part of what the connector runs.
+
+## [2026-11-17] An event fires a routine by kind and project only, and never the turn that raised it
+**Kind:** rule
+**What:** A routine whose trigger is `on` fires when the feed publishes an event of that kind in its project; nothing in the event's subject or title chooses the routine or the agent, and both only appear under the prompt. An event the routine's own agent raised, or one an agent raised inside a turn a routine started, is refused and written to the ledger.
+**Why:** A routine's turn files notices of its own — a question, a permission card — and each would otherwise fire the routine again, or a second routine that fires the first, for as long as the day's budget lasts.
+**Evidence:** `Routine.matches`, `RoutineRunner.echo`; `RoutineRunnerTests.testAnEventARoutinesOwnAgentRaisedDoesNotFireIt`, `testAnEventRaisedInsideARoutinesTurnFiresNoRoutine`.
+**Status:** holds — a prompt that joined a busy agent's queue runs in a turn the runner does not see end, so a notice from that later turn is stopped only when the routine's own agent raised it; the daily budget bounds the rest.

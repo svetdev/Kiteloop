@@ -21,6 +21,9 @@ final class RoutineRunnerTests: XCTestCase {
     /// What the agent was asked to do, in order: `fresh` for a new chat,
     /// `send` for a prompt.
     private var calls: [String] = []
+    /// The id each routine's agent goes by, and what happens inside its turn.
+    private var agentIDs: [String: String] = [:]
+    private var duringTurn: (() async -> Void)?
 
     private let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
@@ -47,7 +50,7 @@ final class RoutineRunnerTests: XCTestCase {
     private func runner(_ routines: [Routine], feed: AppEventFeed = AppEventFeed()) throws -> RoutineRunner {
         let runner = RoutineRunner(store: store, clock: { [unowned self] in self.now },
                                    calendar: { [calendar] in calendar }, feed: feed)
-        runner.agent = { [unowned self] _ in
+        runner.agent = { [unowned self] routine in
             if let unreachable { return .failure(Routine.Refusal(problems: [unreachable])) }
             return .success(RoutineAgent(
                 folder: URL(fileURLWithPath: "/tmp/vault"),
@@ -55,9 +58,11 @@ final class RoutineRunnerTests: XCTestCase {
                 send: { text in
                     self.calls.append("send")
                     self.sent.append(text)
+                    await self.duringTurn?()
                     return self.turn
                 },
-                startFresh: { self.calls.append("fresh") }))
+                startFresh: { self.calls.append("fresh") },
+                agentID: self.agentIDs[routine.id]))
         }
         runner.charge = { [unowned self] cost, _, attribution in
             self.charged.append(cost)
@@ -496,6 +501,46 @@ final class RoutineRunnerTests: XCTestCase {
         XCTAssertTrue(runner.fire(on: other).isEmpty)
         XCTAssertTrue(runner.fire(on: elsewhere).isEmpty)
         XCTAssertEqual(sent, [])
+    }
+
+    func testAnEventARoutinesOwnAgentRaisedDoesNotFireIt() async throws {
+        agentIDs = ["on-error": "chief-1"]
+        let feed = AppEventFeed()
+        let runner = try runner([onError()], feed: feed)
+        try await eventually("the runner to subscribe") { await feed.subscriberCount == 1 }
+
+        await feed.publish(NotificationItem(agentID: "chief-1", type: .error, title: "Chief hit an error", body: "",
+                                            projectPath: "/tmp/vault"))
+        try await eventually("the refusal on record") { runner.lastRun(of: "on-error") != nil }
+
+        XCTAssertEqual(sent, [])
+        let run = try XCTUnwrap(runner.lastRun(of: "on-error"))
+        XCTAssertEqual(run.outcome, .refused)
+        XCTAssertEqual(run.reason, "the routine's own agent raised the event")
+        XCTAssertEqual(run.event, "error")
+    }
+
+    func testAnEventRaisedInsideARoutinesTurnFiresNoRoutine() async throws {
+        agentIDs = ["brief": "chief-1", "on-error": "scout-1"]
+        let feed = AppEventFeed()
+        let runner = try runner([brief(), onError()], feed: feed)
+        try await eventually("the runner to subscribe") { await feed.subscriberCount == 1 }
+        // The brief's turn spans the real moment its agent files a notice.
+        now = Date().addingTimeInterval(-60)
+        duringTurn = { [unowned self] in
+            await feed.publish(NotificationItem(agentID: "chief-1", type: .error, title: "Chief hit an error",
+                                                body: "", projectPath: "/tmp/vault"))
+            self.now = Date().addingTimeInterval(60)
+            self.duringTurn = nil
+        }
+
+        await runner.runNow("brief")?.value
+        try await eventually("the refusal on record") { runner.lastRun(of: "on-error") != nil }
+
+        XCTAssertEqual(sent, ["Write the brief."])
+        let run = try XCTUnwrap(runner.lastRun(of: "on-error"))
+        XCTAssertEqual(run.outcome, .refused)
+        XCTAssertEqual(run.reason, "the event was raised inside a routine's turn")
     }
 
     func testARunWrittenBeforeHooksStillDecodes() throws {

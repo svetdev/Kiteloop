@@ -172,7 +172,8 @@ extension KiteloopControlServer {
                 return RoutineTurn(reply: reply, costUSD: max(0, chat.costUSD - costBefore),
                                    agentID: agent.id, model: chat.resolvedModel)
             },
-            startFresh: { await chat.startNewChat() }
+            startFresh: { await chat.startNewChat() },
+            agentID: agent.id
         ))
     }
 
