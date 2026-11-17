@@ -2337,8 +2337,9 @@ struct MainWindow: View {
               let session = sessions[projID] else { return }
         // `forkAside` posts no attachments: an aside opens with an empty tray.
         let attachments = notification.userInfo?[Notification.summonedAttachmentsKey] as? [ChatAttachment] ?? []
+        let origin = notification.userInfo?[ChatMessageOrigin.notificationKey] as? ChatMessageOrigin ?? .person
         session.handleAgentSummoned(agent, projectURL: projectURL, initialMessage: initialMessage,
-                                    attachments: attachments)
+                                    attachments: attachments, from: origin)
     }
 
     private func handleCrossAgentMessage(_ notification: Notification) {

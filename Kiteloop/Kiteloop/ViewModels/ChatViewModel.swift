@@ -105,6 +105,9 @@ class ChatViewModel {
         let text: String
         let attachments: [ChatAttachment]
         var typedByHuman = false
+        /// Who the text is from, kept so a command queued behind a turn runs
+        /// on the terms it arrived on.
+        var origin: ChatMessageOrigin = .person
     }
     private var pendingForwards: [QueuedMessage] = []
     /// The attachments of the queued or forwarded message `send()` is replaying,
@@ -326,11 +329,11 @@ class ChatViewModel {
             Task { @MainActor in
                 let finalMessage = message
                 if self.isStreaming {
-                    self.pendingForwards.append(QueuedMessage(text: finalMessage, attachments: []))
+                    self.pendingForwards.append(QueuedMessage(text: finalMessage, attachments: [], origin: .automation))
                 } else {
                     self.isForwardedMessage = true
                     self.inputText = finalMessage
-                    await self.send()
+                    await self.send(from: .automation)
                     self.isForwardedMessage = false
                 }
             }
@@ -429,10 +432,13 @@ class ChatViewModel {
         pendingAttachments.removeAll { $0.id == id }
     }
 
-    func send() async {
+    /// Sends what is in the input. `origin` is who put it there: the person
+    /// unless the caller says otherwise, and a command only the person may
+    /// give (`ChatMessageOrigin.commandRefusal`) is not run for anyone else.
+    func send(from origin: ChatMessageOrigin = .person) async {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if await actsDuringTurn(text) { return }
-        if isStreaming && !isForwardedMessage { return queue(text) }
+        if await actsDuringTurn(text, from: origin) { return }
+        if isStreaming && !isForwardedMessage { return queue(text, from: origin) }
         guard !text.isEmpty else {
             // An attachment alone is a message: no command or mention to read.
             let attachments = takeOutgoingAttachments()
@@ -442,18 +448,18 @@ class ChatViewModel {
 
         // What was queued while a command's own turns ran — /recap, /compact,
         // /loop, /goal — is sent once it finishes, as after an ordinary turn.
-        if await runSlashCommand(text) { return await drainPendingForwards() }
-        if await routeMentions(in: text) { return }
+        if await runSlashCommand(text, from: origin) { return await drainPendingForwards() }
+        if await routeMentions(in: text, from: origin) { return }
         closePlanCardsIfTypedByHuman()
         await deliverToAgent(text, attachments: takeOutgoingAttachments())
     }
 
     /// What typed during a turn acts at once instead of queueing: a stop, and
     /// the read-only reports, which neither send to nor restart the agent.
-    private func actsDuringTurn(_ text: String) async -> Bool {
+    private func actsDuringTurn(_ text: String, from origin: ChatMessageOrigin) async -> Bool {
         if stopsRunningLoop(text) { return true }
         guard isStreaming, Self.readOnlyCommands.contains(text.lowercased()) else { return false }
-        return await runSlashCommand(text)
+        return await runSlashCommand(text, from: origin)
     }
 
     /// The reports `actsDuringTurn` answers mid-turn; queued, `/loop status`
@@ -474,9 +480,10 @@ class ChatViewModel {
 
     /// Holds a message typed during a turn, taking the tray's attachments with
     /// it so a file staged afterwards is left for the message it was meant for.
-    private func queue(_ text: String) {
+    private func queue(_ text: String, from origin: ChatMessageOrigin) {
         guard !text.isEmpty || !pendingAttachments.isEmpty else { return }
-        pendingForwards.append(QueuedMessage(text: text, attachments: pendingAttachments, typedByHuman: true))
+        pendingForwards.append(QueuedMessage(text: text, attachments: pendingAttachments, typedByHuman: true,
+                                             origin: origin))
         inputText = ""
         pendingAttachments = []
     }
@@ -512,11 +519,11 @@ class ChatViewModel {
     /// turn and every pattern is distinct, so the order between groups carries
     /// no meaning — only the order *within* a group does, which is why
     /// `/fork aside` is tested before `/fork`.
-    private func runSlashCommand(_ typed: String) async -> Bool {
+    private func runSlashCommand(_ typed: String, from origin: ChatMessageOrigin) async -> Bool {
         let text = commandWordLowercased(typed)
         if await runSessionCommand(text) { return true }
         if await runAgentSettingCommand(text) { return true }
-        if await runPermissionModeCommand(text) { return true }
+        if await runPermissionModeCommand(text, from: origin) { return true }
         if await runInspectionCommand(text) { return true }
         if await runAutonomyCommand(text) { return true }
         if runTranscriptCommand(text) { return true }
@@ -554,10 +561,16 @@ class ChatViewModel {
     }
 
     /// `/mode`: bare, the agent's permission mode and the choices; with a
-    /// name, the switch to it.
-    private func runPermissionModeCommand(_ text: String) async -> Bool {
+    /// name, the switch to it — for the person. From a routine, a workflow or
+    /// an event the switch is refused in the chat and nothing is sent: the
+    /// command is neither run nor handed to the agent as text.
+    private func runPermissionModeCommand(_ text: String, from origin: ChatMessageOrigin) async -> Bool {
         guard let arg = commandArgument(of: text, for: "/mode") else { return false }
         inputText = ""
+        if let refusal = origin.commandRefusal(of: text) {
+            postSystem(refusal)
+            return true
+        }
         guard appliesToThisRuntime("/mode") else { return true }
         if arg.isEmpty { reportPermissionMode() } else { await switchPermissionMode(to: arg) }
         return true
@@ -1193,7 +1206,7 @@ class ChatViewModel {
     /// for twenty minutes and finished having produced no work, three times
     /// over, before the cause was found (2026-08-09,
     /// grounding-check-token-classification).
-    private func routeMentions(in text: String) async -> Bool {
+    private func routeMentions(in text: String, from origin: ChatMessageOrigin) async -> Bool {
         // @mention detection — resolve against the catalog (task specialist)
         let parseResult = MentionParser.parse(text)
         let routableMentions = parseResult.mentions.filter { handle in
@@ -1208,16 +1221,18 @@ class ChatViewModel {
         let attachments = takeOutgoingAttachments()
         isStreaming = true
         for handle in routableMentions {
-            await route(mention: handle, question: parseResult.cleanText, attachments: attachments)
+            await route(mention: handle, question: parseResult.cleanText, attachments: attachments, from: origin)
         }
         isStreaming = false
         saveMessages()
         return true
     }
 
-    private func route(mention handle: String, question: String, attachments: [ChatAttachment]) async {
+    private func route(mention handle: String, question: String, attachments: [ChatAttachment],
+                       from origin: ChatMessageOrigin) async {
         if let template = agentCatalogStore?.find(handle: handle) {
-            return await summon(template, handle: handle, initialMessage: question, attachments: attachments)
+            return await summon(template, handle: handle, initialMessage: question, attachments: attachments,
+                                from: origin)
         }
         postSystem("Unknown agent: @\(handle). Check Settings → Agents.")
     }
@@ -1225,7 +1240,7 @@ class ChatViewModel {
     /// Task specialist → spawn tab + route message, with the files the message
     /// was sent with.
     private func summon(_ template: AgentTemplate, handle: String, initialMessage: String,
-                        attachments: [ChatAttachment]) async {
+                        attachments: [ChatAttachment], from origin: ChatMessageOrigin) async {
         postSystem("Summoning @\(handle)...")
         let agent = template.instantiateAgent()
         orchestrator.addAgent(agent)
@@ -1242,7 +1257,8 @@ class ChatViewModel {
                 "projectID": project.id,
                 "projectURL": projectURL,
                 "initialMessage": initialMessage,
-                Notification.summonedAttachmentsKey: attachments
+                Notification.summonedAttachmentsKey: attachments,
+                ChatMessageOrigin.notificationKey: origin
             ]
         )
         persistTeamConfig()
@@ -1368,7 +1384,7 @@ class ChatViewModel {
             forwardedAttachments = message.attachments
             isReplayingTypedMessage = message.typedByHuman
             inputText = message.text
-            await send()
+            await send(from: message.origin)
             forwardedAttachments = []
             isReplayingTypedMessage = false
             isForwardedMessage = false

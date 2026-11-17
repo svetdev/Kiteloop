@@ -3409,6 +3409,13 @@ permission mode. That is a [human gate](#human-gates): from the operator token
 or a scoped token such a message answers **403** and is not delivered. Bare
 `/mode`, which only reports the mode, goes through.
 
+The same holds for text that reaches a chat from anything but a person. A
+routine's prompt — whatever fired it, [Run now](#post-v1routinesidrun)
+included — and a workflow node's prompt are sent into the chat as typed text,
+but `/mode <name>` in one is not run and is not handed to the agent: the chat
+shows a line saying a permission-mode change needs you. What one agent sends
+another with `message_agent` or a broadcast never runs as a command at all.
+
 **Status:** 200 · 400 (missing `project`/`agent`, or neither a message nor an
 image) · 403 (a `/mode <name>` message from the operator token or a scoped
 token) · 404 (no such agent) · 409 (project not open) · 413 (an image over
@@ -5761,6 +5768,12 @@ Its past runs stay in the ledger.
 Sends the routine's prompt now. This is your own start: it needs no arming,
 the daily budget does not refuse it, and a check that finds nothing does not
 stop it. Answered at once; how the turn went is in `GET /v1/routines/runs`.
+
+The operator token may call this: the prompt it sends is one you wrote, or
+approved on a card when an agent wrote it. A prompt that is `/mode <name>` does
+not change the agent's permission mode, here or on any other firing — the chat
+refuses it with a line saying the change needs you
+([`POST /v1/agents/message`](#post-v1agentsmessage)).
 
 ```bash
 curl -s -X POST -H "$H" $B/routines/morning-brief/run
