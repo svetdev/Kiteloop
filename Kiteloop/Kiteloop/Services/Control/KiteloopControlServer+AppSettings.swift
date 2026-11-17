@@ -24,11 +24,12 @@ struct AppSettingsEndpoints {
     // MARK: - MCP servers
 
     /// A server as the API shows it. The values of its environment are left
-    /// out: they are where its credentials are.
+    /// out: they are where its credentials are. What looks like a credential
+    /// in its command line or URL is replaced, best effort (`SecretRedaction`).
     private static func serverJSON(_ name: String, _ entry: ClaudeMCPServerEntry) -> [String: Any] {
-        var row: [String: Any] = ["name": name, "summary": entry.displaySummary, "env": (entry.env ?? [:]).keys.sorted()]
-        if let command = entry.command { row["command"] = command }
-        if let args = entry.args { row["args"] = args }
+        var row: [String: Any] = ["name": name, "summary": entry.redactedSummary, "env": (entry.env ?? [:]).keys.sorted()]
+        if let command = entry.command { row["command"] = SecretRedaction.text(command) }
+        if let args = entry.args { row["args"] = SecretRedaction.commandLine(args) }
         return row
     }
 

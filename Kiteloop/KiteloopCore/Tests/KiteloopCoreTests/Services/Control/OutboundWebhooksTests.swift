@@ -199,23 +199,109 @@ final class OutboundWebhooksTests: XCTestCase {
 
     // MARK: The file
 
-    func testWebhooksRoundTripThroughTheFile() throws {
+    private let otherURL = URL(string: "https://other.example.net/x")!
+
+    private func webhooksFile(_ json: String) throws -> URL {
         let url = try makeTemporaryDirectory(prefix: "webhooks").appending(path: "webhooks.json")
-        let hooks = [OutboundWebhook(url: hookURL, secret: "s", kinds: ["approval", "error"]),
-                     OutboundWebhook(url: URL(string: "https://other.example.net/x")!, secret: "t")]
+        try Data(json.utf8).write(to: url)
+        return url
+    }
 
-        OutboundWebhooks.save(hooks, to: url)
+    func testAPlainSecretMovesToTheStoreAndTheFileIsRewrittenWithoutIt() throws {
+        let url = try webhooksFile("""
+            [{"url": "https://hooks.example.com/kiteloop", "secret": "s3cr3t-one", "kinds": ["approval", "error"]},
+             {"url": "https://other.example.net/x", "secret": "s3cr3t-two", "kinds": []}]
+            """)
+        let store = InMemoryConnectorSecretStore()
 
-        XCTAssertEqual(OutboundWebhooks.load(from: url), hooks)
+        let loaded = OutboundWebhooks.load(from: url, secrets: store)
+
+        XCTAssertEqual(loaded, [OutboundWebhook(url: hookURL, secret: "s3cr3t-one", kinds: ["approval", "error"]),
+                                OutboundWebhook(url: otherURL, secret: "s3cr3t-two")])
+        XCTAssertEqual(store.all, [OutboundWebhook(url: hookURL, secret: "").secretKey: "s3cr3t-one",
+                                   OutboundWebhook(url: otherURL, secret: "").secretKey: "s3cr3t-two"])
+        let file = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(file.contains("s3cr3t"), file)
+        XCTAssertFalse(file.contains("\"secret\""), file)
+        XCTAssertEqual(OutboundWebhooks.listed(in: url),
+                       [OutboundWebhook(url: hookURL, secret: "", kinds: ["approval", "error"]),
+                        OutboundWebhook(url: otherURL, secret: "")])
+    }
+
+    func testAMovedSecretIsReadBackFromTheStoreOnTheNextLoad() throws {
+        let url = try webhooksFile(#"[{"url": "https://hooks.example.com/kiteloop", "secret": "s3cr3t", "kinds": []}]"#)
+        let store = InMemoryConnectorSecretStore()
+        _ = OutboundWebhooks.load(from: url, secrets: store)
+        let rewritten = try Data(contentsOf: url)
+
+        let loaded = OutboundWebhooks.load(from: url, secrets: store)
+
+        XCTAssertEqual(loaded, [OutboundWebhook(url: hookURL, secret: "s3cr3t")])
+        XCTAssertEqual(try Data(contentsOf: url), rewritten, "a file with nothing to move is not written again")
+    }
+
+    func testAPlainSecretWrittenLaterReplacesTheStoredOne() throws {
+        let url = try webhooksFile(#"[{"url": "https://hooks.example.com/kiteloop", "secret": "new", "kinds": []}]"#)
+        let store = InMemoryConnectorSecretStore([OutboundWebhook(url: hookURL, secret: "").secretKey: "old"])
+
+        XCTAssertEqual(OutboundWebhooks.load(from: url, secrets: store), [OutboundWebhook(url: hookURL, secret: "new")])
+        XCTAssertEqual(store.all.values.sorted(), ["new"])
+    }
+
+    func testAWebhookWithNoSecretAnywhereIsLeftOut() throws {
+        let url = try webhooksFile("""
+            [{"url": "https://hooks.example.com/kiteloop", "kinds": []},
+             {"url": "https://other.example.net/x", "secret": "t", "kinds": []}]
+            """)
+
+        let loaded = OutboundWebhooks.load(from: url, secrets: InMemoryConnectorSecretStore())
+
+        XCTAssertEqual(loaded, [OutboundWebhook(url: otherURL, secret: "t")])
+        XCTAssertEqual(OutboundWebhooks.listed(in: url).map(\.url), [hookURL, otherURL], "the entry stays in the file")
+    }
+
+    /// A store that takes nothing — a keychain that refused the write.
+    private final class RefusingSecretStore: ConnectorSecretStore {
+        func value(for key: ConnectorSecretKey) -> String? { nil }
+        func set(_ value: String, for key: ConnectorSecretKey) {}
+        func delete(_ key: ConnectorSecretKey) {}
+    }
+
+    func testASecretTheStoreDidNotTakeStaysInTheFileAndStillSigns() throws {
+        let url = try webhooksFile(#"[{"url": "https://hooks.example.com/kiteloop", "secret": "s3cr3t", "kinds": []}]"#)
+        let before = try Data(contentsOf: url)
+
+        let loaded = OutboundWebhooks.load(from: url, secrets: RefusingSecretStore())
+
+        XCTAssertEqual(loaded, [OutboundWebhook(url: hookURL, secret: "s3cr3t")])
+        XCTAssertEqual(try Data(contentsOf: url), before)
+    }
+
+    func testAnEventSentAfterTheMoveIsSignedWithTheMovedSecret() async throws {
+        let url = try webhooksFile(#"[{"url": "https://hooks.example.com/kiteloop", "secret": "s3cr3t", "kinds": []}]"#)
+        let store = InMemoryConnectorSecretStore()
+        _ = OutboundWebhooks.load(from: url, secrets: store)
+        let transport = ScriptedTransport()
+        let sut = dispatcher(OutboundWebhooks.load(from: url, secrets: store), transport)
+
+        await sut.deliver(event())
+
+        let request = try XCTUnwrap(transport.requests.first)
+        let body = try XCTUnwrap(request.httpBody)
+        let code = HMAC<SHA256>.authenticationCode(for: body, using: SymmetricKey(data: Data("s3cr3t".utf8)))
+        XCTAssertEqual(request.value(forHTTPHeaderField: "X-Kiteloop-Signature"),
+                       "sha256=" + code.map { String(format: "%02x", $0) }.joined())
     }
 
     func testAMissingOrUnreadableFileLoadsAsEmpty() throws {
         let dir = try makeTemporaryDirectory(prefix: "webhooks")
-        XCTAssertEqual(OutboundWebhooks.load(from: dir.appending(path: "absent.json")), [])
+        let store = InMemoryConnectorSecretStore()
+        XCTAssertEqual(OutboundWebhooks.load(from: dir.appending(path: "absent.json"), secrets: store), [])
 
         let garbled = dir.appending(path: "webhooks.json")
         try Data("{not json".utf8).write(to: garbled)
-        XCTAssertEqual(OutboundWebhooks.load(from: garbled), [])
+        XCTAssertEqual(OutboundWebhooks.load(from: garbled, secrets: store), [])
+        XCTAssertEqual(try String(contentsOf: garbled, encoding: .utf8), "{not json", "an unreadable file is left alone")
     }
 
     func testTheDefaultFileIsUnderKiteloopHome() {

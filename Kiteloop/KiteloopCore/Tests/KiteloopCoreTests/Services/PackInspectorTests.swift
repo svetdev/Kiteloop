@@ -84,6 +84,20 @@ final class PackInspectorTests: XCTestCase {
 
     // MARK: - What a pack holds
 
+    func testASecretWrittenIntoAConnectorsCommandLineOrURLIsNotRepeated() throws {
+        try writeManifest(#""connectors": ["connectors/tracker.json"]"#)
+        try write("""
+            {"tracker": {"command": "npx", "args": ["-y", "tracker-mcp", "--api-key", "\(Self.secret)"]},
+             "search": {"type": "http", "url": "https://ada:\(Self.secret)@search.example/mcp?v=2"}}
+            """, to: "connectors/tracker.json")
+
+        let inspection = try PackInspector().inspect(folder: pack)
+
+        XCTAssertEqual(inspection.connectors.map(\.summary),
+                       ["http: https://<redacted>@search.example/mcp?v=2", "npx -y tracker-mcp --api-key <redacted>"])
+        XCTAssertFalse(inspection.account.contains(Self.secret))
+    }
+
     func testAFullPackInspectsToExactlyItsFourKinds() throws {
         try writeFullPack()
 

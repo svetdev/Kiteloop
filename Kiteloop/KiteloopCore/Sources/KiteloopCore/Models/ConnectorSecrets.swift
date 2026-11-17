@@ -3,13 +3,16 @@ import os
 import Security
 
 /// Which part of a connector a secret belongs to: a value in its `env`, or a
-/// value in the `headers` a remote server keeps in `extras`.
+/// value in the `headers` a remote server keeps in `extras` — or, for an
+/// outbound webhook (`OutboundWebhooks`), the key its posts are signed with.
 package enum ConnectorSecretKind: String, Sendable {
     case env
     case header
+    case webhook
 }
 
 /// Where one secret of one connector lives: the server, the part, the name.
+/// An outbound webhook's is under its URL.
 package struct ConnectorSecretKey: Hashable, Sendable {
     package let server: String
     package let kind: ConnectorSecretKind

@@ -6,6 +6,8 @@ import Foundation
 /// signed with `secret`.
 package struct OutboundWebhook: Codable, Equatable, Sendable {
     package let url: URL
+    /// The signing key. Empty for an entry as the file keeps it once the key
+    /// has moved to the secret store.
     package let secret: String
     /// `NotificationItem.NotificationType` raw values: approval, question,
     /// complete, error, event. Empty selects every kind.
@@ -17,25 +19,78 @@ package struct OutboundWebhook: Codable, Equatable, Sendable {
         self.kinds = kinds
     }
 
+    private enum CodingKeys: String, CodingKey { case url, secret, kinds }
+
+    package init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        url = try container.decode(URL.self, forKey: .url)
+        secret = try container.decodeIfPresent(String.self, forKey: .secret) ?? ""
+        kinds = try container.decode([String].self, forKey: .kinds)
+    }
+
+    /// An entry with no secret is written without the key.
+    package func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(url, forKey: .url)
+        if !secret.isEmpty { try container.encode(secret, forKey: .secret) }
+        try container.encode(kinds, forKey: .kinds)
+    }
+
     package func selects(kind: String) -> Bool {
         kinds.isEmpty || kinds.contains(kind)
+    }
+
+    /// Where this webhook's secret is kept: under its URL.
+    package var secretKey: ConnectorSecretKey {
+        ConnectorSecretKey(server: url.absoluteString, kind: .webhook, name: "secret")
+    }
+
+    fileprivate func with(secret: String) -> OutboundWebhook {
+        OutboundWebhook(url: url, secret: secret, kinds: kinds)
     }
 }
 
 /// The outbound webhooks, in `~/.kiteloop/webhooks.json`, readable by this
-/// user only and edited by hand; read once at launch.
+/// user only and edited by hand; read once at launch. The file lists each
+/// webhook's `url` and `kinds`; its secret is in the secret store.
 package enum OutboundWebhooks {
     package static var defaultURL: URL {
         KiteloopHome.url.appending(path: ".kiteloop/webhooks.json")
     }
 
-    /// The listed webhooks; empty when the file is missing or unreadable.
-    package static func load(from url: URL) -> [OutboundWebhook] {
+    /// The webhooks to deliver to, each with its secret.
+    ///
+    /// A `secret` written in the file is how a person sets or replaces one: it
+    /// moves to `secrets` and the file is written again without it — the way a
+    /// connector's plain values are moved (`ConnectorSecrets`). It stays in
+    /// the file only if the store did not take it. A webhook with no secret in
+    /// either place is left out: nothing is posted unsigned.
+    package static func load(from url: URL, secrets: ConnectorSecretStore) -> [OutboundWebhook] {
+        let written = listed(in: url)
+        let kept = written.map { moving($0, into: secrets) }
+        if kept != written { save(kept, to: url) }
+        return kept.compactMap { webhook in
+            let secret = webhook.secret.isEmpty ? secrets.value(for: webhook.secretKey) ?? "" : webhook.secret
+            return secret.isEmpty ? nil : webhook.with(secret: secret)
+        }
+    }
+
+    /// The entries as the file has them; empty when it is missing or unreadable.
+    package static func listed(in url: URL) -> [OutboundWebhook] {
         PrivateJSONFile.load([OutboundWebhook].self, from: url) ?? []
     }
 
     package static func save(_ webhooks: [OutboundWebhook], to url: URL) {
         PrivateJSONFile.save(webhooks, to: url)
+    }
+
+    /// The entry as the file should keep it: without its secret once the
+    /// store holds it, unchanged when the store did not take it.
+    private static func moving(_ webhook: OutboundWebhook, into secrets: ConnectorSecretStore) -> OutboundWebhook {
+        guard !webhook.secret.isEmpty else { return webhook }
+        secrets.set(webhook.secret, for: webhook.secretKey)
+        guard secrets.value(for: webhook.secretKey) == webhook.secret else { return webhook }
+        return webhook.with(secret: "")
     }
 
     /// `sha256=` and the hex HMAC-SHA256 of `body` keyed by `secret`.

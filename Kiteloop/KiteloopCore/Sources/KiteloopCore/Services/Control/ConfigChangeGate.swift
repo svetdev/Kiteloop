@@ -30,19 +30,19 @@ package enum ConfigChangeGate {
 /// secrets left out: the query and the JSON body, with every value that could
 /// be a credential replaced by `redacted`.
 ///
-/// What is left out: the value under any key named like a secret (`token`,
-/// `secret`, `password`, `authorization`, `credential`, anything ending in
-/// `key`), every value inside an `env` or `headers` object — an MCP server's
-/// credentials live there — and the user, password and query of any URL.
+/// What is left out: the value under any key named like a secret
+/// (`SecretRedaction.isSecretName`), every value inside an `env` or `headers`
+/// object — an MCP server's credentials live there — and, best effort, what
+/// `SecretRedaction` finds in a `command`, in `args` and in any URL.
 /// Names stay, so the card still says *which* variable or header was set.
 package enum ConfigChangeSummary {
 
-    package static let redacted = "<redacted>"
+    package static let redacted = SecretRedaction.marker
 
     /// The summary of a request's query and body.
     package static func text(query: [String: String], body: Data) -> String {
         var parts = query.keys.sorted().map { key in
-            "\(key)=\(isSecretName(key) ? redacted : cleaned(query[key] ?? ""))"
+            "\(key)=\(SecretRedaction.isSecretName(key) ? redacted : SecretRedaction.url(query[key] ?? ""))"
         }
         if let body = bodyText(body) { parts.append(body) }
         return parts.joined(separator: " ")
@@ -65,38 +65,30 @@ package enum ConfigChangeSummary {
             return Dictionary(uniqueKeysWithValues: object.map { ($0.key, scrubbed($0.value, under: $0.key)) })
         }
         if let list = value as? [Any] { return list.map(scrubbed) }
-        if let text = value as? String { return cleaned(text) }
+        if let text = value as? String { return SecretRedaction.url(text) }
         return value
     }
 
     private static func scrubbed(_ value: Any, under key: String) -> Any {
-        if isSecretName(key) { return redacted }
+        if SecretRedaction.isSecretName(key) { return redacted }
         if holdsSecrets(key), let object = value as? [String: Any] {
             return object.mapValues { _ in redacted as Any }
         }
-        return scrubbed(value)
+        return commandLine(value, under: key) ?? scrubbed(value)
     }
 
-    private static func isSecretName(_ key: String) -> Bool {
-        let name = key.lowercased()
-        return name.hasSuffix("key") || name.hasSuffix("token")
-            || ["secret", "password", "authorization", "credential"].contains { name.contains($0) }
+    /// An MCP server's `command` or `args` with the secrets written into it
+    /// replaced; nil for any other field.
+    private static func commandLine(_ value: Any, under key: String) -> Any? {
+        switch (key, value) {
+        case ("command", let command as String): return SecretRedaction.text(command)
+        case ("args", let arguments as [String]): return SecretRedaction.commandLine(arguments)
+        default: return nil
+        }
     }
 
     /// The objects whose values are credentials whatever their keys are called.
     private static func holdsSecrets(_ key: String) -> Bool {
         ["env", "headers"].contains(key.lowercased())
-    }
-
-    /// A URL without the parts that carry credentials; any other text as given.
-    private static func cleaned(_ text: String) -> String {
-        guard text.hasPrefix("http://") || text.hasPrefix("https://"),
-              var components = URLComponents(string: text),
-              components.user != nil || components.password != nil || components.query != nil else { return text }
-        let hadQuery = components.query != nil
-        components.user = nil
-        components.password = nil
-        components.query = nil
-        return (components.string ?? redacted) + (hadQuery ? "?\(redacted)" : "")
     }
 }
