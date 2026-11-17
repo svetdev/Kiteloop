@@ -39,6 +39,9 @@ entry — see the changelog convention in `CLAUDE.md`.
 - An outside service can send a routine's prompt by calling that routine's own webhook, `POST /v1/hooks/{name}` with the hook's secret in `X-Kiteloop-Hook-Secret`; the request body goes to the agent under the prompt, the day's budget still applies, and the run is logged naming the hook. The control token alone creates hooks with `POST /v1/hooks` and removes them with `DELETE /v1/hooks/{name}`.
 - Companion repositories are listed, added, edited and removed on a Repositories page of project settings; Save changes only the companions and refuses a bad or duplicate name or an empty path.
 
+### Fixes
+- An item at the approval gate whose base branch took another commit while its refresh round was running is no longer left waiting for a person: the app merges the base in again and re-runs the item's verify, up to the run's review-round limit. A merge that conflicts, a verify that fails, or a base that is still moving after that many merges leaves the item at the gate with the reason, as before.
+
 ## 0.7.1 — 2026-11-15
 
 ### Added

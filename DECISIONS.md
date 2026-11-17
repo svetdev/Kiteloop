@@ -366,3 +366,10 @@ Entry format:
 **Why:** The scheduler and `POST /v1/runs` both start one item per autopilot run, so taking every autopilot run as a sitting would file a summary after each item — the item-by-item reading the summary exists to replace. The hold is the event at which the scheduler has stopped; a quiet period measured on a clock would be a guess at how long a night is.
 **Evidence:** `OpenSittings`, `SittingSummary.build`, `CoordinatorRunScheduler.endSittings(at:)`, `MainWindow.wireRunEnds`; `SittingSummaryTests`.
 **Status:** holds — a queue that empties and is refilled minutes later is two sittings and two notices.
+
+## [2026-11-17] A base that moves during a gate refresh is merged in by the app, not handed to a person
+**Kind:** decision
+**What:** When a gate-refresh round ends with the branch behind the base again, the app merges the base into the branch itself and runs the item's `verify:` on the result, for as many merges as a run gets review rounds (`maxRetries`). A merge that conflicts is aborted and fails the round, as does a failing verify or a base still ahead after the last merge. No second worker turn is spent on it, and a worker turn that merged nothing is covered by the same merge when it is clean.
+**Why:** "Still behind after the round" was filed like a refusal, though nothing had been refused: another commit had landed while the round ran. A clean merge carries no intent, so the verify stands in for review exactly as it does for the round itself. The bound is borrowed because a second number would have to be argued for separately.
+**Evidence:** three items left at the gate in one night, each by a commit landing during its round; `GateCatchUp`, `WorktreeManager.mergeBaseCleanly(for:base:)`, `GateCatchUpTests`.
+**Status:** holds

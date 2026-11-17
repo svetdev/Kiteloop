@@ -7945,7 +7945,9 @@ class BacklogAutopilot {
     /// What the worker's turn actually left on the branch, judged once it is
     /// over: the branch has to read fresh against `base`, and the item's
     /// `verify:` has to pass on the merged tree — an item with no `verify:` is
-    /// asked only the freshness question. These are the round's acceptance
+    /// asked only the freshness question. A branch that reads behind only
+    /// because the base moved during the round is caught up first
+    /// (`GateCatchUp`). These are the round's acceptance
     /// rules, and they change when the rules do rather than when the worker's
     /// confinement does.
     ///
@@ -7957,8 +7959,16 @@ class BacklogAutopilot {
     ) async -> GateRefresh.Outcome {
         _ = await manager.commitAll(for: item.id, message: "autopilot: rebase \(item.id) at the gate")
 
-        guard !(await manager.isStale(for: item.id)) else {
-            return .failed(note: "\(branch) is still behind \(base) after the round")
+        // The base may have moved while the round ran. Nothing was refused, so
+        // the app merges it in itself, at most `maxRetries` times, before the
+        // verify below runs on the final merged tree.
+        let itemID = item.id
+        let catchUp = await GateCatchUp.run(
+            limit: base.isEmpty ? 0 : maxRetries,
+            isStale: { await manager.isStale(for: itemID) },
+            mergeBase: { await manager.mergeBaseCleanly(for: itemID, base: base) })
+        if let note = GateCatchUp.failureNote(for: catchUp, branch: branch, base: base) {
+            return .failed(note: note)
         }
         guard !verify.isEmpty else { return .fresh }
         guard await manager.runVerify(for: item.id, command: verify) else {
