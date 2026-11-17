@@ -90,6 +90,93 @@ final class BacklogAutopilotPreReviewGateRunTests: XCTestCase {
         XCTAssertTrue(autopilot.log.contains { $0.message.hasPrefix("Skipping review — \(reason)") })
     }
 
+    // MARK: - A cut-short worker is continued once
+
+    /// A worker that ran out of turns with work in its worktree is started
+    /// once more in the same worktree, the item still in flight; when that
+    /// pass finishes the work, the run goes on to review like any other.
+    func testACutShortWorkerThatLeftWorkIsContinuedInTheSameWorktree() async throws {
+        let autopilot = try await makeProject(verify: "true", git: true)
+
+        let result = try await runOneItem(autopilot) { execID in
+            let continued = try await self.cutShortThenContinued(autopilot, firstPass: execID)
+            XCTAssertEqual(self.backlog.item(withID: "item-1")?.status, .active, "not blocked in between")
+            try "half\nwhole\n".write(to: self.workFile, atomically: true, encoding: .utf8)
+            self.complete("worker", in: continued, output: [:])
+            try await eventually("the gate to let the reviewer in") { self.triggered.contains("reviewer") }
+            self.complete("reviewer", in: continued, output: ["passed": .string("true"), "reason": .string("fine")])
+        }
+
+        guard case .awaitingApproval = result.outcome else { return XCTFail("\(result.outcome)") }
+        XCTAssertFalse(try notes().contains(BacklogAutopilot.workerCutShortReason(turns: 50)))
+        XCTAssertEqual(continuationsStarted(autopilot), 1)
+    }
+
+    /// A continuation that leaves the worktree as it found it blocks the item
+    /// on the first pass's budget, with the note a cut-short worker always
+    /// left, and nothing is started a third time.
+    func testAContinuationThatChangesNothingBlocksAsACutShortWorker() async throws {
+        let autopilot = try await makeProject(verify: "true", git: true)
+
+        let result = try await runOneItem(autopilot) { execID in
+            let continued = try await self.cutShortThenContinued(autopilot, firstPass: execID)
+            self.complete("worker", in: continued, output: [:])
+        }
+
+        try assertBlockedAsCutShort(result, turns: 50, autopilot)
+    }
+
+    /// A continuation that runs out of turns as well blocks on its own budget.
+    func testAContinuationCutShortAgainBlocksWithoutAThirdPass() async throws {
+        let autopilot = try await makeProject(verify: "true", git: true)
+
+        let result = try await runOneItem(autopilot) { execID in
+            let continued = try await self.cutShortThenContinued(autopilot, firstPass: execID)
+            try "half\nmore\n".write(to: self.workFile, atomically: true, encoding: .utf8)
+            self.complete("worker", in: continued, output: self.turnCap(30))
+        }
+
+        try assertBlockedAsCutShort(result, turns: 30, autopilot)
+    }
+
+    private var workFile: URL {
+        WorktreeSession.worktreesRoot(projectRoot: root).appending(path: "item-1/work.txt")
+    }
+
+    private func turnCap(_ turns: Int) -> [String: AnyCodable] {
+        [StreamEvent.ResultPayload.turnsOutputKey: .int(turns),
+         StreamEvent.ResultPayload.turnCapOutputKey: .bool(true)]
+    }
+
+    private func continuationsStarted(_ autopilot: BacklogAutopilot) -> Int {
+        autopilot.log.filter { $0.message.hasPrefix("Continuing: ") }.count
+    }
+
+    /// Plays a first pass that wrote half its work and ran out of turns, and
+    /// waits for the continuation's workflow and its worker's trigger.
+    private func cutShortThenContinued(_ autopilot: BacklogAutopilot, firstPass: String) async throws -> String {
+        try "half\n".write(to: workFile, atomically: true, encoding: .utf8)
+        complete("worker", in: firstPass, output: turnCap(50))
+        let continued = try await eventuallyValue(timeout: .seconds(20), "the continuation to start") {
+            autopilot.currentExecutionID.flatMap { $0 == firstPass ? nil : $0 }
+        }
+        try await eventually(timeout: .seconds(10), "the worker to be triggered again") {
+            self.triggered.filter { $0 == "worker" }.count == 2
+        }
+        return continued
+    }
+
+    private func assertBlockedAsCutShort(_ result: BacklogAutopilot.ItemResult, turns: Int,
+                                         _ autopilot: BacklogAutopilot) throws {
+        let cutShort = BacklogAutopilot.workerCutShortReason(turns: turns)
+        guard case .blocked(let reason) = result.outcome else { return XCTFail("\(result.outcome)") }
+        XCTAssertEqual(reason, cutShort)
+        XCTAssertEqual(backlog.item(withID: "item-1")?.status, .blocked)
+        XCTAssertTrue(try notes().contains(cutShort))
+        XCTAssertFalse(triggered.contains("reviewer"), "\(triggered)")
+        XCTAssertEqual(continuationsStarted(autopilot), 1)
+    }
+
     // MARK: - The gate opens
 
     /// Green verify, a review that passes: the item reaches the approval gate

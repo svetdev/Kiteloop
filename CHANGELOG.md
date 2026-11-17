@@ -47,6 +47,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - The Autopilot tab no longer lists the project's routines; they are on the Routines page.
 
 ### Fixes
+- A worker that runs out of turns with work already in its worktree is started once more on the same branch, told the work is there and to finish it, instead of the item being blocked and the next run starting over. The item is blocked as before when that second pass runs out of turns too or changes nothing, and when the first pass left nothing behind; both passes count against the item's cost and the budget.
 - The environment values and remote-server headers of a connector set up in Settings → MCP Servers (or through `PUT /v1/mcp-servers`) are kept in the login keychain instead of in plain text in `~/.kiteloop/global-config.json`, which now holds only their names; values already in the file move to the keychain the next time Kiteloop starts, and leaving a value blank when saving keeps the stored one.
 - A table in a chat reply lines up when a cell holds ✅/❌, another emoji or CJK text, honours `:---`, `:---:` and `---:` column alignment, and is drawn as a table when written without the outer pipes.
 - A chat follows the conversation again. The list stays on the newest line as a reply is written, as a call's result comes in and when the turn ends, instead of leaving the end of a reply below the window; it still stays put for a reader who scrolled up. Sending a message always takes you to the bottom.

@@ -339,3 +339,10 @@ Entry format:
 **Why:** A routine's turn files notices of its own — a question, a permission card — and each would otherwise fire the routine again, or a second routine that fires the first, for as long as the day's budget lasts.
 **Evidence:** `Routine.matches`, `RoutineRunner.echo`; `RoutineRunnerTests.testAnEventARoutinesOwnAgentRaisedDoesNotFireIt`, `testAnEventRaisedInsideARoutinesTurnFiresNoRoutine`.
 **Status:** holds — a prompt that joined a busy agent's queue runs in a turn the runner does not see end, so a notice from that later turn is stopped only when the routine's own agent raised it; the daily budget bounds the rest.
+
+## [2026-11-17] A worker cut short by its turn cap is continued once, in the same worktree
+**Kind:** decision
+**What:** A worker that used its whole turn budget and left changes or commits in its worktree gets one more pass there — same branch, same session, same item run — before the item is blocked. One, with no setting: the bound is the pass itself, not a number. A continuation that is cut short again or leaves `HEAD`, the diff and the untracked files unchanged blocks the item with the same note as before, and a first pass that left nothing is not continued.
+**Why:** A blocked item's next run starts on a fresh branch and replaces the work, so a turn cap made the same work be paid for twice. A second continuation would only be a larger turn budget under another name, and that budget is already derived from the project's runs. The cost caps and the budget stay the hard stop: both passes are one item's spend.
+**Evidence:** `CutShortContinuation`, `BacklogAutopilot.finishingCutShortWork`, `CutShortContinuationTests`, `BacklogAutopilotPreReviewGateRunTests.testACutShortWorkerThatLeftWorkIsContinuedInTheSameWorktree`.
+**Status:** holds
