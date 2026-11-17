@@ -143,6 +143,8 @@ struct ProjectSettingsView: View {
             BacklogFlowSettingsView(backlog: backlog)
         case .direction:
             ScrollView { ProjectDirectionView(project: project) }
+        case .companions:
+            CompanionReposSettingsView(project: project, editGuard: editGuard)
         case .mcpServers:
             MCPServerConfigView(projectPath: project.rootURL.path(percentEncoded: false), editGuard: editGuard)
         case .hooks:
@@ -361,7 +363,7 @@ struct ProjectSettingsView: View {
 /// The pages of the project settings sheet, in sidebar order. The three
 /// integrations are listed under their own heading.
 enum ProjectSettingsPage: String, CaseIterable, Identifiable {
-    case general, autopilot, backlogFlow, direction
+    case general, autopilot, backlogFlow, direction, companions
     case mcpServers, hooks, git
 
     var id: String { rawValue }
@@ -372,6 +374,7 @@ enum ProjectSettingsPage: String, CaseIterable, Identifiable {
         case .autopilot: return "Autopilot"
         case .backlogFlow: return "Backlog Flow"
         case .direction: return "Direction"
+        case .companions: return "Repositories"
         case .mcpServers: return "MCP Servers"
         case .hooks: return "Hooks"
         case .git: return "Git"
@@ -384,6 +387,7 @@ enum ProjectSettingsPage: String, CaseIterable, Identifiable {
         case .autopilot: return "bolt.fill"
         case .backlogFlow: return "checklist"
         case .direction: return "scope"
+        case .companions: return "folder.badge.plus"
         case .mcpServers: return "puzzlepiece.extension"
         case .hooks: return "bolt.horizontal"
         case .git: return "arrow.triangle.pull"
@@ -393,7 +397,7 @@ enum ProjectSettingsPage: String, CaseIterable, Identifiable {
     var isIntegration: Bool {
         switch self {
         case .mcpServers, .hooks, .git: return true
-        case .general, .autopilot, .backlogFlow, .direction: return false
+        case .general, .autopilot, .backlogFlow, .direction, .companions: return false
         }
     }
 }

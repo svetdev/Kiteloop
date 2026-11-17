@@ -82,6 +82,46 @@ package struct CompanionRepo: Codable, Equatable, Sendable {
         return problems
     }
 
+    /// One row as typed on the settings page, before it is trimmed or checked.
+    package struct Row: Equatable, Sendable {
+        package var name: String
+        package var path: String
+        package var baseBranch: String
+
+        package init(name: String, path: String, baseBranch: String = "") {
+            self.name = name
+            self.path = path
+            self.baseBranch = baseBranch
+        }
+    }
+
+    /// What the settings page's Save does with its rows: the list to store, or
+    /// why it is refused.
+    package enum Edit: Equatable, Sendable {
+        /// The value for `ProjectConfig.companions` — nil when no row is left.
+        case store([CompanionRepo]?)
+        /// The phrases `problems(in:)` names; nothing is written.
+        case refused([String])
+    }
+
+    /// The rows typed on the settings page, as the config stores them. Name,
+    /// path and base branch are trimmed, an empty base branch is nil, and a row
+    /// with neither a name nor a path is skipped.
+    package static func edit(fromRows rows: [Row]) -> Edit {
+        let repos = rows.compactMap(companion(fromRow:))
+        let problems = problems(in: repos)
+        guard problems.isEmpty else { return .refused(problems) }
+        return .store(repos.isEmpty ? nil : repos)
+    }
+
+    private static func companion(fromRow row: Row) -> CompanionRepo? {
+        let name = row.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let path = row.path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = row.baseBranch.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty && path.isEmpty { return nil }
+        return CompanionRepo(name: name, path: path, baseBranch: base.isEmpty ? nil : base)
+    }
+
     /// The companions an item named, in the order it named them, and the names
     /// that match none.
     package static func resolve(

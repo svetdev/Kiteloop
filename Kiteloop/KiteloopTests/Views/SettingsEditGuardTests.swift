@@ -13,9 +13,9 @@ import XCTest
 @MainActor
 final class SettingsEditGuardTests: XCTestCase {
 
-    /// The two pages that have their own Save button, and so can hold
+    /// The pages that have their own Save button, and so can hold
     /// unsaved work.
-    private let savingPages: [ProjectSettingsPage] = [.hooks, .mcpServers]
+    private let savingPages: [ProjectSettingsPage] = [.hooks, .mcpServers, .companions]
 
     // MARK: - The decision
 
