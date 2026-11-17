@@ -865,6 +865,13 @@ class BacklogAutopilot {
     /// by `RunTimeouts`, or 50 until five of its runs carry a turn count.
     var workerMaxTurns: Int { runTimeouts.workerTurns.turns }
 
+    /// What a grooming pass is told about that budget: the budget itself, and
+    /// the turns this project's recorded runs of each declared size took.
+    var groomingTurnHistory: BacklogGroomer.TurnHistory {
+        BacklogGroomer.TurnHistory(records: metricStore?.records ?? [], projectPath: projectPath,
+                                   budget: workerMaxTurns)
+    }
+
     /// That deadline in seconds — the one clock every verify the app runs
     /// itself is held to, so none of them can be given a different one.
     ///

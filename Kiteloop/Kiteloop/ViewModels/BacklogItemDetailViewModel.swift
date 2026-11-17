@@ -423,6 +423,7 @@ final class BacklogItemDetailViewModel: Identifiable {
             }.value
             let proposal = try await BacklogGroomer.propose(
                 item: item, detail: detail, backlog: backlogFile, sources: sources,
+                turns: autopilot.groomingTurnHistory,
                 runOneShot: { prompt in
                     try await aiEditor.runOneShot(
                         prompt: prompt, cwd: root,

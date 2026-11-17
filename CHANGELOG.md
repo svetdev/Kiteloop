@@ -42,6 +42,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - A routine can be made, changed and deleted in the app: its name, the agent, the prompt, once a day at a time or every so many minutes between two times, the days, and an optional check that decides whether there is anything to send. Until now a routine was written over the control API or in `~/.kiteloop/routines.json`.
 - The Memory tab shows Claude's memory: the notes the Claude CLI keeps for the project when you ask an agent in chat to remember something. Each note can be read, filtered, edited and deleted there, and deleting one takes its line out of the index. Until now the tab showed only Kiteloop's own per-agent memory, which a chat agent told to remember does not write to.
 - Kiteloop has its own sounds: three short, quiet ones — an agent finished, something needs you, an agent stopped — in place of the macOS alert sound on every banner. Settings → General → Sounds chooses between them, the system sounds and none, and plays each one.
+- Grooming sizes an item against the worker that will run it: the pass is told how many turns a worker gets on one item and how many turns the project's past runs of each size took, with how many were cut off at the limit, and an item that will not fit is groomed down to a first slice with the rest listed under Out of Scope.
 
 ### Changed
 - The Autopilot tab no longer lists the project's routines; they are on the Routines page.

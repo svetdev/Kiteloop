@@ -302,6 +302,14 @@ file — the app live-reloads it into the queue. A refused item logs
 `Skipped: <id> — not ready: <reasons>` in the Autopilot tab's log, and a refused
 `POST /v1/runs` returns 422 with the same reasons. See `CLAUDE.md` → Autonomy.
 
+The Groom pass on an item — the button on its page, or the pass the phone's Add
+asks for — sizes against the worker that will run it. Its prompt states the
+worker's turn budget (`workerMaxTurns` in `GET /v1/autopilot`) and, for each
+declared size, what this project's recorded runs took: how many there were,
+their median and largest turn count, and how many were cut short at the limit.
+An item that will not fit comes back as a first slice that does, with the rest
+listed under Out of Scope; filing the rest as its own item is still yours to do.
+
 Either refusal — the grounding check above, or Definition-of-Ready for how the
 item is written — also sends the item back to `draft`, with the refusal itself
 written to its `## Notes` as `sent back to draft: <reasons>`. No run started,
