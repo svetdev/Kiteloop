@@ -66,7 +66,8 @@ final class KiteloopControlServerPairedPhoneTests: XCTestCase {
 }
 
 /// The pairing QR's one-time code: traded without a bearer token for a
-/// phone's own token, once, and only while the sheet showing it is open.
+/// phone's own token, once, only while the sheet showing it is open, and
+/// only after the person allows the device on that sheet.
 @MainActor
 final class KiteloopControlServerPairingCodeTests: XCTestCase {
     private var harness: ControlServerHarness!
@@ -86,27 +87,85 @@ final class KiteloopControlServerPairingCodeTests: XCTestCase {
         harness = nil
     }
 
-    func testACodeOnOfferTradesForATokenThatWorksWithoutABearer() async throws {
+    /// Sends `code` as a phone would and waits until the sheet has its request.
+    /// The task answers with the status and the token, if one was issued.
+    private func send(_ code: String, name: String = "Work iPhone") async throws -> Task<(Int, String?), Error> {
+        let harness = harness!
+        let claim = Task { () -> (Int, String?) in
+            let (status, body) = try await harness.post("/v1/pair", ["code": code, "name": name], bearer: nil)
+            return (status, body["token"] as? String)
+        }
+        try await eventually("the device to be waiting on the sheet") {
+            harness.server.pairingRequests.waiting[code]?.name == name
+        }
+        return claim
+    }
+
+    func testACodeOnOfferTradesForATokenOnceThePersonAllowsIt() async throws {
         let code = try XCTUnwrap(harness.server.offerPairingCode())
+        let claim = try await send(code)
+        XCTAssertTrue(harness.server.pairedPhones.isEmpty, "the code alone pairs nothing")
 
-        let (status, body) = try await harness.post("/v1/pair", ["code": code, "name": "Work iPhone"], bearer: nil)
+        harness.server.answerPairingRequest(code: code, allow: true)
 
-        XCTAssertEqual(status, 200, body["error"] as? String ?? "")
-        let token = try XCTUnwrap(body["token"] as? String)
+        let (status, issued) = try await claim.value
+        XCTAssertEqual(status, 200)
+        let token = try XCTUnwrap(issued)
         let (projects, _) = try await harness.get("/v1/projects", bearer: token)
         XCTAssertEqual(projects, 200)
         XCTAssertEqual(harness.server.pairedPhones.map(\.name), ["Work iPhone"])
         XCTAssertEqual(harness.server.pairingClaims[code], "Work iPhone", "the sheet can say the code was used")
     }
 
+    func testADeclinedDeviceGetsNoTokenAndLeavesNoPhoneBehind() async throws {
+        let code = try XCTUnwrap(harness.server.offerPairingCode())
+        let claim = try await send(code)
+
+        harness.server.answerPairingRequest(code: code, allow: false)
+
+        let (status, issued) = try await claim.value
+        XCTAssertEqual(status, 403)
+        XCTAssertNil(issued)
+        XCTAssertTrue(harness.server.pairedPhones.isEmpty)
+    }
+
+    func testTwoDevicesSendingOneCodePairNeitherAndSpendTheCode() async throws {
+        let code = try XCTUnwrap(harness.server.offerPairingCode())
+        let first = try await send(code, name: "Someone quicker")
+
+        let (second, _) = try await harness.post("/v1/pair", ["code": code, "name": "Work iPhone"], bearer: nil)
+
+        let (firstStatus, _) = try await first.value
+        XCTAssertEqual(firstStatus, 409)
+        XCTAssertEqual(second, 409)
+        XCTAssertTrue(harness.server.pairedPhones.isEmpty)
+        XCTAssertTrue(harness.server.pairingRequests.contested.contains(code), "the sheet can say so")
+        let (third, _) = try await harness.post("/v1/pair", ["code": code], bearer: nil)
+        XCTAssertEqual(third, 403, "the code is withdrawn")
+    }
+
+    func testClosingTheSheetEndsAWaitingRequestWithoutPairing() async throws {
+        let code = try XCTUnwrap(harness.server.offerPairingCode())
+        let claim = try await send(code)
+
+        harness.server.withdrawPairingCode(code)
+
+        let (status, _) = try await claim.value
+        XCTAssertEqual(status, 403)
+        XCTAssertTrue(harness.server.pairedPhones.isEmpty)
+    }
+
     func testAUsedCodeIsRefused() async throws {
         let code = try XCTUnwrap(harness.server.offerPairingCode())
-        _ = try await harness.post("/v1/pair", ["code": code], bearer: nil)
+        let claim = try await send(code)
+        harness.server.answerPairingRequest(code: code, allow: true)
+        _ = try await claim.value
 
         let (status, _) = try await harness.post("/v1/pair", ["code": code], bearer: nil)
 
         XCTAssertEqual(status, 403)
         XCTAssertEqual(harness.server.pairedPhones.count, 1)
+        XCTAssertTrue(harness.server.pairingRequests.waiting.isEmpty, "a spent code asks the person nothing")
     }
 
     func testClosingTheSheetWithdrawsItsCodeAndLeavesNoPhoneBehind() async throws {

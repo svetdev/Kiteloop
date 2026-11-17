@@ -53,6 +53,13 @@ package final class ControlDeviceTokens {
         return code
     }
 
+    /// Whether `code` is on offer — shown on an open sheet and not yet
+    /// claimed. Asked before the person is, so only a caller that holds the
+    /// code can put a request in front of them.
+    package func isOnOffer(code: String) -> Bool {
+        offers.contains(Self.hash(code))
+    }
+
     /// Trades a code on offer for a newly paired phone and its token, using
     /// the code up; nil for a code that is not on offer — never offered,
     /// claimed already or withdrawn.

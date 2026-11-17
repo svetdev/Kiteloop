@@ -610,7 +610,7 @@ package enum ControlAPISpec {
             id: "claimPairingCode",
             summary: "Trade a pairing code for a phone's own token",
             description: """
-            The one-time code the Mac's pairing QR carries, traded for a token of             the phone's own. A code pairs one phone once, and only while the Mac's             pairing sheet that shows it is open: a claimed code, one whose sheet was             closed and one from before a relaunch are all refused. Needs no bearer             token — the code stands in for it.
+            The one-time code the Mac's pairing QR carries, traded for a token of             the phone's own. A code pairs one phone once, and only while the Mac's             pairing sheet that shows it is open: a claimed code, one whose sheet was             closed and one from before a relaunch are all refused. The code only asks: the request stays open until the person at the Mac allows or declines the device on that sheet, and a second request for a code that has one waiting ends both. Needs no bearer             token — the code stands in for it.
             """,
             requestBody: object([
                 "code": described(string, "The code from the pairing QR."),
@@ -622,8 +622,10 @@ package enum ControlAPISpec {
                     "device": described(string, "The paired phone's id, as Settings lists it.")
                 ], required: ["token", "device"])),
                 errorStatus(400, "No code."),
-                errorStatus(403, "The code is not on offer: used, withdrawn, or never shown."),
-                errorStatus(404, "This Mac keeps no paired phones.")
+                errorStatus(403, "The code is not on offer: used, withdrawn, or never shown; "
+                            + "or the person declined, or closed the sheet before answering."),
+                errorStatus(404, "This Mac keeps no paired phones."),
+                errorStatus(409, "More than one device sent the code; it is withdrawn and nothing is paired.")
             ]
         )
     }

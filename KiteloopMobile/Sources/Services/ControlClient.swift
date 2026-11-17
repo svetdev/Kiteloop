@@ -88,9 +88,10 @@ struct ControlClient {
     }
 
     /// `POST /v1/pair`: the pairing QR's one-time code, traded for this
-    /// phone's own token. Needs no token of its own to call.
+    /// phone's own token. Needs no token of its own to call. The Mac answers
+    /// once the person there allows this phone, so it waits as an approval does.
     func claimPairing(code: String, name: String) async throws -> String {
-        let reply = try await post("/v1/pair", ["code": code, "name": name])
+        let reply = try await post("/v1/pair", ["code": code, "name": name], timeout: Self.approvalTimeout)
         guard let token = reply["token"] as? String, !token.isEmpty else {
             throw ClientError.http(200, "The Mac answered without a token.")
         }

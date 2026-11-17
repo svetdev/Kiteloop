@@ -82,6 +82,30 @@ final class ControlDeviceTokensTests: XCTestCase {
         XCTAssertTrue(store.devices.isEmpty, "an offer nobody claimed leaves no paired phone behind")
     }
 
+    func testACodeIsOnOfferOnlyUntilItIsClaimedOrWithdrawn() {
+        let store = ControlDeviceTokens(url: url)
+        let claimed = store.offer()
+        let withdrawn = store.offer()
+        XCTAssertTrue(store.isOnOffer(code: claimed))
+        XCTAssertFalse(store.isOnOffer(code: "not-a-code"))
+
+        _ = store.claim(code: claimed, name: "iPhone")
+        store.withdraw(code: withdrawn)
+
+        XCTAssertFalse(store.isOnOffer(code: claimed))
+        XCTAssertFalse(store.isOnOffer(code: withdrawn))
+    }
+
+    func testAnOfferIsNeverWrittenToTheDevicesFile() throws {
+        let store = ControlDeviceTokens(url: url)
+        let code = store.offer()
+        _ = store.pair(name: "iPhone")
+
+        let text = try String(contentsOf: url, encoding: .utf8)
+        XCTAssertFalse(text.contains(code))
+        XCTAssertFalse(text.contains(ControlDeviceTokens.hash(code)), "nor its hash: an offer is memory only")
+    }
+
     func testAnOfferDoesNotOutliveARelaunch() {
         let code = ControlDeviceTokens(url: url).offer()
 

@@ -382,7 +382,8 @@ the phone scans.
 
 | Status | Feature | Source | Test |
 |--------|---------|--------|------|
-| [~] | Pairing sheet (`kiteloop://connect?base=…&code=…` QR with a one-time code, network picker, reachability banner) | `Views/Settings/AppPreferencesView.swift` | — |
+| [~] | Pairing sheet (`kiteloop://connect?base=…&code=…` QR with a one-time code, network picker, reachability banner, Allow / Don't Allow for the device that sent the code) | `Views/Settings/AppPreferencesView.swift` | — |
+| [x] | Pairing requests (a code only asks; the token is issued on the person's Allow, and a code two devices sent pairs neither) | `Services/Control/PairingRequests.swift` | `Services/Control/PairingRequestsTests.swift` |
 | [x] | Pairing address candidates (tailnet vs. LAN classification, phone-facing label) | `Services/PairingAddresses.swift` | `Services/PairingAddressesTests.swift` |
 | [x] | Pre-scan reachability probe (races an unauthenticated `/health` check against a timeout) | `Services/PairingReachabilityProbe.swift` | `Services/PairingReachabilityProbeTests.swift` |
 | [x] | Reachability banner text (`.unreachable` names the toggle or the forwarder script depending on whether the server is running) | `Services/PairingRemedy.swift` | `Services/PairingRemedyTests.swift` |

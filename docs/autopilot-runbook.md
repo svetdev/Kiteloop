@@ -675,7 +675,8 @@ QR code for `scripts/control-forwarder.py`, a small process that binds the
 Mac's **tailnet address** (100.x.y.z, WireGuard-encrypted by Tailscale) and its
 **LAN address** (the same Wi-Fi network, plain TCP) and forwards each
 connection to the loopback-only control server. Scanning the code hands the
-iOS companion a URL and a bearer token of its own in one step — each pairing
+iOS companion a URL and, once you click **Allow** for it on the sheet, a
+bearer token of its own — each pairing
 mints a token for that phone, listed under **Settings → Control API → Paired
 phones**, where **Revoke** stops that phone alone — no SSH tunnel, no typed
 address — as long as the forwarder is actually running on the Mac.
