@@ -171,6 +171,12 @@ package enum ControlAPISpec {
 
     // MARK: - What each route accepts and returns, by family
 
+    /// A route's one-line summary, as the document gives it — what
+    /// `OperatorToolsKnowledge` lists each endpoint with.
+    package static func summary(for route: ControlRoute) -> String {
+        detail(for: route).summary
+    }
+
     /// Exhaustive over `ControlRoute` on purpose: adding a route without saying
     /// what it does is a compile error, not a silently thin document. What each
     /// route says is one function of its own, reached through the family it
