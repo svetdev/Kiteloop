@@ -370,6 +370,7 @@ through the local control API.
 | [x] | Durable run records (survive an app restart; a run in flight at kill time answers `interrupted`) | `Services/Control/RunRecordStore.swift` | `Services/Control/RunRecordStoreTests.swift` |
 | [x] | `POST /v1/backlog/land` (merges a done item's branch that never landed; a human-gate endpoint beside the two approve endpoints, 403 for the operator token) | `Services/Control/ControlRouter.swift`, `Services/Control/KiteloopControlServer.swift` | `Services/Control/KiteloopControlServerBacklogApproveTests.swift`, `Services/Control/KiteloopControlServerAuthTests.swift` |
 | [x] | Marking an item built outside a run done (`"builtOutsideARun": true` with a reason on `POST /v1/backlog/approve`; from draft, ready or blocked, merges nothing, runs no verify, refused over an unmerged branch) | `Services/Control/DoneOutsideARun.swift`, `Services/Control/KiteloopControlServer.swift` | `Services/Control/DoneOutsideARunTests.swift`, `Services/Control/KiteloopControlServerBacklogApproveTests.swift` |
+| [x] | A second `POST /v1/runs` while the project's first start is still in its pickup checks is refused at once (409, naming the first start's items) | `Services/Control/StartsInChecks.swift`, `Services/Control/KiteloopControlServer.swift` | `Services/Control/StartsInChecksTests.swift`, `Services/Control/KiteloopControlServerStartRunTests.swift` |
 
 ---
 

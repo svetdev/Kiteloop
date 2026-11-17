@@ -2701,7 +2701,9 @@ package enum ControlAPISpec {
             grounding), the base merge-verify check on a project that lands its own \
             work, and agent spin-up — set the client timeout for that rather than \
             for a quick acknowledgement. A refusal is reported only when a gate \
-            actually refused, in that gate's words.
+            actually refused, in that gate's words. A second request for the project \
+            while the first is still held is refused at once with 409, naming the \
+            items the first asked for; it starts nothing and the first is unchanged.
             """,
             requestBody: object([
                 "project": described(string, "Project identifier."),

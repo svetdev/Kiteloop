@@ -192,6 +192,36 @@ final class KiteloopControlServerStartRunTests: XCTestCase {
         XCTAssertNil(reply.error)
     }
 
+    /// A second request for the project while the first start is still in its
+    /// checks is refused at once, naming the item the first asked for — and the
+    /// first is answered by its own decision, with the start entered once.
+    func testASecondRequestWhileTheFirstIsInItsChecksIsRefusedAtOnce() async throws {
+        let autopilot = try registerConfiguredProject()
+        let harness = try XCTUnwrap(self.harness)
+        let release = holdStart(of: autopilot,
+                                first: { $0.stageStartOutcomeForTesting(refusal: nil, detail: "1 item(s) queued") },
+                                thenDecide: { $0.stageStartedExecutionForTesting("exec-first") })
+
+        let first = Task { @MainActor in
+            let (status, body) = try await harness.post("/v1/runs", ["project": "alpha", "item": "item-1"])
+            return Reply(status: status, runID: body["runId"] as? String,
+                         runStatus: body["status"] as? String, error: body["error"] as? String)
+        }
+        try await eventually("the first request to be waiting on the autopilot's decision") {
+            autopilot.startDecisionWaiterCountForTesting == 1
+        }
+        let (status, body) = try await harness.post("/v1/runs", ["project": "alpha", "items": ["item-1"]])
+        release.yield()
+        let firstReply = try await first.value
+
+        XCTAssertEqual(status, 409)
+        XCTAssertTrue((body["error"] as? String ?? "").contains("already in its pickup checks — item 'item-1'"),
+                      "\(body)")
+        XCTAssertEqual(firstReply.status, 202)
+        XCTAssertEqual(firstReply.runID, "exec-first")
+        XCTAssertEqual(autopilot.lastStartOutcome?.attempt, 1, "the second request must not enter the start")
+    }
+
     /// The same rule at the autopilot: a decision already made answers a
     /// caller that has not seen it, and never one that has.
     func testTheAutopilotsDecisionIsReadByAttempt() async throws {

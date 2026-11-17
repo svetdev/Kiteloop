@@ -4923,6 +4923,11 @@ Behaviour worth knowing:
   execution exists. Wait for it to leave `starting` before posting the item
   again — then the answer is a 409 naming the run if it began, or the same
   refusal if it did not.
+- A **second request while the first is still held** is refused at once with
+  **409**, whether it names the same item, another one or a list: `A start for
+  this project is already in its pickup checks — item 'docs-control-api'. …`.
+  It names the item or items the first request asked for, starts nothing, and
+  changes nothing about the first start, which still answers its own request.
 - A start whose queue was accepted and which then **ended without creating a
   workflow execution** — the item failed before its workflow began, or the queue
   was held at its first item — answers **409** saying so, rather than leaving the

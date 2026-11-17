@@ -125,6 +125,9 @@ final class KiteloopControlServer {
     /// simply re-read, so replacing it on disk is enough to change it.
     private let operatorToken: String
     private var runs: [String: RunInfo] = [:]
+    /// The starts `POST /v1/runs` is still waiting on a decision for, by
+    /// project — what a second request for the same project is refused on.
+    private var startsInChecks = StartsInChecks()
     /// How each ended run ended, keyed by run id — the autopilot's own result when
     /// there is one, otherwise the ending reconstructed from what the run left
     /// behind. A run is **open** exactly while it has no entry here, so this is
@@ -3906,10 +3909,7 @@ final class KiteloopControlServer {
         if let unknown = request.firstUnknown(among: Set(items.map(\.id))) {
             return .error("No backlog item '\(unknown)' in this project", status: 404)
         }
-        // What blocks this run is another run, not a flag — see `waitOutTail`.
-        if let inFlight = await waitOutTail(autopilot) {
-            return .error("Autopilot is still busy for this project — \(inFlight.summary)", status: 409)
-        }
+        if let busy = await busyRefusal(entry) { return busy }
         // Nothing is running, so nothing may claim to be: a run request is one of
         // the two places a stale claim is put right (the other is opening the
         // project), and leaving it would keep the Autopilot tab's Start disabled.
@@ -3920,12 +3920,38 @@ final class KiteloopControlServer {
         return await begin(request, entry: entry, backlog: items)
     }
 
+    /// The 409 for a project that is already doing what this request asks to
+    /// begin, or nil when it is free.
+    ///
+    /// A start still in its pickup checks is refused at once: it has no run in
+    /// flight to wait out, and it is asked about before anything else here
+    /// touches the autopilot, so nothing about that first start changes. What
+    /// blocks otherwise is another run, not a flag — see `waitOutTail`.
+    private func busyRefusal(_ entry: ControlSessionRegistry.Entry) async -> HTTPServer.Response? {
+        if let deciding = startsInChecks.refusal(project: entry.session.project.id) {
+            return .error(deciding, status: 409)
+        }
+        if let inFlight = await waitOutTail(entry.autopilot) {
+            return .error("Autopilot is still busy for this project — \(inFlight.summary)", status: 409)
+        }
+        return nil
+    }
+
     /// Hands the autopilot what was asked for and answers with what it
     /// decided: the execution it created, or the refusal that means there is
     /// none. Every check about the request and the moment is behind it.
     private func begin(_ request: RunRequest, entry: ControlSessionRegistry.Entry,
                        backlog items: [BacklogItem]) async -> HTTPServer.Response {
         let autopilot = entry.autopilot
+        // Claimed with nothing suspending before the start is asked for, and
+        // held until it is decided: two requests that both got this far — each
+        // waited out the same run's tail — are told apart here, and the second
+        // is refused rather than entering the start the first is still in.
+        let projectID = entry.session.project.id
+        if let deciding = startsInChecks.claim(project: projectID, items: request.ids) {
+            return .error(deciding, status: 409)
+        }
+        defer { startsInChecks.release(project: projectID) }
         // Stamped before the queue moves, not after the execution id arrives a few
         // seconds later: `GET /v1/runs/{id}/log` slices the autopilot's log by this
         // instant, and the opening lines ("Executing: …", the cost-cap line) are
