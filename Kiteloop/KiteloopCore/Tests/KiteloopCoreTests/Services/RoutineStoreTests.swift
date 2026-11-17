@@ -25,6 +25,30 @@ final class RoutineStoreTests: XCTestCase {
         XCTAssertEqual(store.routines(), [brief])
     }
 
+    func testARoutineSavedBeforeThereWasAChoiceContinuesItsChat() throws {
+        let store = try store()
+        let written = #"{"routines":[{"id":"old","name":"Old","project":"vault","agent":"Chief","prompt":"Go.","#
+            + #""trigger":{"at":"07:00"},"armed":false}]}"#
+        try Data(written.utf8).write(to: store.routinesURL)
+
+        let routine = try XCTUnwrap(store.routines().first)
+
+        XCTAssertNil(routine.conversation)
+        XCTAssertFalse(routine.startsFresh)
+        XCTAssertEqual(routine.json["conversation"] as? String, "continues")
+    }
+
+    func testAFreshRoutineSurvivesASaveAndReload() throws {
+        let store = try store()
+        var fresh = brief
+        fresh.conversation = .fresh
+
+        try store.save([fresh])
+
+        XCTAssertEqual(store.routines(), [fresh])
+        XCTAssertTrue(store.routines().first?.startsFresh ?? false)
+    }
+
     func testTheRoutinesFileIsReadableByItsOwnerAlone() throws {
         let store = try store()
         try store.save([brief])
@@ -99,6 +123,31 @@ final class RoutineStoreTests: XCTestCase {
         XCTAssertTrue(routine.armed)
         XCTAssertEqual(routine.armedAt, brief.armedAt)
         XCTAssertNil(routine.precheck)
+    }
+
+    func testABodyChoosesTheConversationAndASilentOneKeepsTheExistingChoice() throws {
+        let body: [String: Any] = ["project": "vault", "agent": "Chief", "prompt": "Go.", "trigger": ["at": "07:00"]]
+        var withChoice = body
+        withChoice["conversation"] = "fresh"
+
+        let fresh = try Routine.parse(withChoice, id: brief.id, existing: nil).get()
+        XCTAssertEqual(fresh.conversation, .fresh)
+        XCTAssertTrue(fresh.startsFresh)
+
+        let kept = try Routine.parse(body, id: brief.id, existing: fresh).get()
+        XCTAssertEqual(kept.conversation, .fresh)
+        XCTAssertNil(try Routine.parse(body, id: brief.id, existing: nil).get().conversation)
+    }
+
+    func testAConversationThatIsNeitherChoiceIsRefusedByName() {
+        let body: [String: Any] = ["project": "vault", "agent": "Chief", "prompt": "Go.", "trigger": ["at": "07:00"],
+                                   "conversation": "sometimes"]
+
+        guard case .failure(let refusal) = Routine.parse(body, id: brief.id, existing: nil) else {
+            return XCTFail("parsed")
+        }
+
+        XCTAssertEqual(refusal.problems, ["\"conversation\" is \"continues\" or \"fresh\""])
     }
 
     func testEveryProblemWithABodyIsNamedAtOnce() {

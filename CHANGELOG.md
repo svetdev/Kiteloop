@@ -9,6 +9,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 ## 0.7.2 — unreleased
 
 ### Added
+- A routine can start its agent a fresh chat for each run instead of continuing the open one, so a daily job's context stops growing; the fresh chat opens with a note of the last run's reply. Chosen in the routine editor or as `conversation` on `/v1/routines`; existing routines keep continuing their chat.
 - The chat header shows how full the agent's context window is as tokens against the window — `42.1k / 200k · 21%` — updated as each turn finishes, and `GET /v1/agents` reports the same figure as `contextTokens` and `contextWindow`.
 - The control API changes and removes agents: `PATCH /v1/agents` replaces an agent's name, model, prompt, avatar, tools, refused and always-ask calls, MCP servers and the teammates it may message, and says whether the change is in effect now, restarted the idle session or waits for the agent's next start; `DELETE /v1/agents` takes an agent off the team. Until now an agent could be hired over the API but only edited or removed in the app.
 - `PATCH /v1/agents` also sets an agent's skills, effort, thinking and session budget.

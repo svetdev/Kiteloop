@@ -33,9 +33,13 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
     /// When it was last armed or its trigger last changed: occurrences before
     /// this are not owed.
     package var armedAt: Date?
+    /// Which chat the prompt goes into. Nil — every routine saved before
+    /// there was a choice — continues the agent's open chat.
+    package var conversation: Conversation?
 
     package init(id: String, name: String, project: String, agent: String, prompt: String,
-                 trigger: Trigger, precheck: String? = nil, armed: Bool = false, armedAt: Date? = nil) {
+                 trigger: Trigger, precheck: String? = nil, armed: Bool = false, armedAt: Date? = nil,
+                 conversation: Conversation? = nil) {
         self.id = id
         self.name = name
         self.project = project
@@ -45,7 +49,20 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
         self.precheck = precheck
         self.armed = armed
         self.armedAt = armedAt
+        self.conversation = conversation
     }
+
+    /// Which chat a routine's prompt goes into.
+    package enum Conversation: String, Codable, Sendable {
+        /// The agent's open chat, as a person typing would.
+        case continues
+        /// A new chat for each run, opened with a note of the last run's
+        /// outcome, so a daily job's context does not grow every day.
+        case fresh
+    }
+
+    /// Whether each run starts the agent a new chat.
+    package var startsFresh: Bool { conversation == .fresh }
 
     /// When a routine fires, as it is written down: either `at` a time of day,
     /// or `every` so many minutes between `from` and `until`. `days` narrows
@@ -89,6 +106,7 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
         var out: [String: Any] = ["id": id, "name": name, "project": project, "agent": agent,
                                   "prompt": prompt, "trigger": trigger.json, "armed": armed]
         if let precheck { out["precheck"] = precheck }
+        out["conversation"] = (conversation ?? .continues).rawValue
         return out
     }
 }
