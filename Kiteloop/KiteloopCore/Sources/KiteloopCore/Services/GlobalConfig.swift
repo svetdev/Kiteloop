@@ -68,6 +68,13 @@ package struct GlobalConfig: Codable, Sendable {
     /// means never set, which reads as `QuickReplies.starters`; an empty list
     /// is one cleared on purpose and stays empty.
     package var quickReplies: [String]?
+    /// The kinds of configuration change an agent makes through its own tools
+    /// that wait on an approval card before they apply, each one, approved or
+    /// denied, written to `<project>/.kiteloop/config-changes.jsonl`
+    /// (`ConfigChangeLog`). Nil or empty, the shipped default, means no change
+    /// waits. `"team"` — `hire_agent` and `fire_agent` — is the only kind
+    /// recognised; an unknown kind is ignored.
+    package var agentChangesNeedingApproval: [String]?
 
     /// The memberwise init, spelled out: a `package` type's synthesised one is
     /// internal to the package, and the app constructs this.

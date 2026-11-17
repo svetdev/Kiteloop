@@ -806,6 +806,26 @@ struct MessageListContainer: View {
         }
     }
 
+    /// The team change a message asks a person to approve, when it is one —
+    /// an approval card for `hire_agent` or `fire_agent`.
+    static func configChangeRequest(_ message: Message) -> Message.ApprovalRequest? {
+        guard case .approval(let req) = message.content,
+              req.tool == "hire_agent" || req.tool == "fire_agent" else { return nil }
+        return req
+    }
+
+    private func configChangeCard(for req: Message.ApprovalRequest) -> some View {
+        ConfigChangeCard(
+            request: req,
+            requestedBy: viewModel.agentName,
+            isAnswerable: viewModel.pendingConfigChangeCardID == req.id
+        ) {
+            Task { await viewModel.approveConfigChange(requestID: req.id) }
+        } onDeny: {
+            viewModel.denyConfigChange(requestID: req.id)
+        }
+    }
+
     @ViewBuilder
     private func sessionCard(for message: Message) -> some View {
         if case .plan(let plan) = message.content {
@@ -836,6 +856,8 @@ struct MessageListContainer: View {
                 Task { await viewModel.respondToHuman(requestID: req.id, answer: answer) }
             }
             .id(message.id)
+        } else if let req = Self.configChangeRequest(message) {
+            configChangeCard(for: req).id(message.id)
         } else if Self.isSessionCard(message) {
             sessionCard(for: message).id(message.id)
         } else if case .mcpAuthRequest(let req) = message.content {
