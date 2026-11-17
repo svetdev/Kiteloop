@@ -2480,6 +2480,47 @@ dismissals are not sent. A `: keepalive` comment goes out every 15s.
 
 **Status:** 200 · 401.
 
+**Outbound webhooks.** The same events can be pushed instead of pulled. List
+the receivers in `~/.kiteloop/webhooks.json` (under `$KITELOOP_HOME` when that
+is set), edited by hand and read once at launch — a change applies at the next
+launch, and with no file or an empty list nothing is sent:
+
+```json
+[
+  {"url": "https://hooks.example.com/kiteloop", "secret": "a-long-random-string", "kinds": ["approval", "question"]},
+  {"url": "https://dash.example.net/in", "secret": "another-secret", "kinds": []}
+]
+```
+
+| Field | Meaning |
+|---|---|
+| `url` | Where each event is POSTed |
+| `secret` | The key the body is signed with |
+| `kinds` | The event `kind`s to send — `approval`, `question`, `complete`, `error`, `event`; an empty list sends every kind |
+
+Each event goes as a `POST` whose body is the event's `data:` JSON line above,
+byte for byte, with three headers:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | `application/json` |
+| `X-Kiteloop-Event` | The event's `kind` |
+| `X-Kiteloop-Signature` | `sha256=` and the lowercase hex HMAC-SHA256 of the raw body, keyed by the webhook's `secret` |
+
+A receiver verifies the signature by computing the HMAC-SHA256 of the body
+bytes exactly as received with its copy of the secret, hex-encoding it, and
+comparing `sha256=<hex>` to the header in constant time:
+
+```bash
+printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.*= /sha256=/'
+```
+
+A 2xx answer ends delivery. A send that fails, a 5xx or a 429 is retried with
+backoff (1s, then 2s) up to three attempts in all; any other 4xx is not
+retried. Every attempt is logged in memory — host, event id, attempt number,
+status or error, time — and, like the feed, neither the log nor a pending retry
+survives a quit.
+
 ---
 
 ### GET /v1/memory/proposals
