@@ -22,6 +22,8 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
     var operatorToolsEnabled: Bool
     /// See `Agent.controlAccess`.
     var controlAccess: AgentControlAccess = .whenUnstated
+    /// See `Agent.budget`.
+    var budget: SpendBudget?
 
     static let defaultAvatarEmoji: [String] = [
         "🧙‍♂️", "🧙‍♀️", "👺", "👹", "🤖", "🦉", "🐉", "🧛", "🧟", "🦹",
@@ -97,6 +99,9 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
         crossAgentAccess = try container.decodeIfPresent([String].self, forKey: .crossAgentAccess) ?? []
         operatorToolsEnabled = try container.decodeIfPresent(Bool.self, forKey: .operatorToolsEnabled) ?? false
         controlAccess = try container.decodeIfPresent(AgentControlAccess.self, forKey: .controlAccess) ?? .whenUnstated
+        // Read forgivingly, like the rest: a hand-edited budget that does not
+        // parse is no budget, not a team file that fails to load.
+        budget = try? container.decodeIfPresent(SpendBudget.self, forKey: .budget)
     }
 
     /// Snapshot of a live agent, for persisting the team back to team.json.
@@ -120,6 +125,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
         )
         askFirst = agent.askFirst
         controlAccess = agent.controlAccess
+        budget = agent.budget
     }
 
     func instantiateAgent() -> Agent {
@@ -151,6 +157,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
         )
         agent.askFirst = askFirst
         agent.controlAccess = controlAccess
+        agent.budget = budget
         return agent
     }
 }

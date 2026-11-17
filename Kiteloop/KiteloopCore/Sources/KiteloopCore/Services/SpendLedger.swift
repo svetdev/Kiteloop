@@ -202,11 +202,17 @@ extension SpendBudget {
     /// key that shares today's `yyyy-MM`.
     package func spent(in rows: [SpendRow], now: Date, calendar: Calendar,
                        where matches: (SpendRow) -> Bool) -> Double {
-        let today = DayKey.string(for: now, timeZone: calendar.timeZone)
-        let window = period == .day ? today : String(today.prefix(Self.monthKeyLength))
+        let window = window(now: now, calendar: calendar)
         return rows.reduce(0) { total, row in
             row.day.hasPrefix(window) && matches(row) ? total + row.costUSD : total
         }
+    }
+
+    /// The budget's current window by name: the day key of `now`, or its
+    /// `yyyy-MM` for a month. Two moments in one window share a name.
+    package func window(now: Date, calendar: Calendar) -> String {
+        let today = DayKey.string(for: now, timeZone: calendar.timeZone)
+        return period == .day ? today : String(today.prefix(Self.monthKeyLength))
     }
 
     /// `yyyy-MM`, the part of a day key that names its month.

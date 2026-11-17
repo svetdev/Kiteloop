@@ -341,6 +341,62 @@ final class RoutineRunnerTests: XCTestCase {
         XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .started)
     }
 
+    // MARK: - Its agent's and its project's budget
+
+    func testAScheduledFiringIsRefusedByTheBudgetOfItsAgentOrProject() async throws {
+        let runner = try runner([brief()])
+        var asked: [URL] = []
+        runner.ownerBudgetRefusal = { target in
+            asked.append(target.folder)
+            return "Chief's agent budget $5.00 per day exhausted ($5.20 spent today)"
+        }
+        now = date(16, 7)
+
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(sent, [])
+        XCTAssertEqual(asked, [folder])
+        XCTAssertEqual(runner.runs.map(\.outcome), [.refused])
+        XCTAssertEqual(runner.runs.first?.reason, "Chief's agent budget $5.00 per day exhausted ($5.20 spent today)")
+    }
+
+    func testAWebhookFiringIsRefusedByItToo() async throws {
+        let runner = try runner([brief()])
+        runner.ownerBudgetRefusal = { _ in "vault's project budget $40.00 per month exhausted ($41.00 spent this month)" }
+
+        await runner.runFromHook("brief", hook: "deploys", body: Data())?.value
+
+        XCTAssertEqual(sent, [])
+        XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .refused)
+    }
+
+    func testRunNowStartsARoutineWhoseAgentIsOverItsBudget() async throws {
+        let runner = try runner([brief()])
+        var asked = 0
+        runner.ownerBudgetRefusal = { _ in
+            asked += 1
+            return "Chief's agent budget $5.00 per day exhausted ($5.20 spent today)"
+        }
+
+        await runner.runNow("brief")?.value
+
+        XCTAssertEqual(sent, ["Write the brief."])
+        XCTAssertEqual(asked, 0, "a person's own start is not asked")
+    }
+
+    func testTheDaysBudgetIsNamedAheadOfAnAgentsAndAnAgentsAheadOfTheRoutines() async throws {
+        let runner = try runner([cappedBrief()])
+        runner.ownerBudgetRefusal = { _ in "Chief's agent budget $5.00 per day exhausted ($5.20 spent today)" }
+        runner.routineSpend = { _, _ in 50 }
+        now = date(16, 7)
+        for firing in runner.look() { await firing.value }
+        XCTAssertEqual(runner.runs.last?.reason, "Chief's agent budget $5.00 per day exhausted ($5.20 spent today)")
+
+        runner.budgetRefusal = { _ in "daily budget $5.00 exhausted ($5.20 spent today)" }
+        await runner.runFromHook("brief", hook: "deploys", body: Data())?.value
+        XCTAssertEqual(runner.lastRun(of: "brief")?.reason, "daily budget $5.00 exhausted ($5.20 spent today)")
+    }
+
     func testTheDaysBudgetIsStillTheReasonWhenBothAreSpent() async throws {
         let runner = try runner([cappedBrief()])
         runner.budgetRefusal = { _ in "daily budget $5.00 exhausted ($5.20 spent today)" }

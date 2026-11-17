@@ -53,6 +53,8 @@ class ChatViewModel {
     /// The routine whose turn is running, set by the routine while it waits on
     /// the turn. Its cost is the routine's row, so the turn writes no chat row.
     var routineTurnInFlight: String?
+    /// The day or month in which this chat last said its agent is over budget.
+    private var overBudgetNotice = OverBudgetNotice()
 
     /// The window's web preview pane while this agent is the selected one — set
     /// by the host on every selection change (see `WebPreviewViewModel.retarget`),
@@ -466,7 +468,22 @@ class ChatViewModel {
         if await runSlashCommand(text, from: origin) { return await drainPendingForwards() }
         if await routeMentions(in: text, from: origin) { return }
         closePlanCardsIfTypedByHuman()
+        await sayOverBudgetOnce(to: origin)
         await deliverToAgent(text, attachments: takeOutgoingAttachments())
+    }
+
+    /// Says, once per day or month, that this agent is over its own budget
+    /// (`OverBudgetNotice`). The person's message is sent all the same: only
+    /// unattended work is refused for it.
+    private func sayOverBudgetOnce(to origin: ChatMessageOrigin) async {
+        guard origin == .person, let spendLedger,
+              let owned = orchestrator.agents.first(where: { $0.id == agentID })
+                .flatMap({ ProjectSpendBudgets.owned($0) }) else { return }
+        // Off the main actor: the ledger is a file read end to end.
+        let rows = await Task.detached { spendLedger.rows() }.value
+        if let line = overBudgetNotice.line(for: owned, rows: rows, now: Date(), calendar: .current) {
+            postSystem(line)
+        }
     }
 
     /// What typed during a turn acts at once instead of queueing: a stop, and

@@ -280,6 +280,7 @@ extension ControlAPISpec {
             "permissionMode": described(string, "The mode new agents here start in."),
             "effort": described(nullable(string), "low, medium, high, xhigh or max; null follows the app's."),
             "maxBudgetUSD": described(nullable(number), "What one agent session may spend; null for no ceiling."),
+            "budget": described(nullable(ownedBudget("every source in the project")), "The project's own ceiling for a day or a month, over chat, routines, autopilot and the Planner alike. At the ceiling, routine and trigger firings and autonomous autopilot runs in the project are refused. Beside the autopilot's daily budgetUSD (PUT /v1/autopilot), not instead of it: both apply. null for none."),
             "goal": described(nullable(string), "The project's stated goal, shown to the Planner."),
             "space": described(nullable(enumOf(ProjectSpace.names)), "The space the project is labelled as belonging to; null for unassigned. A label only — it isolates nothing."),
             "companions": described(array(of: companion), "The other repositories an item may change with this one.")

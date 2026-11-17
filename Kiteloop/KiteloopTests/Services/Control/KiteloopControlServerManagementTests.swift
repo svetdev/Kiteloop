@@ -205,6 +205,46 @@ final class KiteloopControlServerManagementTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: session.project.configURL), before, "the model beside a refused effort is not written")
     }
 
+    /// A project's day or month budget: its own field, beside the per-session
+    /// `maxBudgetUSD`, read back against the spend ledger.
+    func testAProjectsBudgetIsSetReadBackWithItsSpendAndCleared() async throws {
+        let session = try registerProject()
+        let ledger = SpendLedger(url: tempDir.appendingPathComponent("spend-ledger.jsonl"))
+        harness.server.spendLedger = ledger
+        let path = session.project.rootURL.path(percentEncoded: false)
+        ledger.append(SpendRow(at: Date(), source: .routine, project: path, routine: "brief", costUSD: 30, basis: .usd))
+        ledger.append(SpendRow(at: Date(), source: .autopilot, project: path, costUSD: 12, basis: .usd))
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/elsewhere", costUSD: 99, basis: .usd))
+
+        let (status, body) = try await harness.put("/v1/projects/settings", [
+            "project": "alpha", "maxBudgetUSD": 2, "budget": ["ceilingUSD": 40, "period": "month"]
+        ])
+
+        XCTAssertEqual(status, 200)
+        let saved = session.project.loadConfig()
+        XCTAssertEqual(saved.budget, SpendBudget(ceilingUSD: 40, period: .month, consequence: .refuse))
+        XCTAssertEqual(saved.maxBudgetUSD, 2, "the per-session ceiling is its own field")
+        let set = try XCTUnwrap(body["budget"] as? [String: Any])
+        XCTAssertEqual(set["spentUSD"] as? Double, 42)
+        XCTAssertEqual(set["standing"] as? String, "atLimit")
+
+        let (_, read) = try await harness.get("/v1/projects/settings?project=alpha")
+        let budget = try XCTUnwrap(read["budget"] as? [String: Any])
+        XCTAssertEqual(budget["ceilingUSD"] as? Double, 40)
+        XCTAssertEqual(budget["period"] as? String, "month")
+        XCTAssertEqual(budget["warnAtFraction"] as? Double, SpendBudget.defaultWarnAtFraction)
+
+        let (refused, _) = try await harness.put("/v1/projects/settings", ["project": "alpha", "goal": "Ship.", "budget": ["ceilingUSD": 0]])
+        XCTAssertEqual(refused, 400)
+        XCTAssertNil(session.project.loadConfig().goal, "the goal beside a refused budget is not written")
+
+        _ = try await harness.put("/v1/projects/settings", ["project": "alpha", "budget": NSNull()])
+        let (_, cleared) = try await harness.get("/v1/projects/settings?project=alpha")
+        XCTAssertTrue(cleared["budget"] is NSNull)
+        XCTAssertNil(session.project.loadConfig().budget)
+        XCTAssertEqual(session.project.loadConfig().maxBudgetUSD, 2)
+    }
+
     func testAProjectsSpaceIsSetReportedAndCleared() async throws {
         let session = try registerProject()
 

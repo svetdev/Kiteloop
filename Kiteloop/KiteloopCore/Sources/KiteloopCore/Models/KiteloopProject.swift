@@ -339,6 +339,12 @@ package struct ProjectConfig: Codable {
     /// The space this project is labelled as belonging to. Nil means
     /// unassigned, which is every project until someone says otherwise.
     package var space: ProjectSpace?
+    /// A ceiling on what every source in this project — chat, routines,
+    /// autopilot, the Planner — may spend in a day or a month, read off the
+    /// spend ledger (`OwnedSpendBudget`). Reaching it refuses unattended work
+    /// in the project. Separate from the autopilot's own daily `budgetUSD`,
+    /// which it neither replaces nor loosens. Nil is no such ceiling.
+    package var budget: SpendBudget?
 
     /// What a pinned-document field holds: the path trimmed, or nil for one
     /// left empty.
@@ -365,7 +371,7 @@ package struct ProjectConfig: Codable {
 
     /// The memberwise init, spelled out: a `package` type's synthesised one is
     /// internal to the package, and the app constructs this.
-    package init(model: String? = nil, permissionMode: String, deniedTools: [String], agentSessionIDs: [String: String]? = nil, claudeCodeVersion: String? = nil, effort: String? = nil, maxBudgetUSD: Double? = nil, observability: OTLPConfig? = nil, bedrock: BedrockConfig? = nil, paused: Bool? = nil, goal: String? = nil, extraExecutablePaths: [String]? = nil, buildEnvironment: [String: String]? = nil, space: ProjectSpace? = nil) {
+    package init(model: String? = nil, permissionMode: String, deniedTools: [String], agentSessionIDs: [String: String]? = nil, claudeCodeVersion: String? = nil, effort: String? = nil, maxBudgetUSD: Double? = nil, observability: OTLPConfig? = nil, bedrock: BedrockConfig? = nil, paused: Bool? = nil, goal: String? = nil, extraExecutablePaths: [String]? = nil, buildEnvironment: [String: String]? = nil, space: ProjectSpace? = nil, budget: SpendBudget? = nil) {
         self.model = model
         self.permissionMode = permissionMode
         self.deniedTools = deniedTools
@@ -380,12 +386,13 @@ package struct ProjectConfig: Codable {
         self.extraExecutablePaths = extraExecutablePaths
         self.buildEnvironment = buildEnvironment
         self.space = space
+        self.budget = budget
     }
 
     private enum CodingKeys: String, CodingKey {
         case model, permissionMode, deniedTools, agentSessionIDs
         case claudeCodeVersion, effort, maxBudgetUSD, observability, bedrock
-        case paused, goal, extraExecutablePaths, buildEnvironment, pinnedDocument, companions, space
+        case paused, goal, extraExecutablePaths, buildEnvironment, pinnedDocument, companions, space, budget
     }
 
     /// The key this config used to carry, kept only so `init(from:)` can read a
@@ -418,6 +425,7 @@ package struct ProjectConfig: Codable {
         // Read as text so a space this build does not know — a hand edit, a
         // newer build's — reads as unassigned instead of refusing the file.
         space = (try? c.decodeIfPresent(String.self, forKey: .space)).flatMap(ProjectSpace.init(named:))
+        budget = try c.decodeIfPresent(SpendBudget.self, forKey: .budget)
         paused = try c.decodeIfPresent(Bool.self, forKey: .paused)
             ?? Self.pausedFromLegacyPriority(in: decoder)
     }

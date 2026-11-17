@@ -284,6 +284,9 @@ struct KiteloopApp: App {
         runner.routineSpend = { routine, budget in
             budget.spent(in: ledger.spendLedger.rows(), now: Date(), calendar: .current) { $0.routine == routine.id }
         }
+        runner.ownerBudgetRefusal = { [weak controlServer] target in
+            controlServer?.spendBudgetRefusal(for: target, ledger: ledger.spendLedger)
+        }
         runner.charge = { cost, folder, attribution in
             ledger.charge(costUSD: cost, project: folder.path(percentEncoded: false), attribution: attribution)
         }

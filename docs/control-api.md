@@ -303,9 +303,9 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | GET | `/v1/memory/proposals?project=` | List a project's pending memory proposals |
 | POST | `/v1/memory/proposals/approve` | Approve one — applies it to the agent's memory |
 | POST | `/v1/memory/proposals/reject` | Reject one — takes it off the list, writes nothing |
-| GET | `/v1/agents?project=` | List a project's agents — id, name, model, state |
+| GET | `/v1/agents?project=` | List a project's agents — id, name, model, state, and its budget against what it has spent |
 | POST | `/v1/agents` | Hire (summon) an agent into a project |
-| PATCH | `/v1/agents` | Change an agent already on the team — name, model, prompt, tools, rules |
+| PATCH | `/v1/agents` | Change an agent already on the team — name, model, prompt, tools, rules, its day or month budget |
 | DELETE | `/v1/agents?project=&agent=` | Take an agent off the team, stopping its session |
 | POST | `/v1/agents/start` | Start an agent's session; a running one is left alone |
 | POST | `/v1/agents/stop` | Stop an agent's session, as Stop Agent does in the sidebar |
@@ -315,7 +315,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/agents/chats/open` | Switch an agent to one of its earlier chats |
 | DELETE | `/v1/agents/chats?project=&agent=&chat=` | Delete one of an agent's chats and its messages |
 | POST | `/v1/projects/close` | Close an open project, as closing its tab does |
-| GET | `/v1/projects/settings?project=` | Read a project's settings — default model, mode, effort, budget, goal, companions |
+| GET | `/v1/projects/settings?project=` | Read a project's settings — default model, mode, effort, per-session ceiling, the project's day or month budget and its spend, goal, companions |
 | PUT | `/v1/projects/settings` | Change them; the fields named are replaced, null clears |
 | GET | `/v1/projects/setup?project=` | Export the project's whole setup as one file — team, routines (disarmed), settings, pinned document, connector names; no secrets |
 | PATCH | `/v1/backlog/items` | Change an item's title, verify, size or detail file |
@@ -2564,6 +2564,34 @@ curl -s -H "$H" "$B/spend?by=project&days=1"
 
 **Status:** 200; 400 when `by` is missing or not one of the five; 503 on a build that keeps no ledger.
 
+#### Which budget is which
+
+Several ceilings can be set, each its own number. They do not replace one
+another: every one that is set applies, and work that one of them refuses is
+refused however much room the others have.
+
+| Budget | Set with | Covers | Window | At the ceiling |
+|---|---|---|---|---|
+| The app's shared daily budget | `dailyBudgetUSD` on [`PUT /v1/coordinator/scheduling`](#put-v1coordinatorscheduling) | Autopilot runs, Planner passes and routine turns in every project | Local day | Autonomous runs, grooming and routine firings are refused |
+| A project's autopilot budget | `budgetUSD` on [`PUT /v1/autopilot`](#put-v1autopilot) | That project's autopilot runs and routine turns | Local day, and one autopilot session | Autonomous starts and routine firings in the project are refused; a run in flight pauses |
+| A project's budget | `budget` on [`PUT /v1/projects/settings`](#put-v1projectssettings) | Every ledger row filed under the project: chat, routines, autopilot, Planner | Local day or month | Routine and trigger firings and autonomous autopilot starts in the project are refused |
+| An agent's budget | `budget` on [`PATCH /v1/agents`](#patch-v1agents) | Every ledger row filed under the agent, in whatever project | Local day or month | Routine and trigger firings aimed at the agent, and autonomous autopilot starts that would use it as worker or reviewer, are refused |
+| A routine's budget | `budget` on [`PUT /v1/routines/{id}`](#put-v1routinesid) | That routine's own turns | Local day or month | Its scheduled and triggered firings are refused |
+| An agent's or a project's per-session ceiling | `maxBudgetUSD` on [`PATCH /v1/agents`](#patch-v1agents) or [`PUT /v1/projects/settings`](#put-v1projectssettings) | One CLI session | That session | The CLI stops the session |
+
+The last four `budget`s are one shape — `ceilingUSD`, `period` (`day` or
+`month`), `warnAtFraction`, `consequence` — read against this ledger by one
+rule. None of them refuses a person: a message typed in a chat, **Run now** on a
+routine and a run you start yourself all go ahead. A chat whose agent is over
+its budget says so in one line, once per day or month. An agent's and a
+project's `budget` come back with `spentUSD`, what the current window has cost,
+and `standing`: `under`, `warning` once the spend reaches `warnAtFraction` of
+the ceiling (0.8 unless the budget says otherwise), or `atLimit`.
+
+An autopilot run's cost is one ledger row filed under its **worker**, so a
+reviewer's own budget counts what the reviewer spent in chat and routines, not
+its share of runs.
+
 ---
 
 ### GET /v1/spend/forecast
@@ -2944,8 +2972,16 @@ curl -s -H "$H" "$B/agents?project=kiteloop"
 
 ```json
 {"agents": [{"id": "…", "name": "Planner", "model": "opus", "state": "idle", "mode": "auto",
+             "budget": {"ceilingUSD": 5, "period": "day", "warnAtFraction": 0.8, "consequence": "refuse",
+                        "spentUSD": 4.2, "standing": "warning"},
              "contextTokens": 42100, "contextWindow": 200000}]}
 ```
+
+`budget` is the agent's own day or month ceiling as
+[`PATCH /v1/agents`](#patch-v1agents) set it, with `spentUSD` — what the spend
+ledger's rows for the agent cost in the current local day or month — and
+`standing`: `under`, `warning` or `atLimit`. `null` for an agent with none. See
+[Which budget is which](#which-budget-is-which).
 
 `state` is `idle`, `working` or `waitingForHuman` — the agent is stopped on
 something only you can answer: a question it asked (`ask_human`), a plan
@@ -2992,6 +3028,20 @@ curl -s -X PATCH -H "$H" -d '{"project":"kiteloop","agent":"Builder","model":"op
 | `thinking` | bool | Extended thinking on or off |
 | `thinkingBudget` | integer | Thinking tokens per turn; turns thinking on |
 | `maxBudgetUSD` | number or null | What one session may spend; null for no ceiling |
+| `budget` | object or null | What the agent may spend in a day or a month: `{"ceilingUSD": 5, "period": "day"}`. `ceilingUSD` is required and above zero; `period` is `day` (the default) or `month`; `warnAtFraction` (above 0, at most 1, default 0.8) is where `standing` turns to `warning`; `consequence` is `refuse`, the only one available. `null` clears it |
+
+An agent's `budget` counts every spend-ledger row filed under the agent — its
+chat turns, its routine turns and the autopilot runs it worked — in the current
+local day or month. Once they reach the ceiling, a routine or trigger firing
+aimed at the agent is refused with the reason on its run, and so is an
+autonomous autopilot start that would use it as worker or reviewer: the run
+scheduler passes the project over, and `lastDecision` on
+[`GET /v1/coordinator/scheduling`](#get-v1coordinatorscheduling) names the
+budget when nothing else could start. A person is not
+refused: a message you type still runs, and the chat says once per day or month
+that the agent is over its budget. It is not `maxBudgetUSD`, which bounds one
+session. Read it back, with what has been spent, from
+[`GET /v1/agents`](#get-v1agents); setting it restarts nothing.
 
 ```json
 {"agent": "…", "name": "Builder", "model": "opus", "applies": "restarted",
@@ -3162,14 +3212,35 @@ curl -s -H "$H" "$B/projects/settings?project=kiteloop"
 A null `model` or `effort` follows the app's ([`GET /v1/settings`](#get-v1settings)).
 `space` is `work`, `personal`, or null for a project in neither.
 
+`budget` is the project's own day or month ceiling, `null` when it has none.
+Set, it reads
+
+```json
+"budget": {"ceilingUSD": 40, "period": "month", "warnAtFraction": 0.8, "consequence": "refuse",
+           "spentUSD": 31.5, "standing": "under"}
+```
+
+where `spentUSD` is what every spend-ledger row filed under the project — chat,
+routines, autopilot and the Planner — cost in the current local day or month,
+and `standing` is `under`, `warning` or `atLimit`. It is a different number
+from `maxBudgetUSD` (one agent session) and from the autopilot's `budgetUSD`
+([`PUT /v1/autopilot`](#put-v1autopilot)): see
+[Which budget is which](#which-budget-is-which).
+
 **Status:** 200 · 400 (missing `project`) · 409 (project not open)
 
 ### PUT /v1/projects/settings
 
 Changes them. The body names the project and any of the fields the read
 returns; the fields named are replaced and the rest stay. `null` clears
-`model`, `effort`, `maxBudgetUSD`, `goal` and `space`; an empty `companions`
-clears the list. `space` takes `work` or `personal`, in any case. Agents
+`model`, `effort`, `maxBudgetUSD`, `budget`, `goal` and `space`; an empty `companions`
+clears the list. `budget` takes `{"ceilingUSD": 40, "period": "month"}` —
+`ceilingUSD` required and above zero, `period` `day` (the default) or `month`,
+`warnAtFraction` and `consequence` as on an agent's
+([`PATCH /v1/agents`](#patch-v1agents)); `spentUSD` and `standing` are reported,
+not set. Once the project's ledger rows for the window reach the ceiling,
+routine and trigger firings and autonomous autopilot starts in the project are
+refused; the autopilot's own `budgetUSD` is unchanged by it, and both apply. `space` takes `work` or `personal`, in any case. Agents
 already hired keep their own values. Answers the settings as they now stand.
 
 ```bash
@@ -3177,7 +3248,7 @@ curl -s -X PUT -H "$H" -d '{"project":"kiteloop","model":"opus","permissionMode"
 ```
 
 **Status:** 200 · 400 (a mistyped field, an unknown mode, effort or space, a
-companion without a name and a path, or nothing to change) · 409 (project not open) ·
+budget that cannot be kept, a companion without a name and a path, or nothing to change) · 409 (project not open) ·
 500 (the settings file could not be written)
 
 ### GET /v1/projects/setup
@@ -5817,6 +5888,11 @@ alone: a prompt names what it is about.
   spent — the portfolio's or the project's own — and what its turn cost is
   charged to that day. `POST /v1/routines/{id}/run` is your own start and is
   not refused.
+- **Its agent's and its project's budget.** The agent a routine is aimed at
+  and the project it runs in may each carry a `budget` for a day or a month
+  ([Which budget is which](#which-budget-is-which)). Once either is spent, a
+  scheduled, webhook, event or folder firing is refused with a reason naming
+  that budget; `POST /v1/routines/{id}/run` is not.
 - **Its own budget.** A routine may carry a `budget`: a ceiling for the local
   day or calendar month. Once the routine's own turns have cost that much in
   the current window, a scheduled or webhook firing is refused with a reason
@@ -5994,7 +6070,7 @@ curl -s -H "$H" "$B/routines/runs?routine=pr-watch&limit=5"
 | `started` | The turn began; `finishedAt`, `reply` (the agent's first line) and `costUSD` are filled in when it ends. A start with no `finishedAt` is a turn the app did not see end |
 | `queued` | The agent was mid-turn, so the prompt waits behind that turn |
 | `skipped` | The check failed, timed out or printed nothing; `reason` says which |
-| `refused` | The day's budget or the routine's own, a Run now or webhook call with nobody to send it to, or an event or folder change that would have a routine fire itself or two fire each other ([routines firing routines](#routines-firing-routines)). Final |
+| `refused` | The day's budget, the budget of the routine, its agent or its project, a Run now or webhook call with nobody to send it to, or an event or folder change that would have a routine fire itself or two fire each other ([routines firing routines](#routines-firing-routines)). Final |
 | `waiting` | The agent could not be reached. The occurrence stays owed and a later line records it running |
 
 **Status:** 200 · 401 · 503

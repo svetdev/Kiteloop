@@ -432,6 +432,7 @@
 		CC78AF4BF296639BA0D47C9A /* ToolCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE5E995BB87B4B48A4AA28C3 /* ToolCallView.swift */; };
 		CCDEA1F33C1989E20211F8B5 /* KnowledgePathResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF7ACF306F35DC84C009D27 /* KnowledgePathResolver.swift */; };
 		CE9895F4C0F2224F06CFDC40 /* DailyBudgetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 426D18275F288E133D68FAB4 /* DailyBudgetTests.swift */; };
+		904DD20209008208EFB421AD /* ProjectSpendBudgetsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435F9EBD96163C89C5627EC8 /* ProjectSpendBudgetsTests.swift */; };
 		CF29A6CCFE77C64A152D11BB /* BacklogFileGroomedItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E74AC54A900D3114BB665140 /* BacklogFileGroomedItemTests.swift */; };
 		CF54800EC3A7921814367DF0 /* KiteloopUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A08913DB800DADE7E3FEDAC1 /* KiteloopUITests.swift */; };
 		ACDDF7766DC435755CFA6F23 /* planner-and-fleet-drawers-each-carry-a-projects-table.swift in Sources */ = {isa = PBXBuildFile; fileRef = A55D01DA2FA268D1E7A36820 /* planner-and-fleet-drawers-each-carry-a-projects-table.swift */; };
@@ -522,6 +523,7 @@
 		F32A7476A6ADF260BA78B7B9 /* examples in Resources */ = {isa = PBXBuildFile; fileRef = 775AF51C1DF64189BCA4091A /* examples */; };
 		F38C6B5ED3C64333B4719075 /* RunScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */; };
 		0F31837E9FB813140FE71E55 /* RoutineRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */; };
+		D4767BB637E3D386E64AE11C /* ProjectSpendBudgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 706BAC85CA4783AAC8974FEA /* ProjectSpendBudgets.swift */; };
 		F3A9BF4E5D23D0EFD48E9245 /* KiteloopControlServerSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7A4846B87C61D8C24E83190 /* KiteloopControlServerSchedulingTests.swift */; };
 		F3F81FA2138DFD20E1EFCF18 /* AgentCatalogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC04DDF864EA60BEAD7BFFA6 /* AgentCatalogStore.swift */; };
 		F402A30B6263709165655087 /* ClaudeCodeCLIRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73D7E5B42202DD55DAD9AB5 /* ClaudeCodeCLIRuntime.swift */; };
@@ -873,10 +875,12 @@
 		3E2394E17F22ECBB22EC9B62 /* MemoryBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryBrowserView.swift; sourceTree = "<group>"; };
 		3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunScheduling.swift; sourceTree = "<group>"; };
 		FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutineRunner.swift; sourceTree = "<group>"; };
+		706BAC85CA4783AAC8974FEA /* ProjectSpendBudgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSpendBudgets.swift; sourceTree = "<group>"; };
 		40758D27B5B863E9BD66FB34 /* SettingsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUITests.swift; sourceTree = "<group>"; };
 		40B1C236B2218D02F96AD9B0 /* CoordinatorAdvisor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorAdvisor.swift; sourceTree = "<group>"; };
 		41C4208A1F527750364D6971 /* BacklogTemplateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogTemplateTests.swift; sourceTree = "<group>"; };
 		426D18275F288E133D68FAB4 /* DailyBudgetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyBudgetTests.swift; sourceTree = "<group>"; };
+		435F9EBD96163C89C5627EC8 /* ProjectSpendBudgetsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectSpendBudgetsTests.swift; sourceTree = "<group>"; };
 		429A5093C4BB56DBBF454574 /* CoordinatorKnowledge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorKnowledge.swift; sourceTree = "<group>"; };
 		42A259F108B64067041373B0 /* ItemTimelineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemTimelineTests.swift; sourceTree = "<group>"; };
 		4306CF0786A2573CE667CBEC /* CostGovernor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CostGovernor.swift; sourceTree = "<group>"; };
@@ -1676,6 +1680,7 @@
 				136F2EF6822067FDDCB8A514 /* RunQualityJudge.swift */,
 				3F1C86CCD13AC3AF6336C017 /* RunScheduling.swift */,
 				FE0AD1DCACEA86D4B6A42E48 /* RoutineRunner.swift */,
+				706BAC85CA4783AAC8974FEA /* ProjectSpendBudgets.swift */,
 				917ECCEF15B9C71E5890CA1E /* RunWorkEvidence.swift */,
 				8CB80D099D424A70A7879393 /* SampleProjectService.swift */,
 				C3270240124011E101985C2D /* SizeCalibration.swift */,
@@ -2236,6 +2241,7 @@
 				B09931058EE818729244D223 /* Workflow */,
 				2D2E46683468BC9469C1A198 /* AutonomyLadderTests.swift */,
 				426D18275F288E133D68FAB4 /* DailyBudgetTests.swift */,
+				435F9EBD96163C89C5627EC8 /* ProjectSpendBudgetsTests.swift */,
 				92E2D368642489CD433FDD03 /* EscapedDefectTrackerTests.swift */,
 				7D5537806BD6E56475B4B39B /* GlobalConfigStoreAtomicSaveTests.swift */,
 				A1C0FFEE5EC2E7000000F001 /* GlobalConfigStoreConnectorSecretsTests.swift */,
@@ -2838,6 +2844,7 @@
 				71686EE4719268DEF4F073B5 /* RunQualityJudge.swift in Sources */,
 				F38C6B5ED3C64333B4719075 /* RunScheduling.swift in Sources */,
 				0F31837E9FB813140FE71E55 /* RoutineRunner.swift in Sources */,
+				D4767BB637E3D386E64AE11C /* ProjectSpendBudgets.swift in Sources */,
 				88FF61AB05ACCA63248CC6BB /* RunWorkEvidence.swift in Sources */,
 				B7BD7F06C8994B8585754DA4 /* SampleProjectService.swift in Sources */,
 				464B26AFC65E95D486C16389 /* SearchBar.swift in Sources */,
@@ -3083,6 +3090,7 @@
 				AFE5F1AF5646DB204A5853E6 /* CrossAgentNonBlockingTests.swift in Sources */,
 				5AE2E66EC6C117171D6E78A2 /* CrossAgentRoutingTests.swift in Sources */,
 				CE9895F4C0F2224F06CFDC40 /* DailyBudgetTests.swift in Sources */,
+				904DD20209008208EFB421AD /* ProjectSpendBudgetsTests.swift in Sources */,
 				28558E4F0012E3EF780CCE4C /* DebateOrchestratorTests.swift in Sources */,
 				FA3247AABFC655F50E13487D /* DelegationReplayTests.swift in Sources */,
 				30B2A78A77C33602FD40F5A1 /* EmptyDiffHandoffTests.swift in Sources */,

@@ -48,6 +48,8 @@ struct RoutineTurn: Equatable {
 /// * **The daily budget.** A scheduled firing, or one a webhook started, is autonomy: it is refused on a
 ///   day whose budget is spent, and what its turn cost is charged to that day.
 ///   A person pressing Run now is a person, and is not refused.
+/// * **Its agent's and its project's budget.** Either may carry a ceiling for a day or a month, over
+///   everything spent on it; an autonomous firing is refused once one is reached.
 /// * **Its own budget.** A routine may carry a ceiling for a day or a month.
 ///   Once what its turns cost in that window reaches it, a scheduled or
 ///   webhook firing is refused; Run now is not.
@@ -88,6 +90,9 @@ final class RoutineRunner {
     /// What a routine has spent in its own budget's current day or month.
     /// Asked only for a routine that has a budget.
     var routineSpend: (@MainActor (Routine, SpendBudget) -> Double)?
+    /// Why the budget of the project, or of the agent a routine is aimed at,
+    /// refuses an autonomous firing; nil when neither does.
+    var ownerBudgetRefusal: (@MainActor (RoutineAgent) -> String?)?
     /// Files a finished turn's cost against the day, attributed to the routine.
     var charge: (@MainActor (_ costUSD: Double, _ folder: URL, _ attribution: SpendAttribution) -> Void)?
 
@@ -487,7 +492,7 @@ final class RoutineRunner {
     private func fire(_ routine: Routine, from source: Source, target: RoutineAgent) async {
         var run = RoutineRun(routine: routine.id, scheduledFor: source.scheduledFor, at: clock(), outcome: .refused,
                              hook: source.hook, event: source.event?.kind, watch: source.watch)
-        if source.isAutonomous, let refusal = budgetRefusal(for: routine, in: target.folder) {
+        if source.isAutonomous, let refusal = budgetRefusal(for: routine, target: target) {
             return record(run, refused: refusal)
         }
 
@@ -518,10 +523,10 @@ final class RoutineRunner {
     }
 
     /// Why an autonomous firing of `routine` is refused: the day's budget
-    /// first, then the routine's own once its day or month is spent. Nil when
-    /// neither stands in the way.
-    private func budgetRefusal(for routine: Routine, in folder: URL) -> String? {
-        if let refusal = budgetRefusal?(folder) { return refusal }
+    /// first, then its project's and its agent's, then the routine's own once
+    /// its day or month is spent. Nil when none stands in the way.
+    private func budgetRefusal(for routine: Routine, target: RoutineAgent) -> String? {
+        if let refusal = budgetRefusal?(target.folder) ?? ownerBudgetRefusal?(target) { return refusal }
         guard let budget = routine.budget, let spent = routineSpend?(routine, budget) else { return nil }
         return routine.budgetRefusal(spentUSD: spent)
     }

@@ -535,6 +535,17 @@ enum RunScheduling {
 
     // MARK: - Decide
 
+    /// Why one project's own budgets refuse an autonomous start: its daily
+    /// ceiling first, then its day or month budget or a staffed agent's. Nil
+    /// when the project may spend.
+    private static func budgetRefusal(of path: String, projectBudgets: [String: DailyBudget],
+                                      spendBudgetRefusals: [String: String]) -> String? {
+        if case .refuse(let refusal) = (projectBudgets[path] ?? DailyBudget()).decision(for: .autonomous) {
+            return refusal.eventReason
+        }
+        return spendBudgetRefusals[path]
+    }
+
     /// May a run start, and where?
     ///
     /// The order of the gates is the point:
@@ -573,6 +584,10 @@ enum RunScheduling {
     ///   - projectBudgets: each project's **own** daily ceiling and its own share
     ///     of today's spend, keyed by project path. A project absent from the map
     ///     has no ceiling of its own and is governed by `budget` alone.
+    ///   - spendBudgetRefusals: why each project's own day or month budget, or
+    ///     its worker's or reviewer's, refuses an autonomous run now, keyed by
+    ///     project path (`BacklogAutopilot.spendBudgetRefusal`). A project
+    ///     absent from the map is refused by none of them.
     ///   - queueRefillPolicy: the same policy `QueueRefill` fills queues by —
     ///     `targetDepth` is the ready floor a full approval gate is measured
     ///     against, called rather than restated.
@@ -589,6 +604,7 @@ enum RunScheduling {
                        refusedItems: Set<String> = [],
                        idleSince: [String: Date] = [:],
                        projectBudgets: [String: DailyBudget] = [:],
+                       spendBudgetRefusals: [String: String] = [:],
                        queueRefillPolicy: QueueRefill.Policy = .default, startingPaths: Set<String> = [],
                        now: Date = Date()) -> Decision {
         guard enabled else { return .hold(.disabled) }
@@ -624,10 +640,9 @@ enum RunScheduling {
         // quiet one still gets its night.
         var projectRefusals: [String] = []
         let affordable = unheld.filter { project in
-            guard case .refuse(let refusal) =
-                    (projectBudgets[project.path] ?? DailyBudget()).decision(for: .autonomous)
-            else { return true }
-            projectRefusals.append(refusal.eventReason)
+            guard let reason = budgetRefusal(of: project.path, projectBudgets: projectBudgets,
+                                             spendBudgetRefusals: spendBudgetRefusals) else { return true }
+            projectRefusals.append(reason)
             return false
         }
         guard !affordable.isEmpty else {

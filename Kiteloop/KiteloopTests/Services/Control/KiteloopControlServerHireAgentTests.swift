@@ -589,6 +589,46 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
         XCTAssertEqual(projectSession.orchestrator.agents.first { $0.id == agentID }?.effort, "high")
     }
 
+    /// An agent's day or month budget: set by an edit, kept in the team file,
+    /// read back against the spend ledger, and cleared with null.
+    func testAnAgentsBudgetIsSetReadBackWithItsSpendAndCleared() async throws {
+        let projectSession = try registerProject(named: "alpha")
+        let agentID = addAgent(named: "Builder", to: projectSession)
+        let ledger = SpendLedger(url: tempDir.appendingPathComponent("spend-ledger.jsonl"))
+        harness.server.spendLedger = ledger
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/p/alpha", agent: agentID, costUSD: 4.5, basis: .usd))
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/p/alpha", agent: "someone-else", costUSD: 9, basis: .usd))
+
+        let (status, edit) = try await patch(["project": "alpha", "agent": agentID, "budget": ["ceilingUSD": 5]])
+
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(edit["applies"] as? String, "now", "a budget is nothing the session reads at spawn")
+        let expected = SpendBudget(ceilingUSD: 5, period: .day, consequence: .refuse)
+        XCTAssertEqual(projectSession.orchestrator.agents.first { $0.id == agentID }?.budget, expected)
+        let saved = try JSONDecoder().decode([AgentTemplate].self,
+                                             from: Data(contentsOf: projectSession.project.teamConfigURL))
+        XCTAssertEqual(saved.first { $0.id == agentID }?.budget, expected)
+
+        let (_, list) = try await harness.get("/v1/agents?project=alpha")
+        let agents = try XCTUnwrap(list["agents"] as? [[String: Any]])
+        let budget = try XCTUnwrap(agents.first { ($0["id"] as? String) == agentID }?["budget"] as? [String: Any])
+        XCTAssertEqual(budget["ceilingUSD"] as? Double, 5)
+        XCTAssertEqual(budget["period"] as? String, "day")
+        XCTAssertEqual(budget["spentUSD"] as? Double, 4.5)
+        XCTAssertEqual(budget["standing"] as? String, "warning")
+
+        let (refused, problem) = try await patch(["project": "alpha", "agent": agentID,
+                                                  "budget": ["ceilingUSD": 5, "consequence": "pause"]])
+        XCTAssertEqual(refused, 400)
+        XCTAssertTrue((problem["error"] as? String)?.contains("an agent's budget takes \"refuse\"") == true)
+
+        _ = try await patch(["project": "alpha", "agent": agentID, "budget": NSNull()])
+        XCTAssertNil(projectSession.orchestrator.agents.first { $0.id == agentID }?.budget)
+        let (_, cleared) = try await harness.get("/v1/agents?project=alpha")
+        let row = try XCTUnwrap((cleared["agents"] as? [[String: Any]])?.first { ($0["id"] as? String) == agentID })
+        XCTAssertTrue(row["budget"] is NSNull, "an agent with no budget reports null")
+    }
+
     /// The reply measures the prompt the saved agent will be given, so a skill
     /// the edit just set is in it and the keys a driver already reads are not moved.
     func testAnEditReportsWhatTheAgentsConfigurationPutsInItsFirstTurn() async throws {
