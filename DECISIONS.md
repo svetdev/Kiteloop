@@ -436,3 +436,11 @@ Entry format:
 **Why:** A profile that says "only `GET`" and a tool list are instructions; the token is what the API checks, and the Watch agent held one that could do nearly everything. One shared token rather than one per agent or per spawn keeps the person's token list to a single recognisable row, and a read token names no agent anyway. Re-minting after a revoke keeps a revoke meaningful — the leaked value dies — without leaving a read-only agent permanently broken; the access itself is switched off on the agent. The plaintext has to be kept because the store holds only hashes, so it sits beside the operator token rather than anywhere a project's files or git could carry it.
 **Evidence:** `AgentControlAccess`, `AgentReadToken`, `OperatorToolsKnowledge.readOnlyNote`; `AgentReadTokenTests` walks every non-`GET` route against the token's credential.
 **Status:** holds — the token arrives in `KITELOOP_OPERATOR_TOKEN`, the variable existing profiles and `curl` lines already name. The agent still has `Bash`: the unauthenticated routes and anything else on the machine are outside what a control token decides.
+
+## [2026-11-17] A part of the first turn is measured, reported or unmeasured — never estimated
+**Kind:** rule
+**What:** `firstTurn` sizes only text Kiteloop writes itself: the composed prompt, the operator-tools note and the JSON its tool bridge answers `tools/list` with. An MCP server a session has started is `reported` with the state and tool names the CLI gave and no size; a server no session has started, and the CLI's own prompt and tools, are `unmeasured` with a reason. The servers listed are the ones a session is started with, not the ones the agent's `mcpServers` allows.
+**Why:** The CLI's init line carries tool names and no schemas, so any size for a server would be invented. Every configured server is handed to the session whatever the agent's list says — the list only allows tools — so its schemas are in the context either way.
+**Evidence:** `FirstTurnCost`, `AgentFirstTurn`, `ConnectorStatus.fromInitPayload`, `ClaudeCodeCLIRuntime.appendMCPConfigArguments`; `FirstTurnCostTests`.
+**Status:** holds — extends [2026-11-17] What a configuration costs before its first turn is reported in bytes, not tokens.
+

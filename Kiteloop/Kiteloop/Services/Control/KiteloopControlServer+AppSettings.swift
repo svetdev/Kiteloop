@@ -12,7 +12,7 @@ struct AppSettingsEndpoints {
         case .listMCPServers:
             let servers = settings.config.mcpServers ?? [:]
             return .json(["servers": servers.keys.sorted().map {
-                Self.serverJSON($0, servers[$0] ?? ClaudeMCPServerEntry(), status: newestStatus(of: $0))
+                Self.serverJSON($0, servers[$0] ?? ClaudeMCPServerEntry(), status: AgentContextFields(registry: server.registry).newestStatus(of: $0))
             }])
         case .putMCPServer(let name): return try putMCPServer(name, body: req.body, in: settings)
         case .deleteMCPServer(let name): return try deleteMCPServer(name, in: settings)
@@ -44,13 +44,6 @@ struct AppSettingsEndpoints {
     }
 
     private static let iso = ISO8601DateFormatter()
-
-    /// The newest report of a server across every open project's sessions.
-    private func newestStatus(of name: String) -> ConnectorStatus? {
-        server.registry.entries.values
-            .compactMap { $0.session.orchestrator.connectorStatus(named: name) }
-            .max { $0.reportedAt < $1.reportedAt }
-    }
 
     private func putMCPServer(_ name: String, body: Data, in settings: GlobalConfigStore) throws -> HTTPServer.Response {
         guard let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any], !json.isEmpty else {

@@ -310,8 +310,7 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     }
 
     private func setupToolBridge(sessionID: String, agent: Agent) -> ToolBridge? {
-        let customTools = KiteloopToolSchemas.jsonToolDefinitions(for: agent)
-        guard !customTools.isEmpty else { return nil }
+        guard let toolDefsJSON = KiteloopToolSchemas.toolDefinitionsJSON(for: agent) else { return nil }
 
         let scriptPath = toolBridgeScriptPath()
 
@@ -320,13 +319,6 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
 
         mkfifo(responsePipePath, 0o600)
         mkfifo(requestPipePath, 0o600)
-
-        guard let toolDefsData = try? JSONSerialization.data(withJSONObject: customTools),
-              let toolDefsJSON = String(data: toolDefsData, encoding: .utf8) else {
-            SessionTempFiles.remove(at: responsePipePath)
-            SessionTempFiles.remove(at: requestPipePath)
-            return nil
-        }
 
         let mcpConfig: [String: Any] = [
             "mcpServers": [

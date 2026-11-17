@@ -63,6 +63,10 @@ final class ProjectSession {
     /// project names no model for.
     var appDefaultModel: String? { context.globalConfigStore.config.defaultModel }
 
+    /// Settings → MCP Servers by name, sorted: the servers every session is
+    /// started with.
+    var appMCPServers: [String] { (context.globalConfigStore.config.mcpServers ?? [:]).keys.sorted() }
+
     /// Designated initializer. Normally reached through `bootstrap`, which also
     /// resolves the team and starts the agents; kept internal so tests can build
     /// a session without spawning any.

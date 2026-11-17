@@ -451,4 +451,15 @@ enum KiteloopToolSchemas {
             ]
         }
     }
+
+    /// The definitions as the one JSON text the tool bridge is handed
+    /// (`KITELOOP_TOOL_DEFS`) and answers `tools/list` with — nil for an agent
+    /// with none of Kiteloop's tools, which gets no bridge. `FirstTurnCost`
+    /// measures this same text.
+    static func toolDefinitionsJSON(for agent: Agent) -> String? {
+        let definitions = jsonToolDefinitions(for: agent)
+        guard !definitions.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: definitions) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 }
