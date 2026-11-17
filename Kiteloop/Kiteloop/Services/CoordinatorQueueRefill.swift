@@ -965,7 +965,7 @@ final class CoordinatorQueueRefill {
         let modelDrafts = await draft(target: target, entry: entry, backlog: backlog,
                                       root: root, globalConfigStore: globalConfigStore,
                                       runtimeFactory: runtimeFactory, now: now)
-        var drafts = await withSignalDrafts(modelDrafts, target: target, backlog: backlog, root: root, entry: entry)
+        let drafts = await withSignalDrafts(modelDrafts, target: target, backlog: backlog, root: root, entry: entry)
 
         // The one place a late pass has to be stopped. Everything that writes is
         // downstream of here, and a pass abandoned while the drafter was
@@ -983,35 +983,105 @@ final class CoordinatorQueueRefill {
         }
         guard !drafts.isEmpty else { return .noDrafts(project: target.project) }
 
-        // Widened with the project's own map before either gate sees it: a
-        // draft that gaps on a rule every path is subject to would otherwise
-        // clear Definition-of-Ready and grounding, be picked up, run and
-        // reviewed, and only then be refused by `VerifyCoverage` — a whole
-        // run spent finding what this map already knew.
-        let verifyMap = VerifyMapFile.load(for: entry.session.project)
-        drafts = drafts.map { widenVerify($0, map: verifyMap) }
-
         // The vault too: a draft cites its own detail file and the backlog it
         // will be filed in, and both live there rather than in the repo.
         stage(.gating, of: pass)
-        let sources = await groundingSources(for: entry, root: root, vault: globalConfigStore.vaultURL)
-        let drafted = drafts.map { gate($0, sources: sources, mapCoversEveryPath: SignalDrafting.hasCatchAll(verifyMap)) }.map {
-            Proposal(project: target.project, draft: $0.draft, status: $0.status,
-                     notes: $0.notes, refusals: $0.refusals)
-        }
+        let gating = Gating(
+            sources: await groundingSources(for: entry, root: root, vault: globalConfigStore.vaultURL),
+            verifyMap: VerifyMapFile.load(for: entry.session.project),
+            backlog: backlog,
+            turns: entry.autopilot.groomingTurnHistory,
+            modelDrafted: Set(modelDrafts.map(\.draft.id)),
+            ask: { [self] prompt in
+                await askDrafter(prompt, root: root, globalConfigStore: globalConfigStore,
+                                 runtimeFactory: runtimeFactory, now: now)
+            })
+        return await settleAndFile(drafts, gating: gating, pass: pass, target: target, entry: entry, now: now)
+    }
 
-        stage(.filing, of: pass)
+    /// What judging one project's drafts takes, gathered once a pass.
+    private struct Gating {
+        let sources: GroundingCheck.Sources
+        let verifyMap: VerifyCoverage.Map
+        let backlog: BacklogFile
+        /// The worker's turn budget and what past items of each size took, for
+        /// the correction prompt — the section the drafting prompt carried.
+        let turns: GroomingTurnHistory
+        /// The ids the model drafted. A draft made from an instrument's finding
+        /// has no writer to hand a refusal back to.
+        let modelDrafted: Set<String>
+        /// One charged call to the drafter; nil when it answered nothing.
+        let ask: (String) async -> String?
+    }
+
+    /// Gate every draft, hand a grounding refusal back to the model that wrote
+    /// the draft, and file what each settles as.
+    ///
+    /// Drafts that are grounded as drafted are filed first: they need no
+    /// further model call, so a pass that runs out of time or money while a
+    /// refused sibling is being reworded has already written them.
+    private func settleAndFile(_ drafts: [QueueRefill.Drafted], gating: Gating, pass: InFlightPass,
+                               target: QueueRefill.Target, entry: ControlSessionRegistry.Entry,
+                               now: Date) async -> PassOutcome {
+        let judged = drafts.map { (drafted: $0, first: judge($0, gating)) }
         var ready = 0
         var parked = 0
         var refused = 0
-        for proposal in drafted {
-            guard fileDraft(proposal, entry: entry, backlog: backlog, now: now).didFile else {
+        for (drafted, first) in judged.filter(\.first.grounding.isGrounded)
+            + judged.filter({ !$0.first.grounding.isGrounded }) {
+            let gated = await settle(first, of: drafted, gating: gating, pass: pass, now: now)
+            // A correction is a model call, and a pass ended while it was out
+            // must write nothing more — the same stop the drafting call gets.
+            guard isRunning(pass) else {
+                return .abandoned(project: target.project, stage: .gating,
+                                  ranFor: pass.age(at: Date()), why: .deadline)
+            }
+            stage(.filing, of: pass)
+            let proposal = Proposal(project: target.project, draft: gated.draft, status: gated.status,
+                                    notes: gated.notes, refusals: gated.refusals)
+            guard fileDraft(proposal, entry: entry, backlog: gating.backlog, now: now).didFile else {
                 refused += 1
                 continue
             }
             if proposal.status == .ready { ready += 1 } else { parked += 1 }
         }
         return .filed(project: target.project, ready: ready, drafts: parked, refused: refused)
+    }
+
+    /// Both gates over one draft, its `verify:` widened with the project's own
+    /// map before either sees it: a draft that gaps on a rule every path is
+    /// subject to would otherwise clear Definition-of-Ready and grounding, be
+    /// picked up, run and reviewed, and only then be refused by
+    /// `VerifyCoverage` — a whole run spent finding what this map already knew.
+    private func judge(_ drafted: QueueRefill.Drafted, _ gating: Gating) -> Gated {
+        gate(widenVerify(drafted, map: gating.verifyMap), sources: gating.sources,
+             mapCoversEveryPath: SignalDrafting.hasCatchAll(gating.verifyMap))
+    }
+
+    /// `first`, or what the drafter's rewording of it earned: a draft the
+    /// grounding check refuses goes back to the model that wrote it with the
+    /// check's own summary, as the Groom button's pass does and under the same
+    /// bound (`GroomingCorrection.settle`). Pickup would refuse the same
+    /// citations and send the item back to draft for a person; here the writer
+    /// is still at hand. A draft still refused after the rounds is the last
+    /// one judged, so it is parked as `draft` with that refusal in its Notes.
+    ///
+    /// A round is not asked for once the pass has ended or the day's spend is
+    /// gone — the ceiling bounds a correction as it bounds the drafting call.
+    private func settle(_ first: Gated, of drafted: QueueRefill.Drafted, gating: Gating,
+                        pass: InFlightPass, now: Date) async -> Gated {
+        await GroomingCorrection.settle(first, grounding: \.grounding) { refused, summary in
+            guard gating.modelDrafted.contains(drafted.draft.id), isRunning(pass),
+                  budget.rolled(to: now).spendExhaustionReason == nil else { return nil }
+            stage(.gating, of: pass)
+            let prompt = BacklogGroomer.correctionPrompt(redrafting: refused.draft, backlog: gating.backlog,
+                                                         turns: gating.turns, summary: summary)
+            guard let reply = await gating.ask(prompt),
+                  let reworded = BacklogGroomer.reworded(refused.draft, by: reply) else { return nil }
+            // The notes the draft arrived with, not the refused round's: its
+            // gate notes describe a draft this one replaces.
+            return judge(QueueRefill.Drafted(draft: reworded, notes: drafted.notes), gating)
+        }
     }
 
     // MARK: - Grooming skeletons
@@ -1467,11 +1537,6 @@ final class CoordinatorQueueRefill {
                        runtimeFactory: @escaping () -> any AgentRuntime,
                        now: Date) async -> [QueueRefill.Drafted] {
         let projectPath = root.path(percentEncoded: false)
-        let persona = CoordinatorAdvisor.composeSystemPrompt(
-            agent: nil,  // built-in persona — the picker retired
-            projectPersona: CoordinatorAdvisor.loadKiteloopFile(projectPath: projectPath,
-                                                                name: "coordinator-persona.md")
-        ) + "\n\n" + Self.drafterContract
 
         // The checks' recent complaints, fed back so attempt two is attempt one
         // corrected rather than re-rolled. Without this the drafter never heard
@@ -1496,19 +1561,10 @@ final class CoordinatorQueueRefill {
             repoKnowledge: CoordinatorAdvisor.loadKiteloopFile(projectPath: projectPath,
                                                               name: "coordinator-knowledge.md"),
             recentRefusals: Array(recentRefusals)
-        )
+        ) + Self.sizingSection(entry.autopilot.groomingTurnHistory)
 
-        let reply = try? await HeadlessAgentRunner.runDetailed(
-            prompt: prompt,
-            cwd: root,
-            systemPrompt: persona,
-            agentName: "Coordinator",
-            model: nil,
-            runtimeFactory: runtimeFactory,
-            globalConfigStore: globalConfigStore
-        )
-        recordSpend(reply?.costUSD ?? 0, now: now)
-        guard let response = reply?.text else { return [] }
+        guard let response = await askDrafter(prompt, root: root, globalConfigStore: globalConfigStore,
+                                              runtimeFactory: runtimeFactory, now: now) else { return [] }
 
         let existingItems = backlog.sections.flatMap(\.items)
         let backlogIDs = Set(existingItems.map(\.id))
@@ -1551,6 +1607,30 @@ final class CoordinatorQueueRefill {
         // must not collide with, and not something a filed item can wait for —
         // a ledger entry may name an item a human has since deleted.
         return QueueRefill.resolveDependencies(accepted, renamed: renamed, existingIDs: backlogIDs)
+    }
+
+    /// One call to the drafter, in the project's repository and under the
+    /// drafting persona, charged against the day whatever came back. Nil when
+    /// the call answered nothing. The drafting call and each correction of a
+    /// refused draft both go through here, so neither can go uncharged.
+    private func askDrafter(_ prompt: String, root: URL, globalConfigStore: GlobalConfigStore,
+                            runtimeFactory: @escaping () -> any AgentRuntime, now: Date) async -> String? {
+        let persona = CoordinatorAdvisor.composeSystemPrompt(
+            agent: nil,  // built-in persona — the picker retired
+            projectPersona: CoordinatorAdvisor.loadKiteloopFile(projectPath: root.path(percentEncoded: false),
+                                                                name: "coordinator-persona.md")
+        ) + "\n\n" + Self.drafterContract
+        let reply = try? await HeadlessAgentRunner.runDetailed(
+            prompt: prompt,
+            cwd: root,
+            systemPrompt: persona,
+            agentName: "Coordinator",
+            model: nil,
+            runtimeFactory: runtimeFactory,
+            globalConfigStore: globalConfigStore
+        )
+        recordSpend(reply?.costUSD ?? 0, now: now)
+        return reply?.text
     }
 
     // MARK: - Verify widening
@@ -1639,11 +1719,14 @@ final class CoordinatorQueueRefill {
 
     // MARK: - Gate
 
-    private struct Gated {
+    private struct Gated: Sendable {
         let draft: QueueRefill.Draft
         let status: BacklogItemStatus
         let notes: [String]
         let refusals: [Refusal]
+        /// The grounding check's verdict on `draft` — what decides whether it
+        /// goes back to the drafter for rewording.
+        let grounding: GroundingCheck.Verdict
     }
 
     /// The same two gates a human-groomed item faces, run *before* the item is
@@ -1700,7 +1783,8 @@ final class CoordinatorQueueRefill {
         return Gated(draft: draft,
                      status: refusals.isEmpty ? .ready : .draft,
                      notes: notes,
-                     refusals: refusals)
+                     refusals: refusals,
+                     grounding: grounding)
     }
 
     /// Where a drafted item goes: the epic it named when that epic exists, the
@@ -1784,6 +1868,13 @@ final class CoordinatorQueueRefill {
                "from":"<id of the item this came out of, or empty>",
                "needs":["<id this item must wait for>"]}]}
     """
+
+    /// What the drafting prompt ends with: the worker's turn budget and what
+    /// this project's runs of each declared size took — the section the Groom
+    /// button's prompt carries, so both groomers size against the same figures.
+    static func sizingSection(_ turns: GroomingTurnHistory) -> String {
+        "\n## What a worker finishes\n\(turns.promptSection)\n"
+    }
 
     /// The grooming prompt: how empty the queue is, what the project is for, what
     /// it already has, and what has already been groomed for it.

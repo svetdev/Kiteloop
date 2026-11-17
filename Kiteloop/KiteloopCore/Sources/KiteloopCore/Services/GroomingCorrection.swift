@@ -22,6 +22,34 @@ package enum GroomingCorrection {
         !verdict.isGrounded && roundsUsed < maxRounds
     }
 
+    /// `first`, handed back for rewording while the grounding check refuses it
+    /// and a round is owed, ending at the first grounded proposal. The one loop
+    /// every groomer runs — the Groom button's pass and the Planner's bulk
+    /// grooming — so the bound and the stopping rule cannot differ between them.
+    ///
+    /// - Parameter grounding: the check's verdict on a proposal.
+    /// - Parameter reword: one round — the refused proposal and the check's
+    ///   summary of why, answered with the next proposal. Nil ends the rounds
+    ///   and keeps the proposal that was refused: a round that produced nothing
+    ///   usable, or one the caller could not afford.
+    package static func settle<Proposal: Sendable>(
+        _ first: Proposal,
+        isolation: isolated (any Actor)? = #isolation,
+        grounding: (Proposal) -> GroundingCheck.Verdict,
+        reword: (Proposal, _ summary: String) async throws -> Proposal?
+    ) async rethrows -> Proposal {
+        var proposal = first
+        var rounds = 0
+        var verdict = grounding(proposal)
+        while isOwed(after: verdict, roundsUsed: rounds) {
+            rounds += 1
+            guard let next = try await reword(proposal, verdict.summary) else { break }
+            proposal = next
+            verdict = grounding(proposal)
+        }
+        return proposal
+    }
+
     /// The prompt for one correction round: the original request, the grooming
     /// that was refused, and the check's own words about it.
     ///

@@ -392,6 +392,95 @@ final class CoordinatorQueueRefillTests: XCTestCase {
         XCTAssertTrue(markdown.contains("NotAFileInThisRepo.swift"), markdown)
     }
 
+    // MARK: - A grounding refusal goes back to the drafter
+
+    /// `ungroundedDraft` reworded so the check accepts it: same id, the
+    /// invented path gone.
+    private let rewordedDraft = """
+    {"id":"phantom-fix","title":"Repair the phantom service",
+     "size":"S","verify":"/bin/echo ok",
+     "what":"The `BACKLOG.md` file stops listing the phantom service.",
+     "how":"Read `BACKLOG.md` and remove the line.",
+     "validation":["The line is gone"],
+     "outOfScope":[]}
+    """
+
+    /// The drafter is told why its draft was refused, in the check's words and
+    /// with the worker's turn budget beside it, and the rewording it sends back
+    /// is what gets filed — as `ready`, with no refusal on record.
+    func testADraftTheGroundingCheckRefusesIsRewordedByTheDrafterAndFiledReady() async throws {
+        let fixture = try registerProject(named: "alpha", readyItems: 0)
+        let runtime = StubHeadlessRuntime(behavior: .scripted([
+            draftingEvents(itemsJSON([ungroundedDraft])),
+            draftingEvents(itemsJSON([rewordedDraft]))
+        ]))
+        let refill = makeRefill(runtime: runtime)
+        refill.enabled = true
+
+        let outcome = await refill.runPass()
+
+        XCTAssertEqual(outcome, .filed(project: "alpha", ready: 1, drafts: 0, refused: 0))
+        XCTAssertEqual(runtime.sentPrompts.count, 2, "one drafting call and one correction")
+        let correction = try XCTUnwrap(runtime.sentPrompts.last)
+        XCTAssertTrue(correction.contains("refused by the grounding check"), correction)
+        XCTAssertTrue(correction.contains("NotAFileInThisRepo.swift"), correction)
+        XCTAssertTrue(correction.contains("A worker gets"), correction)
+
+        let items = fixture.backlogFile?.sections.flatMap(\.items) ?? []
+        XCTAssertEqual(items.first { $0.id == "phantom-fix" }?.status, .ready)
+        let markdown = try String(contentsOf: URL(fileURLWithPath: detailPath("alpha", "phantom-fix")),
+                                  encoding: .utf8)
+        XCTAssertFalse(markdown.contains("grounding check failed"), markdown)
+        XCTAssertFalse(markdown.contains("NotAFileInThisRepo.swift"), markdown)
+        XCTAssertNil(groomingLedger.records.first { $0.event == .checkFailed })
+    }
+
+    /// A drafter that never grounds its citation is asked the bounded number
+    /// of times and no more, and the item is parked with the refusal.
+    func testADraftStillRefusedAfterTheBoundIsParkedWithTheReason() async throws {
+        let fixture = try registerProject(named: "alpha", readyItems: 0)
+        let (refill, runtime) = makeRefill(response: itemsJSON([ungroundedDraft]))
+        refill.enabled = true
+
+        let outcome = await refill.runPass()
+
+        XCTAssertEqual(outcome, .filed(project: "alpha", ready: 0, drafts: 1, refused: 0))
+        XCTAssertEqual(runtime.sentPrompts.count, 1 + GroomingCorrection.maxRounds)
+        let items = fixture.backlogFile?.sections.flatMap(\.items) ?? []
+        XCTAssertEqual(items.first { $0.id == "phantom-fix" }?.status, .draft)
+        let markdown = try String(contentsOf: URL(fileURLWithPath: detailPath("alpha", "phantom-fix")),
+                                  encoding: .utf8)
+        XCTAssertTrue(markdown.contains("grounding check failed"), markdown)
+    }
+
+    /// The day's ceiling bounds a correction as it bounds drafting: with the
+    /// spend gone after the drafting call, the refused draft is parked unasked.
+    func testNoCorrectionIsAskedForOnceTheDaysSpendIsGone() async throws {
+        _ = try registerProject(named: "alpha", readyItems: 0)
+        let (refill, runtime) = makeRefill(response: itemsJSON([ungroundedDraft]), costUSD: 4,
+                                           budget: QueueRefill.Budget(capUSD: 4))
+        refill.enabled = true
+
+        let outcome = await refill.runPass()
+
+        XCTAssertEqual(outcome, .filed(project: "alpha", ready: 0, drafts: 1, refused: 0))
+        XCTAssertEqual(runtime.sentPrompts.count, 1, "a correction must not be asked for on credit")
+    }
+
+    /// The drafting prompt states the worker's turn budget, as the Groom
+    /// button's prompt does.
+    func testTheDraftingPromptCarriesTheWorkersTurnBudget() async throws {
+        _ = try registerProject(named: "alpha", readyItems: 0)
+        let (refill, runtime) = makeRefill(response: itemsJSON([groundedDraft]))
+        refill.enabled = true
+
+        _ = await refill.runPass()
+
+        let prompt = try XCTUnwrap(runtime.sentPrompts.first)
+        XCTAssertTrue(prompt.contains("## What a worker finishes"), prompt)
+        XCTAssertTrue(prompt.contains("A worker gets"), prompt)
+    }
+
     // MARK: - Verify widened by the project's own map
 
     /// Validation: "A draft whose verify runs neither ... nor ..., filed
@@ -2111,7 +2200,9 @@ final class CoordinatorQueueRefillTests: XCTestCase {
     /// still grooms, which it could not if the five had accumulated.
     func testAReadyFilingResetsTheStreak() async throws {
         let runtime = StubHeadlessRuntime(behavior: .scripted([
-            draftingEvents(itemsJSON([ungroundedDraft])),   // parked at draft — futile
+            draftingEvents(itemsJSON([ungroundedDraft])),   // drafted, refused by grounding
+            draftingEvents(itemsJSON([ungroundedDraft])),   // reworded, still refused
+            draftingEvents(itemsJSON([ungroundedDraft])),   // and again — parked at draft, futile
             draftingEvents(itemsJSON([ungroundedDraft])),   // already groomed → noDrafts
             draftingEvents(itemsJSON([groundedDraft])),     // files ready — reset
             // Script exhausted: every later call repeats the grounded draft,

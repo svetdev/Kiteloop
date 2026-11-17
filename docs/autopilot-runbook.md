@@ -310,6 +310,18 @@ their median and largest turn count, and how many were cut short at the limit.
 An item that will not fit comes back as a first slice that does, with the rest
 listed under Out of Scope; filing the rest as its own item is still yours to do.
 
+The Planner's bulk grooming — the queue refill that drafts items when a
+project's ready queue runs dry — works to the same two rules. Its drafting
+prompt ends with the same turn budget and per-size history, and a draft the
+grounding check refuses goes back to the drafter with the check's refusal, up
+to `GroomingCorrection.maxRounds` times, before anything is filed. A draft that
+is reworded into something the check accepts is filed `ready`; one still
+refused after those rounds is filed as a `draft` with `grounding check failed:
+<reasons>` in its `## Notes`, as before. Each correction is a model call charged
+to the daily autonomy budget, and none is asked for once that budget is spent —
+the draft is parked as it stands. Drafts made from an instrument's finding
+rather than by the model are not sent back: there is no writer to ask.
+
 Either refusal — the grounding check above, or Definition-of-Ready for how the
 item is written — also sends the item back to `draft`, with the refusal itself
 written to its `## Notes` as `sent back to draft: <reasons>`. No run started,

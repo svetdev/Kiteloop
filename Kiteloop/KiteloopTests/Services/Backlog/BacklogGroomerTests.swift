@@ -276,6 +276,64 @@ final class BacklogGroomerTests: XCTestCase {
         }
     }
 
+    // MARK: - A draft the Planner's bulk grooming wrote is reworded the same way
+
+    private func plannerDraft() -> QueueRefill.Draft {
+        QueueRefill.Draft(id: "cache-index", title: "Cache the index", size: "M", verify: "make test",
+                          what: "Update `Services/NotAFile.swift` to do the thing.", how: "Edit it.",
+                          validation: ["It does the thing"], outOfScope: [], epic: "Now",
+                          from: "parent-item", needs: ["first-piece"])
+    }
+
+    /// A rewording changes what the correction asked for and nothing else:
+    /// where the draft is filed, what it came from and what it waits for are
+    /// the draft's own, whatever the reply echoed.
+    func testARewordingKeepsTheDraftsIdentityAndPlacement() throws {
+        let reworded = try XCTUnwrap(BacklogGroomer.reworded(plannerDraft(), by: goodReply))
+
+        XCTAssertEqual(reworded.id, "cache-index")
+        XCTAssertEqual(reworded.title, "Cache the index")
+        XCTAssertEqual(reworded.epic, "Now")
+        XCTAssertEqual(reworded.from, "parent-item")
+        XCTAssertEqual(reworded.needs, ["first-piece"])
+        XCTAssertEqual(reworded.what, "The index is built once per run.")
+        XCTAssertEqual(reworded.how, "Hold it on the autopilot.")
+        XCTAssertEqual(reworded.verify, "make test")
+        XCTAssertEqual(reworded.outOfScope, ["Persisting the index across launches"])
+    }
+
+    /// A reply answering for several items is read for the one being reworded.
+    func testARewordingIsReadFromTheReplysItemWithTheDraftsId() throws {
+        let reply = """
+            {"items": [{"id": "another-item", "title": "Another", "size": "S", "verify": "make test",
+              "what": "Something else.", "how": "Elsewhere.", "validation": ["It works"], "outOfScope": []},
+             {"id": "cache-index", "title": "Cache the index", "size": "S", "verify": "make test",
+              "what": "The index is cached.", "how": "Cache it.", "validation": ["It is cached"],
+              "outOfScope": []}]}
+            """
+        let reworded = try XCTUnwrap(BacklogGroomer.reworded(plannerDraft(), by: reply))
+        XCTAssertEqual(reworded.what, "The index is cached.")
+        XCTAssertEqual(reworded.size, "S")
+    }
+
+    func testAReplyWithNoUsableDraftRewordsNothing() {
+        XCTAssertNil(BacklogGroomer.reworded(plannerDraft(), by: "I could not find the file."))
+    }
+
+    /// The correction asks about the one draft, with the turn history, the
+    /// refused draft and the check's summary.
+    func testThePlannersCorrectionPromptNamesTheDraftTheTurnBudgetAndTheRefusal() {
+        let turns = BacklogGroomer.TurnHistory(budget: 50, rows: [])
+        let prompt = BacklogGroomer.correctionPrompt(redrafting: plannerDraft(), backlog: backlog(),
+                                                     turns: turns, summary: "cites a path that does not exist")
+
+        XCTAssertTrue(prompt.contains("Item id: cache-index"), prompt)
+        XCTAssertTrue(prompt.contains("A worker gets 50 turns"), prompt)
+        XCTAssertTrue(prompt.contains("Update `Services/NotAFile.swift` to do the thing."), prompt)
+        XCTAssertTrue(prompt.contains("cites a path that does not exist"), prompt)
+        XCTAssertTrue(prompt.contains("refused by the grounding check"), prompt)
+    }
+
     // MARK: - The prompt carries an existing detail's Out of Scope and Premise
 
     /// A re-groom must not silently drop what the file already stated: only
