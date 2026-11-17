@@ -11,7 +11,9 @@ struct AppSettingsEndpoints {
         switch route {
         case .listMCPServers:
             let servers = settings.config.mcpServers ?? [:]
-            return .json(["servers": servers.keys.sorted().map { Self.serverJSON($0, servers[$0] ?? ClaudeMCPServerEntry()) }])
+            return .json(["servers": servers.keys.sorted().map {
+                Self.serverJSON($0, servers[$0] ?? ClaudeMCPServerEntry(), status: newestStatus(of: $0))
+            }])
         case .putMCPServer(let name): return try putMCPServer(name, body: req.body, in: settings)
         case .deleteMCPServer(let name): return try deleteMCPServer(name, in: settings)
         case .getSettings: return .json(settingsJSON(settings))
@@ -28,6 +30,25 @@ struct AppSettingsEndpoints {
         if let command = entry.command { row["command"] = command }
         if let args = entry.args { row["args"] = args }
         return row
+    }
+
+    /// The listed row, with what the last session to start reported of the
+    /// server: `unknown` and no tools when none has.
+    private static func serverJSON(_ name: String, _ entry: ClaudeMCPServerEntry, status: ConnectorStatus?) -> [String: Any] {
+        var row = serverJSON(name, entry)
+        row["status"] = status?.state ?? "unknown"
+        row["tools"] = status?.tools ?? []
+        row["reportedAt"] = status.map { iso.string(from: $0.reportedAt) } ?? NSNull()
+        return row
+    }
+
+    private static let iso = ISO8601DateFormatter()
+
+    /// The newest report of a server across every open project's sessions.
+    private func newestStatus(of name: String) -> ConnectorStatus? {
+        server.registry.entries.values
+            .compactMap { $0.session.orchestrator.connectorStatus(named: name) }
+            .max { $0.reportedAt < $1.reportedAt }
     }
 
     private func putMCPServer(_ name: String, body: Data, in settings: GlobalConfigStore) throws -> HTTPServer.Response {

@@ -2371,8 +2371,8 @@ class ChatViewModel {
         return true
     }
 
-    /// The opening frame: which model actually answered and, from a CLI that
-    /// still says there, how much context it has. Current CLIs report the
+    /// The opening frame: which model actually answered, which MCP servers
+    /// started and, from a CLI that still says there, how much context it has. Current CLIs report the
     /// window only on a turn's `result`, which `recordResult` reads.
     private func applyInitPayload(_ payload: [String: Any]) {
         if let m = payload["model"] as? String, !m.isEmpty {
@@ -2384,6 +2384,8 @@ class ChatViewModel {
             let known = contextWindowDefaults.integer(forKey: Self.contextWindowKey(for: resolvedModel))
             reportedContextWindowSize = known > 0 ? known : nil
         }
+        let connectors = ConnectorStatus.fromInitPayload(payload, at: .now)
+        if !connectors.isEmpty { orchestrator.recordConnectorStatuses(connectors) }
     }
 
     /// The CLI retrying a transient API error, so a long pause has a reason on

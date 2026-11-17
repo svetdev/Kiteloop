@@ -3115,11 +3115,22 @@ The MCP servers the app has configured — what an agent's `mcpServers` names.
 
 ```json
 {"servers": [{"name": "tracker", "summary": "npx -y tracker-mcp", "command": "npx",
-              "args": ["-y", "tracker-mcp"], "env": ["TRACKER_TOKEN"]}]}
+              "args": ["-y", "tracker-mcp"], "env": ["TRACKER_TOKEN"],
+              "status": "connected", "tools": ["create", "search"],
+              "reportedAt": "2026-11-17T09:30:00Z"}]}
 ```
 
 `env` lists the names of the variables a server is given and never their
 values: they are where its credentials are.
+
+`status`, `tools` and `reportedAt` are what the last session to start — in any
+open project — reported of the server on its opening line, not a live probe.
+`status` is `connected`, `failed`, `needs-auth` or `pending` as the Claude CLI
+said it (another value it sends is passed through), or `unknown` when no session
+has reported the server yet. `tools` are the names the server offers, without
+the `mcp__<server>__` prefix, sorted — `[]` with no report. `reportedAt` is when
+that was reported, ISO-8601, or `null`. A server that fails or signs in later
+keeps its old report until a session starts again. `PUT` answers without them.
 
 **Status:** 200 · 503 (no settings store attached)
 

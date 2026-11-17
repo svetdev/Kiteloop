@@ -105,6 +105,21 @@ class Orchestrator {
         usageLimit.flatMap { $0.stands(at: now) ? $0 : nil }
     }
 
+    /// Each MCP server's state as this project's sessions last reported it at
+    /// start, keyed by server name — what `GET /v1/mcp-servers` lists.
+    private var connectorStatuses: [String: ConnectorStatus] = [:]
+
+    /// Keeps, per server name, whichever report is newer by `reportedAt`.
+    func recordConnectorStatuses(_ statuses: [ConnectorStatus]) {
+        for status in statuses where (connectorStatuses[status.name]?.reportedAt ?? .distantPast) <= status.reportedAt {
+            connectorStatuses[status.name] = status
+        }
+    }
+
+    func connectorStatus(named name: String) -> ConnectorStatus? {
+        connectorStatuses[name]
+    }
+
     struct ManagedSession {
         let session: AgentSession
         let runtime: any AgentRuntime
