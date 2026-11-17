@@ -33,7 +33,7 @@ struct RoutineTurn: Equatable {
 ///   agent's chat does. The agent's tools, its permission mode and the cards
 ///   it stops on are that chat's, so a routine can do nothing the agent could
 ///   not already be asked to.
-/// * **The daily budget.** A scheduled firing is autonomy: it is refused on a
+/// * **The daily budget.** A scheduled firing, or one a webhook started, is autonomy: it is refused on a
 ///   day whose budget is spent, and what its turn cost is charged to that day.
 ///   A person pressing Run now is a person, and is not refused.
 /// * **Nothing is dropped in silence.** Every firing — started, queued behind
@@ -142,7 +142,7 @@ final class RoutineRunner {
                 // see this occurrence as still owed.
                 handled[routine.id] = occurrence
                 waiting[routine.id] = nil
-                fired.append(Task { await self.fire(routine, scheduledFor: occurrence, target: target) })
+                fired.append(Task { await self.fire(routine, from: .schedule(occurrence), target: target) })
             }
         }
         syncWake(now: now)
@@ -195,23 +195,73 @@ final class RoutineRunner {
                 self.record(RoutineRun(routine: id, scheduledFor: nil, at: self.clock(), outcome: .refused),
                             refused: refusal.reason)
             case .success(let target):
-                await self.fire(routine, scheduledFor: nil, target: target)
+                await self.fire(routine, from: .person, target: target)
             }
         }
     }
 
-    private func fire(_ routine: Routine, scheduledFor: Date?, target: RoutineAgent) async {
-        let byHand = scheduledFor == nil
-        var run = RoutineRun(routine: routine.id, scheduledFor: scheduledFor, at: clock(), outcome: .refused)
-        if !byHand, let refusal = budgetRefusal?(target.folder) { return record(run, refused: refusal) }
+    /// Runs `id` because an outside service called its webhook `hook`, with
+    /// `body` under the prompt. Not a person: it needs no arming, but the
+    /// day's budget can refuse it and the check can skip it. Nil for an id
+    /// nobody has.
+    func runFromHook(_ id: String, hook: String, body: Data) -> Task<Void, Never>? {
+        guard let routine = routines.first(where: { $0.id == id }) else { return nil }
+        return Task {
+            switch self.resolve(routine) {
+            case .failure(let refusal):
+                self.record(RoutineRun(routine: id, scheduledFor: nil, at: self.clock(), outcome: .refused, hook: hook),
+                            refused: refusal.reason)
+            case .success(let target):
+                await self.fire(routine, from: .hook(hook, body: body), target: target)
+            }
+        }
+    }
+
+    /// What started a firing.
+    private enum Source {
+        /// The occurrence the schedule owed.
+        case schedule(Date)
+        /// A person pressing Run now.
+        case person
+        /// An outside service calling the routine's webhook.
+        case hook(String, body: Data)
+
+        var scheduledFor: Date? {
+            if case .schedule(let occurrence) = self { return occurrence }
+            return nil
+        }
+
+        var hook: String? {
+            if case .hook(let name, _) = self { return name }
+            return nil
+        }
+
+        var body: Data? {
+            if case .hook(_, let body) = self { return body }
+            return nil
+        }
+
+        /// Whether the day's budget and the check have a say: everything but
+        /// a person's own start.
+        var isAutonomous: Bool {
+            if case .person = self { return false }
+            return true
+        }
+    }
+
+    private func fire(_ routine: Routine, from source: Source, target: RoutineAgent) async {
+        var run = RoutineRun(routine: routine.id, scheduledFor: source.scheduledFor, at: clock(), outcome: .refused,
+                             hook: source.hook)
+        if source.isAutonomous, let refusal = budgetRefusal?(target.folder) { return record(run, refused: refusal) }
 
         let check = await check(routine, in: target.folder)
-        if !byHand, let nothing = check.nothingToDo {
+        if source.isAutonomous, let nothing = check.nothingToDo {
             run.outcome = .skipped
             run.reason = nothing
             return record(run)
         }
-        let text = Self.text(prompt: routine.prompt, command: routine.precheck, output: check.output)
+        let text = Self.text(prompt: routine.prompt, command: routine.precheck, output: check.output,
+                             body: source.body)
         guard !target.isBusy() else {
             run.outcome = .queued
             record(run)
@@ -280,10 +330,25 @@ final class RoutineRunner {
         return Check(output: said, nothingToDo: said.isEmpty ? "its check found nothing" : nil)
     }
 
-    /// What the agent is sent: the prompt, and under it what the check printed.
-    static func text(prompt: String, command: String?, output: String) -> String {
-        guard let command, !output.isEmpty else { return prompt }
-        return "\(prompt)\n\nOutput of this routine's check (`\(command)`):\n\n```\n\(output)\n```"
+    /// What the agent is sent: the prompt, under it what the check printed,
+    /// and under that the body of the webhook call that fired it, if one did.
+    static func text(prompt: String, command: String?, output: String, body: Data? = nil) -> String {
+        var text = prompt
+        if let command, !output.isEmpty {
+            text += "\n\nOutput of this routine's check (`\(command)`):\n\n```\n\(output)\n```"
+        }
+        if let body { text += "\n\n" + hookBody(body) }
+        return text
+    }
+
+    /// A webhook call's body as the agent reads it: the text, or a note that
+    /// there was none or it was not text.
+    static func hookBody(_ body: Data) -> String {
+        guard !body.isEmpty else { return "The webhook call that fired this routine sent no body." }
+        guard let text = String(data: body, encoding: .utf8) else {
+            return "The webhook call that fired this routine sent \(body.count) bytes that are not UTF-8 text."
+        }
+        return "Body of the webhook call that fired this routine:\n\n```\n\(text)\n```"
     }
 
     // MARK: - Changing routines

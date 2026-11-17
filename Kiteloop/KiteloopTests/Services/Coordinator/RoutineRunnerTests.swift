@@ -274,6 +274,70 @@ final class RoutineRunnerTests: XCTestCase {
         XCTAssertEqual(runner.lastRun(of: "brief")?.reason, "no agent 'Chief' in vault")
     }
 
+    // MARK: - A webhook
+
+    func testAHookFiringSendsARoutineThatIsNotArmedWithTheBodyUnderThePrompt() async throws {
+        let runner = try runner([brief(armed: false)])
+
+        await runner.runFromHook("brief", hook: "deploys", body: Data("{\"ref\":\"main\"}".utf8))?.value
+
+        XCTAssertEqual(sent, ["Write the brief.\n\nBody of the webhook call that fired this routine:\n\n```\n{\"ref\":\"main\"}\n```"])
+        let run = try XCTUnwrap(runner.lastRun(of: "brief"))
+        XCTAssertEqual(run.outcome, .started)
+        XCTAssertEqual(run.hook, "deploys")
+        XCTAssertNil(run.scheduledFor)
+        XCTAssertEqual(run.json["hook"] as? String, "deploys")
+        XCTAssertNil(runner.runFromHook("nobody", hook: "deploys", body: Data()))
+    }
+
+    func testAHookFiringIsRefusedWhenTheDaysBudgetIsSpent() async throws {
+        let runner = try runner([brief(armed: false)])
+        runner.budgetRefusal = { _ in "daily budget $5.00 exhausted ($5.20 spent today)" }
+
+        await runner.runFromHook("brief", hook: "deploys", body: Data())?.value
+
+        XCTAssertEqual(sent, [])
+        let run = try XCTUnwrap(runner.lastRun(of: "brief"))
+        XCTAssertEqual(run.outcome, .refused)
+        XCTAssertEqual(run.reason, "daily budget $5.00 exhausted ($5.20 spent today)")
+        XCTAssertEqual(run.hook, "deploys")
+    }
+
+    func testAHookFiringIsSkippedByACheckThatFindsNothing() async throws {
+        let runner = try runner([brief(armed: false, precheck: "gh pr list")])
+
+        try await withScriptedSubprocesses(ScriptedSubprocessRunner { _ in .init(output: "") }) {
+            await runner.runFromHook("brief", hook: "deploys", body: Data())?.value
+        }
+
+        XCTAssertEqual(sent, [])
+        XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .skipped)
+        XCTAssertEqual(runner.lastRun(of: "brief")?.hook, "deploys")
+    }
+
+    func testAHookFiringWithNobodyToSendToIsRefusedAndNamesTheHook() async throws {
+        unreachable = "no agent 'Chief' in vault"
+        let runner = try runner([brief()])
+
+        await runner.runFromHook("brief", hook: "deploys", body: Data())?.value
+
+        XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .refused)
+        XCTAssertEqual(runner.lastRun(of: "brief")?.reason, "no agent 'Chief' in vault")
+        XCTAssertEqual(runner.lastRun(of: "brief")?.hook, "deploys")
+    }
+
+    func testAHookBodyThatIsNotTextIsNotedAndAnEmptyOneSaysSo() {
+        XCTAssertEqual(RoutineRunner.hookBody(Data([0xFF, 0xFE, 0x00])),
+                       "The webhook call that fired this routine sent 3 bytes that are not UTF-8 text.")
+        XCTAssertEqual(RoutineRunner.hookBody(Data()), "The webhook call that fired this routine sent no body.")
+    }
+
+    func testARunWrittenBeforeHooksStillDecodes() throws {
+        let line = #"{"id":"r1","routine":"brief","at":0,"outcome":"started"}"#
+        let run = try JSONDecoder().decode(RoutineRun.self, from: Data(line.utf8))
+        XCTAssertNil(run.hook)
+    }
+
     // MARK: - Changing routines
 
     func testArmingStartsWhatIsOwedFromThatMoment() async throws {

@@ -291,6 +291,7 @@ final class KiteloopControlServer {
         healthSnapshotProvider: @escaping () -> HealthMonitor.Snapshot = HealthMonitor.shared.snapshot,
         deviceTokens: ControlDeviceTokens? = nil,
         scopedTokens: ControlScopedTokens? = nil,
+        routineHooks: RoutineHooks? = nil,
         accessLog: ControlAccessLog? = nil,
         eventFeed: AppEventFeed = .shared,
         startedAt: Date = Date()
@@ -299,6 +300,7 @@ final class KiteloopControlServer {
         self.eventFeed = eventFeed
         self.deviceTokens = deviceTokens
         self.scopedTokens = scopedTokens
+        self.routineHooks = routineHooks
         self.accessLog = accessLog
         self.fleet = FleetQuiesce(registry: registry)
         self.tokenURL = tokenURL
@@ -596,7 +598,8 @@ final class KiteloopControlServer {
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
              .listProposals, .approveProposal, .dismissProposal,
-             .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine:
+             .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine,
+             .fireHook, .mintHook, .revokeHook:
             return loopsRoute(route, req)
         case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
             return await fleetRoute(route, req)
@@ -619,6 +622,8 @@ final class KiteloopControlServer {
             // 503 from a server no app gave routines to.
             guard let routines else { return .error("This Kiteloop keeps no routines", status: 503) }
             return RoutineEndpoints(routines: routines).answer(route, req)
+        case .fireHook, .mintHook, .revokeHook:
+            return RoutineHookEndpoints(routines: routines, hooks: routineHooks).answer(route, req)
         default:
             return coordinatorRoute(route, req)
         }
@@ -1100,6 +1105,10 @@ final class KiteloopControlServer {
     /// The scoped tokens minted over `/v1/tokens`; nil for a server that keeps
     /// none, as tests build by default.
     let scopedTokens: ControlScopedTokens?
+
+    /// The routines' webhooks minted over `/v1/hooks`; nil for a server that
+    /// keeps none, as tests build by default.
+    let routineHooks: RoutineHooks?
 
     /// The scoped token a request's bearer token is, if it is one.
     private func scopedToken(_ req: HTTPServer.Request) -> ControlScopedToken? {

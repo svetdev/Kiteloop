@@ -70,6 +70,67 @@ struct RoutineEndpoints {
     }
 }
 
+/// The `/v1/hooks` endpoints: an outside service firing a routine with its
+/// hook's secret, and the control token minting and revoking hooks.
+@MainActor
+struct RoutineHookEndpoints {
+    let routines: RoutineRunner?
+    let hooks: RoutineHooks?
+
+    /// The most a webhook call may send; a body over it fires nothing.
+    static let bodyLimit = 64 * 1024
+    static let secretHeader = "X-Kiteloop-Hook-Secret"
+
+    func answer(_ route: ControlRoute, _ req: HTTPServer.Request) -> HTTPServer.Response {
+        guard let routines, let hooks else { return .error("This Kiteloop keeps no routine hooks", status: 503) }
+        switch route {
+        case .fireHook(let name): return fire(name, req, routines: routines, hooks: hooks)
+        case .mintHook: return mint(body: req.body, routines: routines, hooks: hooks)
+        case .revokeHook(let name):
+            guard hooks.revoke(name: name) else { return .error("No hook '\(name)'", status: 404) }
+            return .json(["revoked": name])
+        default: return KiteloopControlServer.notThisArea(route)
+        }
+    }
+
+    /// One answer for a missing secret, a wrong one and a name nobody minted,
+    /// so a caller without the secret learns nothing about which hooks exist.
+    private static let unauthorized = HTTPServer.Response.error("Missing or invalid hook secret", status: 401)
+
+    private func fire(_ name: String, _ req: HTTPServer.Request,
+                      routines: RoutineRunner, hooks: RoutineHooks) -> HTTPServer.Response {
+        guard let secret = req.header(Self.secretHeader), let hook = hooks.hook(named: name, secret: secret) else {
+            return Self.unauthorized
+        }
+        guard req.body.count <= Self.bodyLimit else {
+            return .error("A hook's body may be at most \(Self.bodyLimit / 1024) KB", status: 413)
+        }
+        guard routines.runFromHook(hook.routine, hook: hook.name, body: req.body) != nil else {
+            return .error("Hook '\(name)' fires routine '\(hook.routine)', which no longer exists", status: 404)
+        }
+        return .json(["routine": hook.routine, "hook": hook.name], status: 202)
+    }
+
+    /// `POST /v1/hooks`: `{name, routine}`, answered with the secret this once.
+    private func mint(body: Data, routines: RoutineRunner, hooks: RoutineHooks) -> HTTPServer.Response {
+        let json = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:]
+        let name = json["name"] as? String ?? ""
+        let routine = json["routine"] as? String ?? ""
+        guard routines.routines.contains(where: { $0.id == routine }) else {
+            return .error("No routine '\(routine)'", status: 400)
+        }
+        switch hooks.mint(name: name, routine: routine) {
+        case .failure(.invalidName):
+            return .error("\"name\" must be lowercase letters, digits and hyphens", status: 400)
+        case .failure(.nameTaken):
+            return .error("A hook is already named '\(name)'", status: 400)
+        case .success(let (secret, hook)):
+            return .json(["name": hook.name, "routine": hook.routine, "secret": secret,
+                          "createdAt": ISO8601DateFormatter().string(from: hook.createdAt)])
+        }
+    }
+}
+
 /// How a routine reaches the agent it names, and what the day lets it spend.
 extension KiteloopControlServer {
 

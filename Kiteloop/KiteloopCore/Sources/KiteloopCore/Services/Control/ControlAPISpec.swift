@@ -180,7 +180,7 @@ package enum ControlAPISpec {
         switch route {
         case .health, .openAPIDocument, .claimPairingCode, .listQuickReplies,
              .registerPushDevice, .registerLiveActivity,
-             .listTokens, .mintToken, .revokeToken:
+             .listTokens, .mintToken, .revokeToken, .fireHook, .mintHook, .revokeHook:
             return metaDetail(for: route)
         case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot,
@@ -272,7 +272,8 @@ package enum ControlAPISpec {
             "reason": described(string, "Why it was skipped or refused."),
             "finishedAt": described(string, "When a started turn ended."),
             "reply": described(string, "The first line of what the agent said."),
-            "costUSD": number
+            "costUSD": number,
+            "hook": described(string, "The webhook that fired it; absent for a scheduled run or one started by hand.")
         ], required: ["id", "routine", "at", "outcome"])
     }
 
@@ -398,9 +399,89 @@ package enum ControlAPISpec {
         case .listTokens: return listTokensDetail()
         case .mintToken: return mintTokenDetail()
         case .revokeToken: return revokeTokenDetail()
+        default: return hookDetail(for: route)
+        }
+    }
+
+    // MARK: - Routine webhooks
+
+    /// `/v1/hooks…` — a routine fired by an outside service, and the hooks
+    /// only the control token mints and revokes.
+    private static func hookDetail(for route: ControlRoute) -> Detail {
+        switch route {
+        case .fireHook: return fireHookDetail()
+        case .mintHook: return mintHookDetail()
+        case .revokeHook: return revokeHookDetail()
         default:
             preconditionFailure("\(route) is not a meta route")
         }
+    }
+
+    private static func fireHookDetail() -> Detail {
+        Detail(
+            id: "fireHook",
+            summary: "Fire a routine from an outside service",
+            description: """
+            Takes no bearer token: the hook's secret, in the X-Kiteloop-Hook-Secret \
+            header, opens this one route for this one routine and nothing else. The \
+            routine's prompt goes to its agent with the request body under it. It needs \
+            no arming; the daily budget can refuse it and the routine's check can skip \
+            it. Answered at once; how the turn went is in GET /v1/routines/runs, where \
+            the run names the hook.
+            """,
+            requestBody: ["description": "Whatever the service sends, up to 64 KB. UTF-8 text goes to the agent as it is; anything else is noted as not text."],
+            requestBodyRequired: false,
+            responses: [
+                Status(code: 202, description: "The firing has begun.", schema: object([
+                    "routine": string,
+                    "hook": string
+                ], required: ["routine", "hook"])),
+                errorStatus(401, "A missing or wrong secret, or no hook with this name — one answer for all three."),
+                errorStatus(404, "The hook's routine has been deleted."),
+                errorStatus(413, "The body is over 64 KB; nothing was sent."),
+                errorStatus(503, "This Kiteloop keeps no routines or no hooks.")
+            ]
+        )
+    }
+
+    private static func mintHookDetail() -> Detail {
+        Detail(
+            id: "mintHook",
+            summary: "Give a routine a webhook",
+            description: """
+            The secret is in this answer only; the Mac keeps its SHA-256. Only the \
+            control token may call this.
+            """,
+            requestBody: object([
+                "name": described(string, "The hook's name, in its path: lowercase letters, digits and hyphens."),
+                "routine": described(string, "The id of the routine it fires.")
+            ], required: ["name", "routine"]),
+            responses: [
+                Status(code: 200, description: "Minted.", schema: object([
+                    "name": string,
+                    "routine": string,
+                    "secret": described(string, "The X-Kiteloop-Hook-Secret value, shown this once."),
+                    "createdAt": string
+                ], required: ["name", "routine", "secret", "createdAt"])),
+                errorStatus(400, "No routine with this id, or a name that is invalid or already taken."),
+                controlTokenOnly,
+                errorStatus(503, "This Kiteloop keeps no routines or no hooks.")
+            ]
+        )
+    }
+
+    private static func revokeHookDetail() -> Detail {
+        Detail(
+            id: "revokeHook",
+            summary: "Revoke a routine's webhook",
+            description: "The secret stops working at once. Only the control token may call this.",
+            responses: [
+                Status(code: 200, description: "Revoked.", schema: object(["revoked": string], required: ["revoked"])),
+                controlTokenOnly,
+                errorStatus(404, "No hook has this name."),
+                errorStatus(503, "This Kiteloop keeps no hooks.")
+            ]
+        )
     }
 
     private static var scopedTokenSchema: [String: Any] {

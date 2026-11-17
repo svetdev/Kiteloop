@@ -19,6 +19,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - A control token can be narrowed to read, operate or configure: mint one with the control token over `POST /v1/tokens`, list them with `GET /v1/tokens` and revoke one with `DELETE /v1/tokens/{id}`. A scoped token is refused with a 403 naming the scope it lacks on any route outside its scope, and never resolves a human gate.
 - `GET /v1/events` streams every open project's inbox notices — approvals waiting, questions, finished agents, errors — as one server-sent-events stream, and a client that reconnects with `Last-Event-ID` or `?after=` picks up the events it missed while they are still held in memory.
 - The Routines page lists every project's routines, grouped under one heading per project — the open tab's project first, then the other open projects, then routines for projects not open — and editing one keeps it in its own project.
+- An outside service can send a routine's prompt by calling that routine's own webhook, `POST /v1/hooks/{name}` with the hook's secret in `X-Kiteloop-Hook-Secret`; the request body goes to the agent under the prompt, the day's budget still applies, and the run is logged naming the hook. The control token alone creates hooks with `POST /v1/hooks` and removes them with `DELETE /v1/hooks/{name}`.
 
 ## 0.7.1 — 2026-11-15
 

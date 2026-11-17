@@ -129,6 +129,8 @@ struct KiteloopApp: App {
             deviceTokens: ControlDeviceTokens(url: ControlDeviceTokens.defaultURL),
             // Tokens narrowed to read, operate or configure, minted over `/v1/tokens`.
             scopedTokens: ControlScopedTokens(url: ControlScopedTokens.defaultURL),
+            // Routines' webhooks, minted over `/v1/hooks`; each secret fires one routine.
+            routineHooks: RoutineHooks(url: RoutineHooks.defaultURL),
             // What was driven remotely, readable afterwards: never a body or a token.
             accessLog: ControlAccessLog(url: ControlAccessLog.defaultURL))
         // The scheduler records its own runs through the server, so a night of
