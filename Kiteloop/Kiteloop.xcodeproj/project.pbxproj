@@ -494,6 +494,7 @@
 		E87979F4B940BEA9974068FE /* TraceSpan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A51D1056BAB6FE19ABDF0C01 /* TraceSpan.swift */; };
 		E8EE64EA999DC607FBE5D867 /* KiteloopControlServerOpenAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F69B1380757E9265991086 /* KiteloopControlServerOpenAPITests.swift */; };
 		E907C9C82141105A5024E66B /* GlobalConfigStoreAtomicSaveTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D5537806BD6E56475B4B39B /* GlobalConfigStoreAtomicSaveTests.swift */; };
+		A1C0FFEE5EC2E7000000B001 /* GlobalConfigStoreConnectorSecretsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0FFEE5EC2E7000000F001 /* GlobalConfigStoreConnectorSecretsTests.swift */; };
 		E9859C5A5263C3C8ED2953FD /* FleetBoard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4FFA3FC8BFE5C080184DE78 /* FleetBoard.swift */; };
 		E9B4060C65B26D809E53290C /* AgentCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83CF8C11920A6BDC99085BA5 /* AgentCatalogView.swift */; };
 		E9C8E019E8D196E0CC65018D /* archmage_hires_coder.json in Resources */ = {isa = PBXBuildFile; fileRef = 59CA3263204D4E3D5733C5F5 /* archmage_hires_coder.json */; };
@@ -1053,6 +1054,7 @@
 		7C16A39B123E04C9C213C713 /* OpeningContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpeningContextTests.swift; sourceTree = "<group>"; };
 		7CFBE9C46E9A46623337AF3A /* HeadlessAgentRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadlessAgentRunnerTests.swift; sourceTree = "<group>"; };
 		7D5537806BD6E56475B4B39B /* GlobalConfigStoreAtomicSaveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalConfigStoreAtomicSaveTests.swift; sourceTree = "<group>"; };
+		A1C0FFEE5EC2E7000000F001 /* GlobalConfigStoreConnectorSecretsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalConfigStoreConnectorSecretsTests.swift; sourceTree = "<group>"; };
 		7D970D61C5826F9F8F698C38 /* CoordinatorBlockedTriageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoordinatorBlockedTriageTests.swift; sourceTree = "<group>"; };
 		7DDF7CE9FF96A85040D77E7B /* OrchestratorResumeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrchestratorResumeTests.swift; sourceTree = "<group>"; };
 		7E6E5D75D6BB77ED6CE2B841 /* MultilineTextInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultilineTextInput.swift; sourceTree = "<group>"; };
@@ -2193,6 +2195,7 @@
 				426D18275F288E133D68FAB4 /* DailyBudgetTests.swift */,
 				92E2D368642489CD433FDD03 /* EscapedDefectTrackerTests.swift */,
 				7D5537806BD6E56475B4B39B /* GlobalConfigStoreAtomicSaveTests.swift */,
+				A1C0FFEE5EC2E7000000F001 /* GlobalConfigStoreConnectorSecretsTests.swift */,
 				B5329E55CD4F90DFBC38C894 /* GlobalConfigStoreControlServerTests.swift */,
 				453ADCAA2FE6A484E69C38AC /* HealthMonitorTests.swift */,
 				A925C9458D60918BC10A4DBB /* LedgerDurableRewriteTests.swift */,
@@ -3031,6 +3034,7 @@
 				4F39BF953A20460188D7BCB3 /* GitIntegrationViewRunnerTests.swift in Sources */,
 				1E59865752FC4644BBB58FCF /* PluginManagerViewRunnerTests.swift in Sources */,
 				E907C9C82141105A5024E66B /* GlobalConfigStoreAtomicSaveTests.swift in Sources */,
+				A1C0FFEE5EC2E7000000B001 /* GlobalConfigStoreConnectorSecretsTests.swift in Sources */,
 				0BE3F7A86BC71C558B76AB56 /* GlobalConfigStoreControlServerTests.swift in Sources */,
 				AD28B8338C46731B0AF5A28E /* HeadlessAgentRunnerTests.swift in Sources */,
 				2DFB6598FED02BFEFB6AACCC /* HealthMonitorTests.swift in Sources */,

@@ -13,13 +13,16 @@ final class KiteloopControlServerManagementTests: XCTestCase {
     private var registry: ControlSessionRegistry!
     private var harness: ControlServerHarness!
     private var settings: GlobalConfigStore!
+    private var connectorSecrets: InMemoryConnectorSecretStore!
     private var defaults: UserDefaults!
     private var defaultsName: String!
 
     override func setUp() async throws {
         tempDir = try makeTemporaryDirectory(prefix: "control-management")
         registry = ControlSessionRegistry()
-        settings = GlobalConfigStore(storageURL: tempDir.appendingPathComponent("global.json"))
+        connectorSecrets = InMemoryConnectorSecretStore()
+        settings = GlobalConfigStore(storageURL: tempDir.appendingPathComponent("global.json"),
+                                     secretStore: connectorSecrets)
         defaultsName = "control-management-" + UUID().uuidString
         defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
         let settings = settings, defaults = defaults, registry = registry
@@ -389,7 +392,11 @@ final class KiteloopControlServerManagementTests: XCTestCase {
             "command": "npx", "args": ["-y", "tracker-mcp"], "env": ["TRACKER_TOKEN": "s3cret"]
         ])
         XCTAssertEqual(status, 200)
-        XCTAssertEqual(settings.config.mcpServers?["tracker"]?.env, ["TRACKER_TOKEN": "s3cret"])
+        XCTAssertEqual(settings.config.mcpServers?["tracker"]?.env, ["TRACKER_TOKEN": ""])
+        XCTAssertFalse(try String(contentsOf: tempDir.appendingPathComponent("global.json"), encoding: .utf8)
+            .contains("s3cret"), "the settings file keeps the name, not the value")
+        let tokenKey = ConnectorSecretKey(server: "tracker", kind: .env, name: "TRACKER_TOKEN")
+        XCTAssertEqual(connectorSecrets.value(for: tokenKey), "s3cret")
 
         var request = URLRequest(url: harness.url("/v1/mcp-servers"))
         request.setValue("Bearer \(harness.token)", forHTTPHeaderField: "Authorization")
@@ -404,6 +411,7 @@ final class KiteloopControlServerManagementTests: XCTestCase {
         let (mistyped, _) = try await harness.put("/v1/mcp-servers/tracker", ["command": "npx", "args": "tracker"])
         XCTAssertEqual([removed, again, empty, mistyped], [200, 404, 400, 400])
         XCTAssertNil(settings.config.mcpServers)
+        XCTAssertNil(connectorSecrets.value(for: tokenKey))
     }
 
     func testTheAppsSettingsAreReadAndChanged() async throws {
