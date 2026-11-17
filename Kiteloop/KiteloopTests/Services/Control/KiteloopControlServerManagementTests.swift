@@ -472,6 +472,30 @@ final class KiteloopControlServerManagementTests: XCTestCase {
         XCTAssertNil(connectorSecrets.value(for: tokenKey))
     }
 
+    func testAnMCPServerListsWhatTheLastSessionReportedOfIt() async throws {
+        _ = try await harness.put("/v1/mcp-servers/tracker", ["command": "npx", "env": ["TRACKER_TOKEN": "s3cret"]])
+        let session = try registerProject()
+
+        let (_, before) = try await harness.get("/v1/mcp-servers")
+        let unreported = try XCTUnwrap((before["servers"] as? [[String: Any]])?.first)
+        XCTAssertEqual(unreported["status"] as? String, "unknown")
+        XCTAssertEqual(unreported["tools"] as? [String], [])
+        XCTAssertTrue(unreported["reportedAt"] is NSNull)
+
+        session.orchestrator.recordConnectorStatuses([
+            ConnectorStatus(name: "tracker", state: "needs-auth", tools: ["create", "search"], reportedAt: Date())
+        ])
+        var request = URLRequest(url: harness.url("/v1/mcp-servers"))
+        request.setValue("Bearer \(harness.token)", forHTTPHeaderField: "Authorization")
+        let (_, raw) = try await harness.raw(request)
+        let listed = try XCTUnwrap(JSONSerialization.jsonObject(with: raw) as? [String: Any])
+        let reported = try XCTUnwrap((listed["servers"] as? [[String: Any]])?.first)
+        XCTAssertEqual(reported["status"] as? String, "needs-auth")
+        XCTAssertEqual(reported["tools"] as? [String], ["create", "search"])
+        XCTAssertNotNil(reported["reportedAt"] as? String)
+        XCTAssertFalse(String(decoding: raw, as: UTF8.self).contains("s3cret"), "env values stay out of the list")
+    }
+
     func testTheAppsSettingsAreReadAndChanged() async throws {
         let (status, body) = try await harness.put("/v1/settings", ["defaultModel": "opus", "defaultEffort": "high", "soundTheme": "silent"])
 

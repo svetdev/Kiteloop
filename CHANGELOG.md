@@ -9,6 +9,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 ## 0.7.2 — unreleased
 
 ### Added
+- `GET /v1/mcp-servers` now says whether each MCP server connected, needs signing in or failed when a session last started, and which tools it offers (`status`, `tools`, `reportedAt`).
 - A project can be labelled as belonging to the Work or the Personal space: `PUT /v1/projects/settings` takes `space` (`work`, `personal`, or null to clear it), `GET /v1/projects` reports it on every project, and `GET /v1/projects?space=work|personal|unassigned` lists only the open projects in that space. It is a label for now — nothing is kept apart between spaces yet.
 - `GET /v1/spend/forecast` says what is coming before it is spent: for each routine, what its next run will probably cost — the median of its latest runs, with the cheapest and costliest as the range, and no figure at all until it has run three times — and for each project, what the month will come to at the rate it has spent so far.
 - A routine can fire on an event instead of a clock: `"trigger": {"on": "error"}` sends its prompt when its project publishes an event of that kind (`approval`, `question`, `complete`, `error`, `event`), with the event's kind, subject, title and time under the prompt. Set over `/v1/routines` or in `routines.json`; the budget and the check apply as for a scheduled run, and an event a routine's own turn raised fires nothing.
