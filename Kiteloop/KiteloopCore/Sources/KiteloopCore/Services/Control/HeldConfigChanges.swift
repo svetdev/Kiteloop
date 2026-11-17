@@ -46,7 +46,8 @@ package struct HeldConfigChange: Identifiable, Equatable, Sendable {
 
     /// The line `ConfigChangeLog` keeps of what was decided.
     package func record(_ decision: ConfigChangeLog.Decision, at: Date) -> ConfigChangeLog.Record {
-        ConfigChangeLog.Record(caller: caller, route: route, summary: summary, decision: decision, at: at)
+        ConfigChangeLog.Record(caller: caller, route: route, summary: summary, decision: decision, at: at,
+                               project: project?.path)
     }
 }
 

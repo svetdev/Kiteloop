@@ -50,7 +50,7 @@ struct ConfigChangeEndpoints {
     @discardableResult
     func answer(_ id: String, approve: Bool) -> HeldConfigChanges.Answer {
         server.configChanges.answer(id, approve: approve) { change, record in
-            try ConfigChangeLog.append(record, to: logURL(for: change))
+            try ConfigChangeLog.append(record, to: logURL)
         }
     }
 
@@ -72,13 +72,9 @@ struct ConfigChangeEndpoints {
         }
     }
 
-    /// Where a change's decision is logged: its project's log, or the app's.
-    func logURL(for change: HeldConfigChange) -> URL {
-        guard let project = change.project else {
-            return ConfigChangeLog.url(appDirectory: server.configChangeLogDirectory)
-        }
-        return ConfigChangeLog.url(projectPath: project.path)
-    }
+    /// Where every decision is logged: the app's own directory, whichever
+    /// project a change names — the line carries the project.
+    var logURL: URL { ConfigChangeLog.url(appDirectory: server.configChangeLogDirectory) }
 
     /// The open project a call names, in its query or its body.
     private func heldChangeProject(_ req: HTTPServer.Request) -> HeldConfigChange.Project? {

@@ -150,12 +150,24 @@ passed bare, under a name that says nothing, or inside a path is shown as
 sent, on the card and in the log. Put a server's secrets in its `env` or
 `headers`, which are never shown and are kept in the keychain.
 
-Every decision is one line of `config-changes.jsonl` — in
-`<project>/.kiteloop/` when the call names an open project, else in
-`~/.kiteloop/` — the same file and columns an agent's own
-`hire_agent`/`fire_agent` decisions use: `requestedBy` (the credential), `kind`
-(`api`), `tool` (the method and path), `after` (the redacted summary),
-`decision` (`approved`, `denied` or `abandoned`) and `at`.
+Every decision is one line of `~/.kiteloop/config-changes.jsonl` — one file
+for every project, in the app's own directory rather than a project's folder —
+the same file and columns an agent's own `hire_agent`/`fire_agent` decisions
+use: `requestedBy` (the credential), `kind` (`api`), `tool` (the method and
+path), `after` (the redacted summary), `decision` (`approved`, `denied` or
+`abandoned`), `at`, and `project` (the folder of the open project the call
+names; absent for a change to the app as a whole). A
+`<project>/.kiteloop/config-changes.jsonl` written by an earlier version is
+left where it is and no longer added to.
+
+The log is kept out of project folders so that an agent working in one does
+not have it among the files it edits. **That removes the easy path; it is not
+tamper-proofing**: an agent with `Bash` runs as you and can still reach
+`~/.kiteloop`. Each line after the first also carries `prev`, the SHA-256 of
+the line before it (`shasum -a 256` of that line without its newline), so a
+line edited or removed in the middle no longer matches the line after it. It
+does not show a log cut short at its end, nor one rewritten whole with the
+hashes recomputed — nothing on the same machine, under the same user, can.
 
 The hold is **on by default**. **Settings → General → Local Control API → Agents'
 configuration changes wait for my approval** switches it off, as does

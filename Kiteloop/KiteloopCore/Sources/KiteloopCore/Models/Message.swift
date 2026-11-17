@@ -251,6 +251,9 @@ package struct Message: Identifiable, Codable {
             case pending
             case approved
             case denied
+            /// A team change nobody answered: the call it waited on ended
+            /// first, so it applied nothing (`TeamChangeCards`).
+            case abandoned
         }
     
         /// The memberwise init, spelled out: a `package` type's synthesised one is

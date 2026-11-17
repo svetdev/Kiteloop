@@ -4,8 +4,9 @@ import KiteloopCore
 
 /// A team change an agent asks for through `hire_agent` or `fire_agent` waits
 /// on an approval card when `agentChangesNeedingApproval` lists `team`, applies
-/// only if a person approves, and is written to the project's
-/// `.kiteloop/config-changes.jsonl` either way. Unset, it applies at once.
+/// only if a person approves and the approval was logged first, and is written
+/// to `config-changes.jsonl` beside the settings file — never in the project's
+/// own `.kiteloop` — approved, denied or abandoned. Unset, it applies at once.
 @MainActor
 final class ChatViewModelConfigChangeTests: XCTestCase {
     private let requestID = "mcp-team-1"
@@ -14,6 +15,8 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
     private var mock: MockAgentRuntime!
     private var orchestrator: Orchestrator!
     private var projectURL: URL!
+    /// Stands in for `~/.kiteloop`: where the settings file and the log live.
+    private var appDirectory: URL!
 
     override func setUp() async throws {
         mock = MockAgentRuntime()
@@ -21,6 +24,7 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
         orchestrator.addAgent(agent(id: "lead", name: "Lead"))
         orchestrator.addAgent(agent(id: "bob", name: "Bob"))
         projectURL = try makeTemporaryDirectory(prefix: "kiteloop-config-change")
+        appDirectory = try makeTemporaryDirectory(prefix: "kiteloop-config-change-app")
     }
 
     private func agent(id: String, name: String) -> Agent {
@@ -38,7 +42,7 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
     private func runTurn(kinds: [String]?, events: [StreamEvent]) async throws {
         var config = GlobalConfig()
         config.agentChangesNeedingApproval = kinds
-        let configURL = projectURL.appending(path: "global-config.json")
+        let configURL = appDirectory.appending(path: "global-config.json")
         try JSONEncoder().encode(config).write(to: configURL)
         vm = ChatViewModel(agentID: "lead", projectURL: projectURL, orchestrator: orchestrator)
         vm.configure(catalogStore: AgentCatalogStore(storageURL: projectURL.appending(path: "catalog.json")),
@@ -79,7 +83,7 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
     private var teamNames: [String] { orchestrator.teamAgents.map(\.name) }
 
     private var logged: [ConfigChangeLog.Record] {
-        ConfigChangeLog.read(from: ConfigChangeLog.url(projectPath: projectURL.path(percentEncoded: false)))
+        ConfigChangeLog.read(from: ConfigChangeLog.url(appDirectory: appDirectory))
     }
 
     // MARK: - Unset: as today
@@ -137,7 +141,43 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
         XCTAssertEqual(record.tool, "hire_agent")
         XCTAssertEqual(record.before, "Lead, Bob")
         XCTAssertEqual(record.after, "Lead, Bob, Cody")
+        XCTAssertEqual(record.project, projectURL.path(percentEncoded: false))
         XCTAssertLessThan(abs(record.at.timeIntervalSinceNow), 60)
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: projectURL.appending(path: ".kiteloop/config-changes.jsonl").path(percentEncoded: false)),
+            "nothing is logged inside the project, where its agents can write")
+    }
+
+    /// An approval whose line cannot be written is refused: nobody is hired,
+    /// and the agent is told nothing changed.
+    func testAnApprovalThatCannotBeLoggedHiresNobody() async throws {
+        try await hire()
+        let req = try XCTUnwrap(card)
+        try FileManager.default.createDirectory(at: ConfigChangeLog.url(appDirectory: appDirectory),
+                                                withIntermediateDirectories: true)
+
+        await vm.approveConfigChange(requestID: req.id)
+
+        XCTAssertEqual(teamNames, ["Lead", "Bob"])
+        XCTAssertEqual(mock.mcpToolResults.count, 1)
+        XCTAssertTrue(mock.mcpToolResults[0].contains("could not be written to the change log"), mock.mcpToolResults[0])
+        XCTAssertEqual(card?.status, .abandoned)
+        XCTAssertNil(vm.pendingConfigChangeRequestID)
+    }
+
+    /// A card whose call a restart ended is logged as abandoned, once.
+    func testACardARestartLeavesBehindIsLoggedAsAbandoned() async throws {
+        try await hire()
+        let req = try XCTUnwrap(card)
+
+        await vm.restart()
+        await vm.approveConfigChange(requestID: req.id)
+
+        XCTAssertEqual(teamNames, ["Lead", "Bob"])
+        XCTAssertEqual(card?.status, .abandoned)
+        XCTAssertEqual(logged.map(\.decision), [.abandoned])
+        XCTAssertEqual(logged.first?.tool, "hire_agent")
+        XCTAssertEqual(logged.first?.after, "Lead, Bob, Cody")
     }
 
     func testADeniedHireLeavesTheTeamAndIsLogged() async throws {
@@ -266,7 +306,7 @@ final class ChatViewModelConfigChangeTests: XCTestCase {
         XCTAssertEqual(mock.mcpToolResults, [])
         XCTAssertEqual(vm.pendingConfigChangeRequestID, requestID)
         XCTAssertEqual(vm.pendingConfigChangeCardID, current.id)
-        XCTAssertEqual(logged, [])
+        XCTAssertEqual(logged.map(\.decision), [.abandoned], "the restart abandoned the first card; nothing since")
     }
 
     func testACardAnsweredOnceCannotBeAnsweredAgain() async throws {

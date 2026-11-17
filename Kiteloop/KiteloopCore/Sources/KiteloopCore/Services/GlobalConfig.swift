@@ -69,8 +69,8 @@ package struct GlobalConfig: Codable, Sendable {
     /// is one cleared on purpose and stays empty.
     package var quickReplies: [String]?
     /// The kinds of configuration change an agent makes through its own tools
-    /// that wait on an approval card before they apply, each one, approved or
-    /// denied, written to `<project>/.kiteloop/config-changes.jsonl`
+    /// that wait on an approval card before they apply, each one — approved,
+    /// denied or abandoned — written to `~/.kiteloop/config-changes.jsonl`
     /// (`ConfigChangeLog`). Nil or empty, the shipped default, means no change
     /// waits. `"team"` — `hire_agent` and `fire_agent` — is the only kind
     /// recognised; an unknown kind is ignored.

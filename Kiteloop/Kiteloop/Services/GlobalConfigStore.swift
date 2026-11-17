@@ -30,6 +30,12 @@ class GlobalConfigStore {
         load()
     }
 
+    /// The log of configuration changes agents asked for, beside the settings
+    /// file: in the app's own directory, not in any project (`ConfigChangeLog`).
+    var configChangeLogURL: URL {
+        ConfigChangeLog.url(appDirectory: storageURL.deletingLastPathComponent())
+    }
+
     var knowledgeRepoURL: URL? {
         guard let path = config.knowledgeRepoPath, !path.isEmpty else { return nil }
         let url = URL(filePath: path)

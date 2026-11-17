@@ -103,8 +103,9 @@ final class KiteloopControlServer {
     /// The configuration changes agents asked for over this API that wait on
     /// a person (`ConfigChangeGate`). The window's waiting drawer reads it.
     let configChanges = HeldConfigChanges()
-    /// Where the decisions on changes to the app as a whole are logged; a
-    /// change that names an open project is logged in that project.
+    /// The app's own directory, where the decision on every held change is
+    /// logged — one about a project too, so no agent working in that project
+    /// has the log in its folder.
     var configChangeLogDirectory: URL = KiteloopControlServer.defaultOperatorTokenURL.deletingLastPathComponent()
     private var http: HTTPServer?
     /// The one credential that authorizes the whole API. `var` because it can be
