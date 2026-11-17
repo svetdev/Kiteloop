@@ -13,6 +13,7 @@ final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
     private let operatorToken = "operator-token-" + UUID().uuidString
     private var tempDir: URL!
     private var settings: GlobalConfigStore!
+    private var connectorSecrets: InMemoryConnectorSecretStore!
     private var scoped: ControlScopedTokens!
     private var devices: ControlDeviceTokens!
     private var defaults: UserDefaults!
@@ -21,8 +22,9 @@ final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
 
     override func setUp() async throws {
         tempDir = try makeTemporaryDirectory(prefix: "control-config-gate")
+        connectorSecrets = InMemoryConnectorSecretStore()
         settings = GlobalConfigStore(storageURL: tempDir.appending(path: "global.json"),
-                                     secretStore: InMemoryConnectorSecretStore())
+                                     secretStore: connectorSecrets)
         scoped = ControlScopedTokens(url: tempDir.appending(path: "scoped.json"))
         devices = ControlDeviceTokens(url: tempDir.appending(path: "devices.json"))
         defaultsName = "control-config-gate-" + UUID().uuidString
@@ -222,8 +224,10 @@ final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
         let response = await held.value
 
         XCTAssertEqual(response.status, 200)
-        XCTAssertEqual(settings.config.mcpServers?["tracker"]?.env?["TRACKER_TOKEN"], "s3cret-value",
-                       "the change itself is applied whole")
+        XCTAssertEqual(settings.config.mcpServers?["tracker"]?.env, ["TRACKER_TOKEN": ""],
+                       "the settings keep the name; the value goes to the secret store")
+        let tokenKey = ConnectorSecretKey(server: "tracker", kind: .env, name: "TRACKER_TOKEN")
+        XCTAssertEqual(connectorSecrets.value(for: tokenKey), "s3cret-value", "the change itself is applied whole")
         let logged = try String(contentsOf: ConfigChangeLog.url(appDirectory: tempDir), encoding: .utf8)
         XCTAssertFalse(logged.contains("s3cret-value"))
         XCTAssertTrue(logged.contains("TRACKER_TOKEN"))

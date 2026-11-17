@@ -907,6 +907,10 @@ final class KiteloopControlServer {
         let feed = eventFeed
         return .sse(keepAlive: 15) { writer in
             let (backlog, live) = await feed.subscribe(after: after)
+            // A first comment, which SSE clients ignore: some hold a response
+            // back until its body begins, and a quiet feed would otherwise
+            // look unanswered until its first event.
+            writer.comment("connected")
             for event in backlog { writer.send(event.json, id: String(event.seq)) }
             // A client that hangs up cancels this task, which ends the
             // iteration and so the subscription.

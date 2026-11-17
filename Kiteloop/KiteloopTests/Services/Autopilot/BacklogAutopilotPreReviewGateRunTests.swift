@@ -144,8 +144,12 @@ final class BacklogAutopilotPreReviewGateRunTests: XCTestCase {
         XCTAssertTrue(notes.contains("criterion 1 is not built"), notes)
         XCTAssertEqual(triggered.filter { $0 == "worker" }.count, 1, "\(triggered)")
         let messages = autopilot.log.map(\.message)
-        XCTAssertFalse(messages.contains { $0.contains("agent session") || $0.contains("produced no work") },
-                       "a rejected claim is not a no-work run: \(messages)")
+        // Every unattended run restarts its agents once at the start; only a
+        // restart for any other reason is the no-work signal.
+        let noWork = messages.filter {
+            $0.contains("produced no work") || ($0.contains("agent session") && !$0.contains("started for a chat"))
+        }
+        XCTAssertEqual(noWork, [], "a rejected claim is not a no-work run: \(messages)")
     }
 
     /// A claim whose item's own verify is red on the unchanged tree ends at
