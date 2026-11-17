@@ -856,7 +856,7 @@ final class KiteloopControlServer {
         case .quiesceFleet: return await quiesceFleet(body: req.body)
         case .resumeFleet: return await resumeFleet()
         case .usage: return usage()
-        case .spend: return await spend(req.query)
+        case .spend: return await SpendEndpoints(ledger: spendLedger).answer(req.query)
         case .attention: return await attention()
         case .appEvents: return appEvents(req)
         default: return Self.notThisArea(route)

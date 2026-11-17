@@ -2085,6 +2085,14 @@ package enum ControlAPISpec {
         case .fleetStatus: return fleetStatusDetail()
         case .quiesceFleet: return quiesceFleetDetail()
         case .resumeFleet: return resumeFleetDetail()
+        default: return fleetReadingDetail(for: route)
+        }
+    }
+
+    /// The readings that span every project: what was used, what was spent,
+    /// what is waiting and what is happening.
+    private static func fleetReadingDetail(for route: ControlRoute) -> Detail {
+        switch route {
         case .usage: return usageDetail()
         case .spend: return spendDetail()
         case .attention: return attentionDetail()

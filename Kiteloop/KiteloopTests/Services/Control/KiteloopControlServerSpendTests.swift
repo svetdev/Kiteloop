@@ -45,13 +45,16 @@ final class KiteloopControlServerSpendTests: XCTestCase {
     }
 
     func testAGroupingNobodyKnowsIs400() async {
-        XCTAssertEqual(await get(["by": "bogus"]).status, 400)
-        XCTAssertEqual(await get([:]).status, 400)
+        let unknown = await get(["by": "bogus"])
+        let missing = await get([:])
+        XCTAssertEqual(unknown.status, 400)
+        XCTAssertEqual(missing.status, 400)
     }
 
     func testAServerWithNoLedgerAnswers503() async {
         server.spendLedger = nil
-        XCTAssertEqual(await get(["by": "agent"]).status, 503)
+        let answer = await get(["by": "agent"])
+        XCTAssertEqual(answer.status, 503)
     }
 
     func testDaysDefaultsToSevenAndIsClampedFromTodaysMidnight() {
@@ -60,14 +63,14 @@ final class KiteloopControlServerSpendTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let midnight = calendar.startOfDay(for: now)
         func from(_ days: String?) -> Date {
-            KiteloopControlServer.spendWindow(days: days, now: now, calendar: calendar).from
+            SpendEndpoints.window(days: days, now: now, calendar: calendar).from
         }
 
         XCTAssertEqual(from("1"), midnight)
         XCTAssertEqual(from(nil), midnight.addingTimeInterval(-6 * 86_400))
         XCTAssertEqual(from("0"), midnight)
         XCTAssertEqual(from("500"), midnight.addingTimeInterval(-89 * 86_400))
-        XCTAssertEqual(KiteloopControlServer.spendWindow(days: "3", now: now, calendar: calendar).to, now)
+        XCTAssertEqual(SpendEndpoints.window(days: "3", now: now, calendar: calendar).to, now)
     }
 
     // MARK: - Helpers
