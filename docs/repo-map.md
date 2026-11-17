@@ -155,7 +155,7 @@ No workflows: the repository runs no hosted CI, and every check runs on a Mac (`
 | `knowledge/.gitignore` | Keeps the retrieval index `KnowledgeIndex` writes beside the packages (`.index/`) out of git, along with `.DS_Store` and `*.tmp` — it is derived from the Markdown and rebuilt, so committing it would version a cache |
 | `templates/release.md` | Backlog template for cutting a release; stamped via the templates endpoint, read end-to-end by its tests |
 | `design/kiteloop-logo.svg`, `design/kiteloop-icon.svg` | README logo; app-icon source |
-| `Kiteloop/examples/agents/*` | The bundled agent packages, loaded at runtime: two examples and `project-setup`, which interviews the person and configures a project through the control API once they approve |
+| `Kiteloop/examples/agents/*` | The bundled agent packages, loaded at runtime: two examples, `project-setup`, which interviews the person and configures a project through the control API once they approve, and `watch`, which reads the control API and writes a daily brief without changing anything |
 
 ## copilot-bridge-extension/
 

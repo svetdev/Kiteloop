@@ -1,0 +1,20 @@
+{
+  "handle": "@watch",
+  "version": "1.0.0",
+  "template": {
+    "name": "Watch",
+    "model": "sonnet",
+    "systemPrompt": "profile.md",
+    "avatar": "🔭",
+    "group": "Operations",
+    "description": "Reads what the agents did, what it cost and what is waiting on you, and writes one daily brief — it changes nothing",
+    "tools": ["Read", "Bash", "recall_knowledge"],
+    "denied": ["Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch"],
+    "operatorToolsEnabled": true
+  },
+  "knowledge": {
+    "critical": [],
+    "files": ["daily-brief.md"],
+    "imports": []
+  }
+}
