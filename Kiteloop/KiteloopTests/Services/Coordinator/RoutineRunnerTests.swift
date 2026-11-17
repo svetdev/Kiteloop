@@ -256,6 +256,92 @@ final class RoutineRunnerTests: XCTestCase {
         XCTAssertEqual(runner.runs.first?.reason, "daily budget $5.00 exhausted ($5.20 spent today)")
     }
 
+    // MARK: - A routine's own budget
+
+    private func cappedBrief(_ period: SpendBudget.Period = .day) -> Routine {
+        var routine = brief()
+        routine.budget = SpendBudget(ceilingUSD: 5, period: period, consequence: .refuse)
+        return routine
+    }
+
+    func testAScheduledFiringOfARoutineAtItsBudgetIsRefusedNamingTheRoutinesBudget() async throws {
+        let runner = try runner([cappedBrief()])
+        var asked: [String] = []
+        runner.routineSpend = { routine, budget in
+            asked.append("\(routine.id) \(budget.period.rawValue)")
+            return 5.2
+        }
+        now = date(16, 7)
+
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(sent, [])
+        XCTAssertEqual(asked, ["brief day"])
+        XCTAssertEqual(runner.runs.map(\.outcome), [.refused])
+        XCTAssertEqual(runner.runs.first?.reason, "routine budget $5.00 per day exhausted ($5.20 spent today)")
+        XCTAssertEqual(store.runs(now: now).first?.outcome, .refused)
+    }
+
+    func testAMonthlyBudgetAtItsLimitRefusesAWebhookFiringToo() async throws {
+        let runner = try runner([cappedBrief(.month)])
+        runner.routineSpend = { _, _ in 5 }
+
+        await runner.runFromHook("brief", hook: "deploys", body: Data())?.value
+
+        XCTAssertEqual(sent, [])
+        XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .refused)
+        XCTAssertEqual(runner.lastRun(of: "brief")?.reason,
+                       "routine budget $5.00 per month exhausted ($5.00 spent this month)")
+    }
+
+    func testRunNowStartsARoutineWhoseBudgetIsSpent() async throws {
+        let runner = try runner([cappedBrief()])
+        runner.routineSpend = { _, _ in 50 }
+
+        await runner.runNow("brief")?.value
+
+        XCTAssertEqual(sent, ["Write the brief."])
+        XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .started)
+    }
+
+    func testARoutineUnderItsBudgetFiresAsBefore() async throws {
+        let runner = try runner([cappedBrief()])
+        runner.routineSpend = { _, _ in 4.99 }
+        now = date(16, 7)
+
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(sent, ["Write the brief."])
+        XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .started)
+        XCTAssertEqual(charged, [0.25])
+    }
+
+    func testARoutineWithNoBudgetIsNeverAskedWhatItSpent() async throws {
+        let runner = try runner([brief()])
+        var asked = 0
+        runner.routineSpend = { _, _ in
+            asked += 1
+            return 1_000
+        }
+        now = date(16, 7)
+
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(asked, 0)
+        XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .started)
+    }
+
+    func testTheDaysBudgetIsStillTheReasonWhenBothAreSpent() async throws {
+        let runner = try runner([cappedBrief()])
+        runner.budgetRefusal = { _ in "daily budget $5.00 exhausted ($5.20 spent today)" }
+        runner.routineSpend = { _, _ in 50 }
+        now = date(16, 7)
+
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(runner.runs.first?.reason, "daily budget $5.00 exhausted ($5.20 spent today)")
+    }
+
     func testAnOccurrenceWhoseProjectIsNotOpenWaitsOnceAndRunsWhenItOpens() async throws {
         unreachable = "project not open in Kiteloop: vault"
         let runner = try runner([brief()])

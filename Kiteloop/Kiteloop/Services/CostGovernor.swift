@@ -396,7 +396,7 @@ struct CostGovernor {
 
         /// Past this share of a cap the run is close enough to being cut off that
         /// the panel says so — early enough to raise the cap before it fires.
-        static let warnThreshold = 0.8
+        static let warnThreshold = SpendBudget.defaultWarnAtFraction
 
         var itemText: String { Self.format(spend: itemSpendUSD, cap: itemCapUSD) }
         var sessionText: String { Self.format(spend: sessionSpendUSD, cap: sessionCapUSD) }

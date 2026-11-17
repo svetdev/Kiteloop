@@ -256,6 +256,15 @@ package enum ControlAPISpec {
         ], required: [])
     }
 
+    private static var routineBudget: [String: Any] {
+        object([
+            "ceilingUSD": described(number, "What the routine's turns may cost in the period. Above zero."),
+            "period": described(string, "day or month — the Mac's local calendar day or month. day when absent."),
+            "warnAtFraction": described(number, "The share of the ceiling at which the budget counts as nearly spent: above 0, at most 1. 0.8 when absent."),
+            "consequence": described(string, "What reaching the ceiling does. A routine takes refuse, which is what an absent one reads as; ask and pause are not yet available for routines.")
+        ], required: ["ceilingUSD"])
+    }
+
     private static var routineFields: [String: Any] {
         [
             "name": described(string, "What a person calls it. The id when absent."),
@@ -264,7 +273,8 @@ package enum ControlAPISpec {
             "prompt": described(string, "What the agent is sent."),
             "trigger": routineTrigger,
             "precheck": described(string, "A shell command run in the project's folder first. Failing or printing nothing skips the turn; what it prints goes to the agent under the prompt."),
-            "armed": described(bool, "Whether it fires on its schedule. Off unless set; kept as it was when a replacement does not say.")
+            "armed": described(bool, "Whether it fires on its schedule. Off unless set; kept as it was when a replacement does not say."),
+            "budget": described(nullable(routineBudget), "The routine's own ceiling. Once its turns have cost this much in the current day or month, a scheduled or webhook firing is refused; Run now is not. Absent on a replacement keeps the one it had; null clears it. Returned only for a routine that has one.")
         ]
     }
 

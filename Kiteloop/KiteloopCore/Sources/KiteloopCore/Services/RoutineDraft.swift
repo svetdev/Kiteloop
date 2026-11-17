@@ -90,7 +90,8 @@ package struct RoutineDraft: Equatable, Sendable {
     }
 
     /// The routine this draft describes. Editing `existing` keeps its id, its
-    /// project and when it was armed; a new one takes `id` and `project`.
+    /// project, its budget and when it was armed; a new one takes `id` and
+    /// `project`.
     package func routine(id: String, project: String, existing: Routine? = nil) -> Routine {
         let check = precheck.trimmingCharacters(in: .whitespacesAndNewlines)
         return Routine(
@@ -105,7 +106,8 @@ package struct RoutineDraft: Equatable, Sendable {
             armedAt: existing?.armedAt,
             // A routine saved before there was a choice keeps having none
             // until the choice is changed: nil already means `continues`.
-            conversation: conversation == (existing?.conversation ?? .continues) ? existing?.conversation : conversation)
+            conversation: conversation == (existing?.conversation ?? .continues) ? existing?.conversation : conversation,
+            budget: existing?.budget)
     }
 
     /// An id for a routine called `name` that none of `taken` has: the name in

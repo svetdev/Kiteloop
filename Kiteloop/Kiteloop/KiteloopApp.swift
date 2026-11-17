@@ -220,6 +220,9 @@ struct KiteloopApp: App {
             controlServer?.routineBudgetRefusal(folder: folder, ledger: ledger,
                                                 portfolioBudgetUSD: configStore.config.dailyBudgetUSD)
         }
+        runner.routineSpend = { routine, budget in
+            budget.spent(in: ledger.spendLedger.rows(), now: Date(), calendar: .current) { $0.routine == routine.id }
+        }
         runner.charge = { cost, folder, attribution in
             ledger.charge(costUSD: cost, project: folder.path(percentEncoded: false), attribution: attribution)
         }

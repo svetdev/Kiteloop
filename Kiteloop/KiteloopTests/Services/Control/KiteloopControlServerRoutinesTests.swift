@@ -90,6 +90,31 @@ final class KiteloopControlServerRoutinesTests: XCTestCase {
         XCTAssertEqual(json(refused)["error"] as? String, "\"conversation\" is \"continues\" or \"fresh\"")
     }
 
+    func testARoutinesBudgetIsSetReadBackKeptAndCleared() async throws {
+        var capped = brief
+        capped["budget"] = ["ceilingUSD": 5, "period": "month"]
+        let set = await send("PUT", "/v1/routines/brief", capped)
+        let budget = try XCTUnwrap((json(set)["routine"] as? [String: Any])?["budget"] as? [String: Any])
+        XCTAssertEqual(budget["ceilingUSD"] as? Double, 5)
+        XCTAssertEqual(budget["period"] as? String, "month")
+        XCTAssertEqual(budget["consequence"] as? String, "refuse")
+
+        _ = await send("PUT", "/v1/routines/brief", brief)
+        let list = await send("GET", "/v1/routines")
+        let listed = try XCTUnwrap((json(list)["routines"] as? [[String: Any]])?.first)
+        XCTAssertEqual((listed["budget"] as? [String: Any])?["ceilingUSD"] as? Double, 5, "a silent body keeps it")
+
+        var asking = brief
+        asking["budget"] = ["ceilingUSD": 5, "consequence": "ask"]
+        let refused = await send("PUT", "/v1/routines/brief", asking)
+        XCTAssertEqual(refused.status, 400)
+
+        var cleared = brief
+        cleared["budget"] = NSNull()
+        let after = await send("PUT", "/v1/routines/brief", cleared)
+        XCTAssertNil(try XCTUnwrap(json(after)["routine"] as? [String: Any])["budget"])
+    }
+
     func testDeletingRemovesItAndASecondDeleteIs404() async {
         _ = await send("PUT", "/v1/routines/brief", brief)
 
