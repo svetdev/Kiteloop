@@ -143,6 +143,21 @@ final class ConfigChangeGateTests: XCTestCase {
                                                       credential: .operatorToken))
     }
 
+    /// Reading what became of a held change is open to the tokens that are
+    /// held — it is how a caller whose request ended collects the answer —
+    /// and is never itself held or a human gate. Who may read *which* change
+    /// is `ConfigChangeReader`'s rule, not the route's.
+    func testReadingWhatBecameOfAChangeIsOpenToTheTokensThatAsk() {
+        for route in [ControlRoute.listConfigChanges, .configChangeOutcome(id: "c1")] {
+            XCTAssertFalse(route.isHumanGate)
+            XCTAssertFalse(route.changesConfiguration)
+            for credential in [ControlCredential.operatorToken, .scoped(.read), .scoped(.configure), .full, .paired] {
+                XCTAssertNil(ControlAccess.refusal(of: credential, calling: route, as: "GET /v1/config-changes"))
+                XCTAssertFalse(ConfigChangeGate.waitsOnAPerson(route: route, method: "GET", credential: credential))
+            }
+        }
+    }
+
     /// The configure routes through which an agent's token could loosen
     /// approvals — an agent's permission mode or always-ask rules, a project's
     /// mode, a routine whose prompt is `/mode <name>`, autopilot's

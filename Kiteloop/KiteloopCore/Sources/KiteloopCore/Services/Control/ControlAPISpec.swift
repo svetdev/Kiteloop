@@ -207,7 +207,7 @@ package enum ControlAPISpec {
             return backlogDetail(for: route)
         case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot, .sittingSummary,
              .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents,
-             .answerConfigChange:
+             .answerConfigChange, .listConfigChanges, .configChangeOutcome:
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
@@ -2029,7 +2029,7 @@ package enum ControlAPISpec {
              .pauseAutopilot, .resumeAutopilot, .sittingSummary:
             return autopilotDetail(for: route)
         case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents,
-             .answerConfigChange:
+             .answerConfigChange, .listConfigChanges, .configChangeOutcome:
             return fleetDetail(for: route)
         default:
             preconditionFailure("\(route) is not a queue route")
@@ -2234,7 +2234,17 @@ package enum ControlAPISpec {
         case .spendForecast: return spendForecastDetail()
         case .attention: return attentionDetail()
         case .appEvents: return appEventsDetail()
+        default: return configChangeDetail(for: route)
+        }
+    }
+
+    /// The configuration changes held for a person: answering one, and
+    /// reading what became of them.
+    private static func configChangeDetail(for route: ControlRoute) -> Detail {
+        switch route {
         case .answerConfigChange: return answerConfigChangeDetail()
+        case .listConfigChanges: return listConfigChangesDetail()
+        case .configChangeOutcome: return configChangeOutcomeDetail()
         default:
             preconditionFailure("\(route) is not a fleet route")
         }
@@ -2250,8 +2260,9 @@ package enum ControlAPISpec {
             /v1/attention lists it as a `configChange` row whose `answer` is this call. \
             Approving writes the decision to the change log and then lets the held \
             request apply and answer as it would have; declining answers it 403. A \
-            change whose caller has hung up applies nothing whatever is answered \
-            (`abandoned`). Only the control token or a paired phone may call this.
+            change whose caller has hung up is applied just the same when approved, and \
+            the caller reads what it answered from GET /v1/config-changes/{id}. Only \
+            the control token or a paired phone may call this.
             """,
             requestBody: object([
                 "approve": described(bool, "true applies the change, false declines it.")
@@ -2259,12 +2270,76 @@ package enum ControlAPISpec {
             responses: [
                 Status(code: 200, description: "The change was answered.", schema: object([
                     "id": string,
-                    "decision": described(string, "approved, denied or abandoned.")
+                    "decision": described(string, "approved or denied.")
                 ], required: ["id", "decision"])),
                 errorStatus(400, "The body has no boolean \"approve\"."),
                 errorStatus(403, "The caller holds the operator token or a scoped token: only a person answers this."),
                 errorStatus(404, "No change with this id is waiting."),
                 errorStatus(500, "The approval could not be written to the change log, so the change was refused.")
+            ]
+        )
+    }
+
+    /// One held change and what became of it, as both reads return it.
+    private static var configChangeSchema: [String: Any] {
+        object([
+            "id": string,
+            "state": described(string, "waiting, approved, declined or unrecorded."),
+            "caller": described(string, "The credential that asked — operator, or a scoped token's name and scope."),
+            "route": described(string, "The held call's method and path."),
+            "summary": described(string, "The call's query and body with secrets left out."),
+            "project": described(nullable(string), "The open project the call names; null for a change to the app as a whole."),
+            "askedAt": described(string, "ISO 8601."),
+            "response": described(nullable(object([
+                "status": described(integer, "The status the held call answered."),
+                "body": described([:], "The body it answered: JSON when it was JSON, else a string.")
+            ], required: ["status", "body"])),
+                                  "For an approved change, what the call answered once it ran; null until then and in every other state."),
+            "reason": described(nullable(string), "For an unrecorded change: why nothing was applied.")
+        ], required: ["id", "state", "caller", "route", "summary", "askedAt"])
+    }
+
+    private static func listConfigChangesDetail() -> Detail {
+        return Detail(
+            id: "listConfigChanges",
+            summary: "The configuration changes you asked for that waited on a person, and what became of each",
+            description: """
+            A configuration change made with the operator token or a scoped token is \
+            held until a person answers it, and it does not depend on the request \
+            staying open: if the request timed out, the change is still waiting, and an \
+            approval still applies it. This lists the changes the calling credential \
+            asked for — the answered ones still kept, then the ones waiting, each oldest \
+            first — so a caller whose request ended can find its change's id and read \
+            what became of it. A credential sees only what it asked for itself; the \
+            control token and a paired phone see every one. Answered changes are kept in \
+            memory, the newest \(AppEventFeed.defaultCapacity), and none survives a restart.
+            """,
+            responses: [
+                Status(code: 200, description: "The changes.", schema: object([
+                    "count": integer,
+                    "changes": array(of: configChangeSchema)
+                ], required: ["count", "changes"]))
+            ]
+        )
+    }
+
+    private static func configChangeOutcomeDetail() -> Detail {
+        return Detail(
+            id: "configChangeOutcome",
+            summary: "What became of one configuration change you asked for",
+            description: """
+            `waiting` — nobody has answered it yet; read again later rather than asking \
+            again. `approved` — it was logged and applied, and `response` holds the \
+            status and body the held call answered (null for the moment the call is \
+            still running). `declined` — the person said no and nothing changed. \
+            `unrecorded` — approved, but the decision could not be written to the change \
+            log, so nothing changed. Only the credential that asked, the control token \
+            or a paired phone may read a change; to anyone else, and after a restart, \
+            it is unknown.
+            """,
+            responses: [
+                Status(code: 200, description: "The change.", schema: configChangeSchema),
+                errorStatus(404, "No change with this id is held or kept for this credential.")
             ]
         )
     }

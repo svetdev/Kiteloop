@@ -6,7 +6,7 @@ import SwiftUI
 /// and the Approve and Decline buttons (`ConfigChangeGate`).
 ///
 /// The waiting drawer's row opens it. Nothing applies until Approve; a change
-/// whose caller has hung up says so and only clears.
+/// whose caller has hung up says so, and approving it applies it all the same.
 struct HeldConfigChangeCard: View {
     let change: HeldConfigChange
     /// Answers the change and says what became of it.
@@ -32,6 +32,11 @@ struct HeldConfigChangeCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxHeight: 220)
+            if change.callerGone, failure == nil {
+                Text("The caller's request has ended. Approving still applies the change; the caller can read the result afterwards.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if let failure {
                 Label("Not applied — the decision could not be logged: \(failure)",
                       systemImage: "exclamationmark.triangle.fill")
@@ -67,14 +72,6 @@ struct HeldConfigChangeCard: View {
     private var footer: some View {
         if failure != nil {
             HStack { Spacer(); Button("Close", action: onClose) }
-        } else if change.callerGone {
-            HStack {
-                Text("The caller is no longer waiting. Nothing will be applied.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Clear") { decide(false) }
-            }
         } else {
             HStack(spacing: 12) {
                 Button { decide(true) } label: {

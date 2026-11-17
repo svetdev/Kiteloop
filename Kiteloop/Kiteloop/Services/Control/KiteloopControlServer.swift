@@ -103,8 +103,9 @@ final class KiteloopControlServer {
     /// The configuration changes agents asked for over this API that wait on
     /// a person (`ConfigChangeGate`). The window's waiting drawer reads it.
     let configChanges = HeldConfigChanges()
-    /// Where the decisions on changes to the app as a whole are logged; a
-    /// change that names an open project is logged in that project.
+    /// The app's own directory, where the decision on every held change is
+    /// logged — one about a project too, so no agent working in that project
+    /// has the log in its folder.
     var configChangeLogDirectory: URL = KiteloopControlServer.defaultOperatorTokenURL.deletingLastPathComponent()
     private var http: HTTPServer?
     /// The one credential that authorizes the whole API. `var` because it can be
@@ -578,11 +579,17 @@ final class KiteloopControlServer {
         // here until that person answers it. After the auth checks, so only a
         // call that would otherwise apply is ever held; before the handler,
         // so no configure route can forget to ask.
-        if let refusal = await ConfigChangeEndpoints(server: self).refusal(
-            matched, req, credential: scope.credential, caller: credentialName(req)) {
-            return refusal
+        if let answered = await ConfigChangeEndpoints(server: self).held(
+            matched, req, credential: scope.credential, caller: credentialName(req),
+            applying: { await self.answered(matched, req) }) {
+            return answered
         }
+        return await answered(matched, req)
+    }
 
+    /// The route's own answer, once nothing stands between the request and
+    /// its handler — at once, or when a held change is approved.
+    private func answered(_ matched: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
         // Close whatever has ended before any handler reads a run. Done here, once,
         // rather than at each ending: a handler that forgets would leave a record
         // reading `running` for the rest of the app's life, and `/health` counting
@@ -591,6 +598,14 @@ final class KiteloopControlServer {
         await finalizeEndedRuns()
 
         return await dispatch(matched, req)
+    }
+
+    /// Who a request reads held configuration changes as: the person, or the
+    /// one credential it carries — a scoped token by its id, since two may
+    /// share a name.
+    func configChangeReader(_ req: HTTPServer.Request) -> ConfigChangeReader {
+        ConfigChangeReader(isThePerson: authScope(req).credential?.isThePersons == true,
+                           key: scopedToken(req).map { "token:\($0.id.uuidString)" } ?? credentialName(req))
     }
 
     /// Which area of the API answers this route. Every case of `ControlRoute` is
@@ -626,7 +641,7 @@ final class KiteloopControlServer {
              .fireHook, .mintHook, .revokeHook:
             return loopsRoute(route, req)
         case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents,
-             .answerConfigChange:
+             .answerConfigChange, .listConfigChanges, .configChangeOutcome:
             return await fleetRoute(route, req)
         case .startRun, .listRuns, .runStatus, .runResult, .runEvents, .runLog,
              .approveRun, .cancelRun, .steerRun, .manage:
@@ -880,17 +895,24 @@ final class KiteloopControlServer {
         case .resumeFleet: return await resumeFleet()
         case .usage: return usage()
         case .spend, .spendForecast: return await spendRoute(route, req)
-        case .attention, .answerConfigChange: return await waitingRoute(route, req)
+        case .attention, .answerConfigChange, .listConfigChanges, .configChangeOutcome:
+            return await waitingRoute(route, req)
         case .appEvents: return appEvents(req)
         default: return Self.notThisArea(route)
         }
     }
 
-    /// What is waiting on a person, and the answer to the one kind of row
-    /// this API holds itself: a configuration change an agent asked for.
+    /// What is waiting on a person, and the one kind of row this API holds
+    /// itself: a configuration change an agent asked for — its answer, and
+    /// what became of it for the credential that asked.
     private func waitingRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
-        guard case .answerConfigChange(let id) = route else { return await attention() }
-        return ConfigChangeEndpoints(server: self).answer(id, body: req.body)
+        let changes = ConfigChangeEndpoints(server: self)
+        switch route {
+        case .answerConfigChange(let id): return changes.answer(id, body: req.body)
+        case .listConfigChanges: return changes.list(for: configChangeReader(req))
+        case .configChangeOutcome(let id): return changes.outcome(id, for: configChangeReader(req))
+        default: return await attention()
+        }
     }
 
     /// The spend ledger: what was spent, and what that history says is coming.
@@ -4392,6 +4414,8 @@ final class KiteloopControlServer {
     /// reach nothing here at all, and are correctly left to that reading.
     func finalizeRunsAtQuit() async {
         await finalizeEndedRuns()
+        // A card nobody answered dies with the app: say so in the log.
+        ConfigChangeEndpoints(server: self).abandonWaiting()
     }
 
     /// Writes the ending down, where it outlives the app. Called from

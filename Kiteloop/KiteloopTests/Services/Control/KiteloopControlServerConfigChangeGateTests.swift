@@ -3,8 +3,9 @@ import KiteloopCore
 @testable import Kiteloop
 
 /// A configuration change made with the operator token or a scoped token is
-/// held on a card until a person answers it, logged before it applies, and
-/// answerable only with a person's credential. Driven in process, so a held
+/// held on a card until a person answers it, logged before it applies,
+/// answerable only with a person's credential, and — applied or not — read
+/// back by the credential that asked, whether or not its request lasted. Driven in process, so a held
 /// request is a task the test answers rather than a socket left open.
 @MainActor
 final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
@@ -276,28 +277,131 @@ final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
         XCTAssertTrue(server.configChanges.waiting.isEmpty)
     }
 
-    /// A caller that hangs up leaves its card; answering it applies nothing
-    /// and is logged as abandoned.
-    func testACardWhoseCallerHungUpAppliesNothing() async throws {
+    // MARK: - A caller whose request ended
+
+    /// Files a change with the operator token and hangs up on it.
+    private func askAndHangUp(bearer: String? = nil) async throws -> HeldConfigChange {
         let hangUp = HangUp()
-        var asked = request("PUT", "/v1/settings", ["defaultModel": "opus"], bearer: operatorToken)
+        var asked = request("PUT", "/v1/settings", ["defaultModel": "opus"], bearer: bearer ?? operatorToken)
         asked.whenClientGone = { hangUp.register($0) }
         let server = server!
         let held = Task { await server.handle(asked) }
         let change = try await waitingChange()
-
         hangUp.fire()
-        _ = await held.value
+        let cutOff = await held.value
+        XCTAssertTrue((json(cutOff)["error"] as? String ?? "").contains("/v1/config-changes/\(change.id)"))
+        return change
+    }
+
+    private func read(_ id: String, bearer: String) async -> HTTPServer.Response {
+        await server.handle(request("GET", "/v1/config-changes/\(id)", [:], bearer: bearer))
+    }
+
+    /// A caller that hangs up leaves its card waiting; it finds the change
+    /// again by listing its own, and reads that nobody has answered yet.
+    func testACallerThatHungUpFindsItsChangeStillWaiting() async throws {
+        let change = try await askAndHangUp()
 
         XCTAssertEqual(server.configChanges.waiting.map(\.id), [change.id], "the card stays")
         XCTAssertEqual(server.configChanges.waiting.first?.callerGone, true)
+        XCTAssertNil(settings.config.defaultModel)
+
+        let listed = await server.handle(request("GET", "/v1/config-changes", [:], bearer: operatorToken))
+        let rows = try XCTUnwrap(json(listed)["changes"] as? [[String: Any]])
+        XCTAssertEqual(rows.compactMap { $0["id"] as? String }, [change.id])
+        let waiting = await read(change.id, bearer: operatorToken)
+        XCTAssertEqual(waiting.status, 200)
+        XCTAssertEqual(json(waiting)["state"] as? String, "waiting")
+        XCTAssertTrue(log().isEmpty)
+
+        _ = await answer(change.id, approve: false, bearer: token)
+    }
+
+    /// Approved after the caller left, the change is logged, applied, and the
+    /// caller collects the answer its request would have been sent.
+    func testAnApprovalAfterTheCallerLeftAppliesAndTheCallerCollectsIt() async throws {
+        let change = try await askAndHangUp()
 
         let answered = await answer(change.id, approve: true, bearer: token)
+        XCTAssertEqual(json(answered)["decision"] as? String, "approved")
+        let settings = settings!
+        try await eventually("the approved change to apply") { settings.config.defaultModel == "opus" }
 
-        XCTAssertEqual(json(answered)["decision"] as? String, "abandoned")
-        XCTAssertNil(settings.config.defaultModel)
-        XCTAssertEqual(log().map(\.decision), [.abandoned])
+        XCTAssertEqual(log().map(\.decision), [.approved])
         XCTAssertTrue(server.configChanges.waiting.isEmpty)
+        let collected = await read(change.id, bearer: operatorToken)
+        XCTAssertEqual(json(collected)["state"] as? String, "approved")
+        let response = try XCTUnwrap(json(collected)["response"] as? [String: Any])
+        XCTAssertEqual(response["status"] as? Int, 200)
+        XCTAssertEqual((response["body"] as? [String: Any])?["defaultModel"] as? String, "opus")
+    }
+
+    func testADeclineAfterTheCallerLeftChangesNothingAndReadsAsDeclined() async throws {
+        let change = try await askAndHangUp()
+
+        let answered = await answer(change.id, approve: false, bearer: token)
+
+        XCTAssertEqual(json(answered)["decision"] as? String, "denied")
+        XCTAssertNil(settings.config.defaultModel)
+        XCTAssertEqual(log().map(\.decision), [.denied])
+        let collected = await read(change.id, bearer: operatorToken)
+        XCTAssertEqual(json(collected)["state"] as? String, "declined")
+    }
+
+    /// Only the credential that asked, or the person, reads a change: to
+    /// another token it is unknown, waiting or answered, and is not listed.
+    func testAnotherCredentialCannotReadOrListAChange() async throws {
+        let ci = scoped.mint(name: "ci", scope: .configure).token
+        let twin = scoped.mint(name: "ci", scope: .configure).token
+        let change = try await askAndHangUp(bearer: ci)
+
+        for stranger in [operatorToken, twin] {
+            let refused = await read(change.id, bearer: stranger)
+            XCTAssertEqual(refused.status, 404)
+            let listed = await server.handle(request("GET", "/v1/config-changes", [:], bearer: stranger))
+            XCTAssertEqual(json(listed)["count"] as? Int, 0)
+        }
+        let own = await read(change.id, bearer: ci)
+        XCTAssertEqual(own.status, 200)
+        let asThePerson = await read(change.id, bearer: token)
+        XCTAssertEqual(asThePerson.status, 200)
+
+        _ = await answer(change.id, approve: true, bearer: token)
+        let settings = settings!
+        try await eventually("the approved change to apply") { settings.config.defaultModel == "opus" }
+        let afterwards = await read(change.id, bearer: twin)
+        XCTAssertEqual(afterwards.status, 404, "a token sharing the name still reads nothing")
+    }
+
+    func testAnUnknownChangeReads404() async throws {
+        let unknown = await read("no-such-change", bearer: operatorToken)
+        XCTAssertEqual(unknown.status, 404)
+    }
+
+    /// A caller that stayed gets its answer on the request, and the same
+    /// answer is kept should it ask again.
+    func testAChangeWhoseCallerStayedIsAlsoKept() async throws {
+        let held = send("PUT", "/v1/settings", ["defaultModel": "opus"], bearer: operatorToken)
+        let change = try await waitingChange()
+        _ = await answer(change.id, approve: true, bearer: token)
+        let response = await held.value
+
+        let collected = await read(change.id, bearer: operatorToken)
+
+        XCTAssertEqual((json(collected)["response"] as? [String: Any])?["status"] as? Int, response.status)
+    }
+
+    /// A quit with a card unanswered logs it as abandoned and applies nothing.
+    func testACardStillWaitingAtQuitIsLoggedAsAbandoned() async throws {
+        let change = try await askAndHangUp()
+
+        await server.finalizeRunsAtQuit()
+
+        XCTAssertEqual(log().map(\.decision), [.abandoned])
+        XCTAssertNil(settings.config.defaultModel)
+        XCTAssertTrue(server.configChanges.waiting.isEmpty)
+        let gone = await answer(change.id, approve: true, bearer: token)
+        XCTAssertEqual(gone.status, 404)
     }
 
     // MARK: - Helpers

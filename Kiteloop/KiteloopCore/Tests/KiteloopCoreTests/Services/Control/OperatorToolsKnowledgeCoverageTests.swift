@@ -42,6 +42,35 @@ final class OperatorToolsKnowledgeCoverageTests: XCTestCase {
         XCTAssertEqual(leftOut, [.registerPushDevice, .registerLiveActivity])
     }
 
+    /// An agent whose held request timed out is told to read what became of
+    /// the change, not to ask again — and is given both calls that do it.
+    func testTheNoteSaysHowToCollectAChangeWhoseRequestTimedOut() {
+        XCTAssertTrue(note.contains("do not ask again"))
+        XCTAssertFalse(note.contains("applies nothing, so ask again"))
+        let reads = ControlRouter.endpoints.filter {
+            $0.method == "GET" && $0.templatedPath.hasPrefix("/v1/config-changes")
+        }
+        XCTAssertEqual(reads.map(\.route), [.listConfigChanges, .configChangeOutcome(id: "id")])
+        for endpoint in reads {
+            XCTAssertTrue(note.contains(listing(endpoint)), "\(endpoint.templatedPath) is not listed")
+        }
+        XCTAssertTrue(note.contains("`GET $KITELOOP_CONTROL_URL/config-changes`"))
+        XCTAssertTrue(note.contains("`GET $KITELOOP_CONTROL_URL/config-changes/<id>`"))
+        for state in ["waiting", "approved", "declined", "unrecorded"] {
+            XCTAssertTrue(note.contains("`\(state)`"), "the note does not explain \(state)")
+            XCTAssertEqual(ConfigChangeReport.name(of: named(state)), state)
+        }
+    }
+
+    private func named(_ state: String) -> ConfigChangeOutcome.State {
+        switch state {
+        case "waiting": return .waiting
+        case "approved": return .approved(nil)
+        case "declined": return .declined
+        default: return .unrecorded("")
+        }
+    }
+
     func testManagementAgentAndRoutineEndpointsAreListed() {
         let wanted = ControlRouter.endpoints.filter {
             switch $0.route {

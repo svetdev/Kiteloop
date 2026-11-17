@@ -52,7 +52,16 @@ package enum OperatorToolsKnowledge {
             "refill and scheduling, routines, MCP servers — does not " +
             "apply until the operator approves it in the app: the request stays open, with no time limit, " +
             "until they answer. Say that you are waiting on their approval and give the call a long " +
-            "timeout; a request cut off before the answer applies nothing, so ask again. " +
+            "timeout. **If the request times out or is cut off, do not ask again**: the change is still " +
+            "waiting on its card, and asking again files a second one. Find it with " +
+            "`GET $KITELOOP_CONTROL_URL/config-changes` — it lists the changes this token asked for — and " +
+            "read `GET $KITELOOP_CONTROL_URL/config-changes/<id>` when you next need to know: `waiting` " +
+            "means nobody has answered yet; `approved` means it was applied without you, and `response` " +
+            "holds the status and body your call would have been sent; `declined` means they said no; " +
+            "`unrecorded` means it was approved but could not be logged, so nothing changed. Check when " +
+            "the operator next writes or your work next depends on it rather than polling in a loop. " +
+            "Answered changes are kept in memory only: after Kiteloop restarts an id is unknown, and a " +
+            "change that was still waiting then was dropped unapplied — ask again. " +
             "**403 \"declined by the person\"** means they said no — do not retry it or look for another route. " +
             "Everyday work is not held and applies at once: editing or deleting a backlog item, stamping " +
             "a template, memory facts, shared context, memory notes and knowledge files.",

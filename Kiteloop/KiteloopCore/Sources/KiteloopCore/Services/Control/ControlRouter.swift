@@ -135,6 +135,12 @@ package enum ControlRoute: Equatable {
     /// `POST /v1/config-changes/{id}/answer` — approve or decline a
     /// configuration change an agent asked for over this API.
     case answerConfigChange(id: String)
+    /// `GET /v1/config-changes` — the configuration changes the calling
+    /// credential asked for: the ones still waiting and what became of the
+    /// ones answered.
+    case listConfigChanges
+    /// `GET /v1/config-changes/{id}` — what became of one of them.
+    case configChangeOutcome(id: String)
 
     // Memory
     case listMemoryProposals
@@ -254,6 +260,7 @@ package enum ControlRoute: Equatable {
              .listAgentTasks, .backlogItemDetail, .backlogItemDiff, .listTemplates,
              .listBacklog, .listMetrics, .listEstimates, .listGrooming, .portfolioReport,
              .getAutopilot, .sittingSummary, .fleetStatus, .usage, .spend, .spendForecast, .attention, .appEvents, .listMemoryProposals,
+             .listConfigChanges, .configChangeOutcome,
              .getCoordinatorRefill, .getCoordinatorScheduling, .listProposals,
              .listRoutines, .listRoutineRuns, .openAPIDocument,
              .listRuns, .runStatus, .runResult, .runEvents, .runLog:
@@ -301,7 +308,7 @@ package enum ControlRoute: Equatable {
              .listAgentTasks, .backlogItemDetail, .backlogItemDiff, .listTemplates,
              .listBacklog, .listMetrics, .listEstimates, .listGrooming, .portfolioReport,
              .getAutopilot, .sittingSummary, .fleetStatus, .usage, .spend, .spendForecast,
-             .attention, .appEvents, .listMemoryProposals,
+             .attention, .appEvents, .listMemoryProposals, .listConfigChanges, .configChangeOutcome,
              .getCoordinatorRefill, .getCoordinatorScheduling, .listProposals,
              .listRoutines, .listRoutineRuns, .openAPIDocument,
              .listRuns, .runStatus, .runResult, .runEvents, .runLog,
@@ -474,6 +481,8 @@ package enum ControlRouter {
         Row("GET",  "/v1/attention")            { _ in .attention },
         Row("GET",  "/v1/events")               { _ in .appEvents },
         Row("POST", "/v1/config-changes/:id/answer") { .answerConfigChange(id: $0[0]) },
+        Row("GET",  "/v1/config-changes")       { _ in .listConfigChanges },
+        Row("GET",  "/v1/config-changes/:id")   { .configChangeOutcome(id: $0[0]) },
 
         Row("GET",  "/v1/memory/proposals")             { _ in .listMemoryProposals },
         Row("POST", "/v1/memory/proposals/approve")     { _ in .approveMemoryProposal },

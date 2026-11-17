@@ -4076,41 +4076,80 @@ class ChatViewModel {
 
     func approveConfigChange(requestID cardID: String) async {
         guard let change = takeAnswerableConfigChange(cardID: cardID) else { return }
+        // The line is written before anything applies, and an approval that
+        // cannot be recorded is refused — as a change held over the control
+        // API is (`HeldConfigChanges`).
+        if let failure = logTeamChange(tool: change.tool, before: change.before, after: change.after, .approved) {
+            refuseUnrecordedConfigChange(change, because: failure)
+            return
+        }
         let result = await applyTeamChange(tool: change.tool, input: change.input)
         orchestrator.respondToMCPToolCall(requestID: change.requestID, result: result, agentID: agentID)
-        // The log holds the team the approval left, not the one it was asked
-        // for: a hire that failed after it was approved changed nothing.
-        settleConfigChange(change, decision: .approved, after: teamRoster.joined(separator: ", "))
+        TeamChangeCards.mark(change.cardID, .approved, in: &messages)
+        saveMessages()
     }
 
     func denyConfigChange(requestID cardID: String) {
         guard let change = takeAnswerableConfigChange(cardID: cardID) else { return }
+        logTeamChange(tool: change.tool, before: change.before, after: change.after, .denied)
         orchestrator.respondToMCPToolCall(requestID: change.requestID,
                                           result: "Denied by the user: \(change.action)", agentID: agentID)
-        settleConfigChange(change, decision: .denied, after: change.after)
+        TeamChangeCards.mark(change.cardID, .denied, in: &messages)
+        saveMessages()
     }
 
-    /// Marks the card with the decision and writes the decision to the
-    /// project's `ConfigChangeLog`.
-    private func settleConfigChange(_ change: PendingConfigChange, decision: ConfigChangeLog.Decision,
-                                    after: String) {
-        if let idx = messages.lastIndex(where: {
-            if case .approval(let req) = $0.content { return req.id == change.cardID }
-            return false
-        }), case .approval(var req) = messages[idx].content {
-            req.status = decision == .approved ? .approved : .denied
-            messages[idx].content = .approval(req)
+    /// An approval whose log line could not be written: the agent is told
+    /// nothing changed, and the chat says why.
+    private func refuseUnrecordedConfigChange(_ change: PendingConfigChange, because failure: String) {
+        let refusal = "approved, but the decision could not be written to the change log, so nothing was changed: \(failure)"
+        orchestrator.respondToMCPToolCall(requestID: change.requestID, result: "Error: \(refusal)", agentID: agentID)
+        TeamChangeCards.mark(change.cardID, .abandoned, in: &messages)
+        messages.append(Message(id: UUID(), timestamp: .now, sender: .system,
+                                content: .error("\(change.action) was \(refusal)")))
+        saveMessages()
+    }
+
+    /// The call a waiting card held open is gone — the agent was stopped,
+    /// restarted or moved to another chat — so the card can no longer be
+    /// answered: it is marked and logged as abandoned. `saving` is false only
+    /// where the chat itself is being thrown away.
+    private func abandonPendingConfigChange(saving: Bool = true) {
+        guard let change = pendingConfigChange else { return }
+        pendingConfigChange = nil
+        logTeamChange(tool: change.tool, before: change.before, after: change.after, .abandoned)
+        if TeamChangeCards.mark(change.cardID, .abandoned, in: &messages) != nil, saving { saveMessages() }
+    }
+
+    /// The cards a chat read back from disk still showed as waiting — left by
+    /// a quit or a crash — marked and logged as abandoned, and written back
+    /// at once so the next launch does not log them again.
+    private func abandonTeamChangesLeftWaiting(in session: ChatSession) {
+        guard globalConfigStore != nil, let sessionStore else { return }
+        let left = TeamChangeCards.abandonPending(in: &messages)
+        guard !left.isEmpty else { return }
+        for card in left {
+            logTeamChange(tool: card.tool, before: card.before ?? "", after: card.after ?? "", .abandoned)
         }
-        let record = ConfigChangeLog.Record(
-            requestedBy: agentName, kind: "team", tool: change.tool, before: change.before,
-            after: after, decision: decision, at: .now
-        )
+        let (snapshot, leftOut, url) = (messages, messagesLeftOutOfLoad, sessionStore.messagesURL(for: session))
+        Task.detached { try? SessionStore.writeMessages(snapshot, to: url, keepingLeading: leftOut) }
+    }
+
+    /// Appends one decision on a team change to `ConfigChangeLog`, in the
+    /// app's own directory. The reason, when the line could not be written.
+    @discardableResult
+    private func logTeamChange(tool: String, before: String, after: String,
+                               _ decision: ConfigChangeLog.Decision) -> String? {
+        guard let url = globalConfigStore?.configChangeLogURL else { return "Kiteloop's settings are not loaded" }
+        let record = TeamChangeCards.record(
+            tool: tool, before: before, after: after, requestedBy: agentName,
+            project: projectURL.path(percentEncoded: false), decision: decision, at: .now)
         do {
-            try ConfigChangeLog.append(record, to: ConfigChangeLog.url(projectPath: projectURL.path(percentEncoded: false)))
+            try ConfigChangeLog.append(record, to: url)
+            return nil
         } catch {
             chatLog.error("Failed to log a configuration change: \(error.localizedDescription, privacy: .public)")
+            return error.localizedDescription
         }
-        saveMessages()
     }
 
     // MARK: - MCP Self-Configuration
@@ -4625,7 +4664,7 @@ class ChatViewModel {
         pendingHumanToolCallID = nil
         hasOpenPlanCard = false
         pendingMCPAuthRequestID = nil
-        pendingConfigChange = nil
+        abandonPendingConfigChange()
         agentTasks = []
         cliTaskCount = 0
         agentActivity = AgentActivity()
@@ -4649,7 +4688,7 @@ class ChatViewModel {
         agentActivity = AgentActivity()
         pendingHumanToolCallID = nil
         pendingMCPAuthRequestID = nil
-        pendingConfigChange = nil
+        abandonPendingConfigChange()
         do {
             try await orchestrator.startAgent(agentID, cwd: projectURL)
             isProcessDead = false
@@ -4698,6 +4737,8 @@ class ChatViewModel {
             try? await Task.sleep(nanoseconds: backoff)
         }
 
+        // The process a waiting team change's call came from is gone.
+        abandonPendingConfigChange()
         orchestrator.stopAgent(agentID)
         do {
             try await orchestrator.startAgent(agentID, cwd: projectURL)
@@ -4724,6 +4765,7 @@ class ChatViewModel {
 
     func startNewChat() async {
         guard let sessionStore else { return }
+        abandonPendingConfigChange()
         // No open chat after the open one was deleted: nothing to save back.
         if let currentSession {
             saveMessages()
@@ -4753,6 +4795,7 @@ class ChatViewModel {
 
     func switchToSession(_ session: ChatSession) async {
         guard let sessionStore, session.id != currentSession?.id else { return }
+        abandonPendingConfigChange()
         saveMessages()
         if var old = currentSession {
             old.claudeSessionID = orchestrator.sessionID(for: agentID)
@@ -4883,7 +4926,7 @@ class ChatViewModel {
         // answer box and the Waiting-on-you row are drawn from.
         pendingHumanToolCallID = nil
         pendingMCPAuthRequestID = nil
-        pendingConfigChange = nil
+        abandonPendingConfigChange(saving: false)
         agentTasks = []
         cliTaskCount = 0
         agentActivity = AgentActivity()
@@ -4902,6 +4945,7 @@ class ChatViewModel {
         carried = CarriedQuestions.lapseAllButTrailing(in: &messages)
         openPromptCount = PermissionCards.openRequestIDs(in: messages).count
         if let carried, !carried.isChoices { pendingHumanToolCallID = carried.id }
+        abandonTeamChangesLeftWaiting(in: session)
         // A chat left with branches reopens on them; one without keeps the
         // fresh tree `quiesceForSessionChange` made and opens on main.
         if let saved = sessionStore.loadBranches(for: session) {

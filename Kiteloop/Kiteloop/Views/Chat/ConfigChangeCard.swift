@@ -69,7 +69,7 @@ struct ConfigChangeCard: View {
                 .tint(.red)
                 .controlSize(.small)
             }
-        case .pending:
+        case .pending, .abandoned:
             status("clock.badge.xmark", .secondary, "This request is no longer waiting for an answer.")
         case .approved:
             status("checkmark.circle.fill", .green, "Approved")
