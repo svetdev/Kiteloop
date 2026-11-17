@@ -329,12 +329,10 @@ final class RoutineRunner {
 
     private func fire(_ routine: Routine, from source: Source, target: RoutineAgent) async {
         var run = RoutineRun(routine: routine.id, scheduledFor: source.scheduledFor, at: clock(), outcome: .refused,
-                             hook: source.hook)
+                             hook: source.hook, event: source.event?.kind)
         if source.isAutonomous, let refusal = budgetRefusal(for: routine, in: target.folder) {
             return record(run, refused: refusal)
         }
-                             hook: source.hook, event: source.event?.kind)
-        if source.isAutonomous, let refusal = budgetRefusal?(target.folder) { return record(run, refused: refusal) }
 
         let check = await check(routine, in: target.folder)
         if source.isAutonomous, let nothing = check.nothingToDo {
