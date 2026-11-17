@@ -73,11 +73,13 @@ final class RunSchedulingTests: XCTestCase {
                         refusedItems: Set<String> = [],
                         idleSince: [String: Date] = [:],
                         projectBudgets: [String: DailyBudget] = [:],
+                        spendBudgetRefusals: [String: String] = [:],
                         queueRefillPolicy: QueueRefill.Policy = .default) -> RunScheduling.Decision {
         RunScheduling.decide(portfolio: portfolio(projects), enabled: enabled,
                              budget: budget, holds: holds, refusedItems: refusedItems,
                              idleSince: idleSince,
                              projectBudgets: projectBudgets,
+                             spendBudgetRefusals: spendBudgetRefusals,
                              queueRefillPolicy: queueRefillPolicy, now: now)
     }
 
@@ -191,6 +193,28 @@ final class RunSchedulingTests: XCTestCase {
         let reason = decision.hold?.reason ?? ""
         XCTAssertTrue(reason.contains("alpha"), reason)
         XCTAssertTrue(reason.contains("beta"), reason)
+    }
+
+    /// A project whose own day or month budget — or its worker's or
+    /// reviewer's — is spent is passed over like one over its daily ceiling,
+    /// instead of being started into a refusal.
+    func testAProjectRefusedByItsSpendBudgetIsPassedOverForOneWithRoom() {
+        let decision = decide([project("alpha", ready: 9), project("beta", ready: 1)],
+                              spendBudgetRefusals: ["/tmp/alpha": "Builder's agent budget $5.00 per day exhausted ($5.20 spent today)"])
+
+        XCTAssertEqual(decision.target?.project, "beta")
+    }
+
+    func testEveryIdleProjectRefusedByABudgetHoldsAndSaysWhichOfEitherKind() {
+        let decision = decide([project("alpha", ready: 3), project("beta", ready: 2)],
+                              projectBudgets: spentBudget("alpha"),
+                              spendBudgetRefusals: ["/tmp/beta": "beta's project budget $40.00 per month exhausted ($41.00 spent this month)"])
+
+        XCTAssertNil(decision.target)
+        XCTAssertEqual(decision.hold?.kind, "budgetExhausted")
+        let reason = decision.hold?.reason ?? ""
+        XCTAssertTrue(reason.contains("alpha's daily budget"), reason)
+        XCTAssertTrue(reason.contains("beta's project budget $40.00 per month"), reason)
     }
 
     /// A project with no ceiling of its own is not blocked by the absence of

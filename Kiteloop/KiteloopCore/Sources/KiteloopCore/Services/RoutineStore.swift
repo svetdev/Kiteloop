@@ -138,30 +138,23 @@ extension Routine {
     }
 
     /// The `budget` a body gives: absent keeps `existing`'s, `null` clears it,
-    /// and an object is the new one. A routine's budget refuses; the other
-    /// consequences are named as not yet available here.
+    /// and an object is the new one (`SpendBudget.edit`).
     private static func parseBudget(_ value: Any?, existing: Routine?) -> (value: SpendBudget?, problems: [String]) {
-        guard let value else { return (existing?.budget, []) }
-        if value is NSNull { return (nil, []) }
-        guard let object = value as? [String: Any] else {
-            return (existing?.budget, ["\"budget\" is an object, or null to clear it"])
-        }
-        let parsed = SpendBudget.parse(object)
-        guard let budget = parsed.value else { return (existing?.budget, parsed.problems) }
-        guard budget.consequence == .refuse else {
-            return (existing?.budget, ["\"budget.consequence\" \"\(budget.consequence.rawValue)\" is not yet available "
-                                       + "for routines: a routine's budget takes \"refuse\""])
-        }
-        return (budget, [])
+        let read = SpendBudget.edit(value, on: .routine)
+        return (read.edit.applied(to: existing?.budget), read.problems)
     }
 
     /// Why this routine's own budget refuses an autonomous firing, given what
     /// the routine has spent in the budget's current window; nil while it is
-    /// under its ceiling, and for a routine with no budget.
+    /// under its ceiling, and for a routine with no budget. The decision is
+    /// `OwnedSpendBudget`'s, the one an agent's and a project's budget share.
     package func budgetRefusal(spentUSD: Double) -> String? {
-        guard let budget, budget.standing(spentUSD: spentUSD) == .atLimit else { return nil }
-        return String(format: "routine budget $%.2f per %@ exhausted ($%.2f spent %@)",
-                      budget.ceilingUSD, budget.period.rawValue, spentUSD, budget.windowWords)
+        ownedBudget?.refusal(spentUSD: spentUSD)
+    }
+
+    /// This routine's budget with the routine as its owner; nil without one.
+    package var ownedBudget: OwnedSpendBudget? {
+        budget.map { OwnedSpendBudget(owner: .routine(id), budget: $0) }
     }
 
     /// Everything that stops this routine from being kept, in the words the

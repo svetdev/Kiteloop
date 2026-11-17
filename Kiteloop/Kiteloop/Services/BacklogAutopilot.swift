@@ -123,6 +123,9 @@ class BacklogAutopilot {
             case runInFlight = "run-in-flight"
             /// An autonomous start met a spent daily ceiling.
             case dailyBudget = "daily-budget"
+            /// An autonomous start met the project's own day or month budget,
+            /// or the worker's or the reviewer's, spent (`ProjectSpendBudgets`).
+            case spendBudget = "spend-budget"
             /// The session's budget is spent, so the queue would be held before
             /// its first item began. Cleared by a resume, which opens a fresh
             /// session ledger — a condition of the moment, like the one above.
@@ -2219,7 +2222,7 @@ class BacklogAutopilot {
             return
         }
         #endif
-        if refusedByHold() || refusedByBudget(initiator: initiator) { return }
+        if refusedByHold() || refusedBySpendBudget(initiator: initiator) || refusedByBudget(initiator: initiator) { return }
         guard let context = startContext() else { return }
         let outcome = await preflight("checking the selected items against the Definition-of-Ready and the repo") {
             await admitSelection(context: context, order: order)
@@ -2282,6 +2285,33 @@ class BacklogAutopilot {
             return true
         }
         return false
+    }
+
+    /// Why the project's own day or month budget, or the worker's or the
+    /// reviewer's, refuses an autonomous run now; nil when none does. Beside
+    /// the daily ceilings, not instead of them — and the same answer the run
+    /// scheduler reads one step earlier, so it skips the project instead of
+    /// starting a run this would refuse.
+    var spendBudgetRefusal: String? {
+        guard let projectRoot else { return nil }
+        let staffed = [workerAgentID, reviewerAgentID]
+        let agents = orchestrator?.agents.filter { staffed.contains($0.id) } ?? []
+        return ProjectSpendBudgets(project: KiteloopProject(rootURL: projectRoot), agents: agents)
+            .refusal(ledger: dailySpendLedger?.spendLedger)
+    }
+
+    /// `true` when `spendBudgetRefusal` refused this start. Autonomy stops at
+    /// those budgets; a run a person starts does not, as with the daily ones.
+    private func refusedBySpendBudget(initiator: RunInitiator) -> Bool {
+        guard initiator == .autonomous, let reason = spendBudgetRefusal else { return false }
+        let detail = "\(reason) — autonomous start refused. A run you start yourself still runs."
+        appendLog(detail)
+        recordStartOutcome(.spendBudget, detail)
+        logPhase(.runStart, [("status", "aborted"), ("reason", StartOutcome.Refusal.spendBudget.rawValue),
+                             ("initiator", initiator.rawValue)], isError: true)
+        orchestrator?.publishEvent(KiteloopEvent(source: "Autopilot", type: .workflowFailed,
+                                                 payload: ["reason": reason]))
+        return true
     }
 
     /// The spend gates, and `true` when one of them refused this start.

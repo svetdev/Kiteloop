@@ -9,8 +9,8 @@ struct ProjectSetupEndpoints {
     func answer(_ route: ManagementRoute, _ req: HTTPServer.Request) async throws -> HTTPServer.Response {
         switch route {
         case .closeProject: return try await closeProject(KiteloopControlServer.jsonBody(req.body))
-        case .getProjectSettings: return .json(Self.settingsJSON(try server.openProject(req.query["project"]).session.project.loadConfig()))
-        case .setProjectSettings: return try setProjectSettings(KiteloopControlServer.jsonBody(req.body))
+        case .getProjectSettings: return .json(await settings(of: try server.openProject(req.query["project"]).session.project))
+        case .setProjectSettings: return try await setProjectSettings(KiteloopControlServer.jsonBody(req.body))
         case .exportProjectSetup: return try exportSetup(req.query["project"])
         case .updateBacklogItem: return try updateBacklogItem(KiteloopControlServer.jsonBody(req.body))
         default: return try deleteBacklogItem(req.query)
@@ -42,6 +42,7 @@ struct ProjectSetupEndpoints {
             "maxBudgetUSD": config.maxBudgetUSD ?? NSNull(),
             "goal": config.goal ?? NSNull(),
             "space": config.space?.rawValue ?? NSNull(),
+            "budget": config.budget?.json ?? NSNull(),
             "companions": (config.companions ?? []).map { repo -> [String: Any] in
                 var row: [String: Any] = ["name": repo.name, "path": repo.path]
                 if let base = repo.baseBranch { row["base"] = base }
@@ -50,7 +51,18 @@ struct ProjectSetupEndpoints {
         ]
     }
 
-    private func setProjectSettings(_ fields: [String: Any]) throws -> HTTPServer.Response {
+    /// The project's settings, its budget read against the spend ledger:
+    /// what its current day or month has cost and where that leaves it.
+    private func settings(of project: KiteloopProject, config: ProjectConfig? = nil) async -> [String: Any] {
+        let config = config ?? project.loadConfig()
+        var json = Self.settingsJSON(config)
+        if let owned = ProjectSpendBudgets.owned(project, config: config) {
+            json["budget"] = await server.budgetReadings([owned]).first ?? owned.budget.json
+        }
+        return json
+    }
+
+    private func setProjectSettings(_ fields: [String: Any]) async throws -> HTTPServer.Response {
         let entry = try server.openProject(fields["project"])
         let project = entry.session.project
         var config = project.loadConfig()
@@ -60,7 +72,7 @@ struct ProjectSetupEndpoints {
             throw ControlRefusal("Must include at least one of: \(ProjectSettingsEdit.fields.joined(separator: ", "))", status: 400)
         }
         try project.saveConfig(config)
-        return .json(Self.settingsJSON(config))
+        return .json(await settings(of: project, config: config))
     }
 
     // MARK: - The setup file
@@ -166,7 +178,7 @@ struct ProjectSetupEndpoints {
 
 /// The fields of a project's settings a request names, checked and applied.
 struct ProjectSettingsEdit {
-    static let fields = ["model", "permissionMode", "effort", "maxBudgetUSD", "goal", "space", "companions"]
+    static let fields = ["model", "permissionMode", "effort", "maxBudgetUSD", "budget", "goal", "space", "companions"]
 
     let fields: [String: Any]
     private(set) var changed = false
@@ -192,6 +204,7 @@ struct ProjectSettingsEdit {
         }
         try applyMode(to: &config)
         try applyBudget(to: &config)
+        try applySpendBudget(to: &config)
         try applyCompanions(to: &config)
         try applySpace(to: &config)
     }
@@ -228,6 +241,15 @@ struct ProjectSettingsEdit {
             }
             config.maxBudgetUSD = number.doubleValue
         }
+        changed = true
+    }
+
+    /// The project's day or month budget — not `maxBudgetUSD`, one session's.
+    private mutating func applySpendBudget(to config: inout ProjectConfig) throws {
+        let read = SpendBudget.edit(fields["budget"], on: .project)
+        guard read.problems.isEmpty else { throw ControlRefusal(read.problems.joined(separator: "; "), status: 400) }
+        guard read.edit != .keep else { return }
+        config.budget = read.edit.applied(to: config.budget)
         changed = true
     }
 

@@ -288,6 +288,19 @@ final class CoordinatorRunScheduler {
         return budgets
     }
 
+    /// Why each open project's own day or month budget, or its worker's or
+    /// reviewer's, refuses an autonomous run now, keyed by project path. A
+    /// project none of them refuses is absent.
+    var spendBudgetRefusals: [String: String] {
+        guard let registry else { return [:] }
+        var refusals: [String: String] = [:]
+        for entry in registry.openProjects {
+            guard let refusal = entry.autopilot.spendBudgetRefusal else { continue }
+            refusals[entry.session.project.rootURL.path(percentEncoded: false)] = refusal
+        }
+        return refusals
+    }
+
     private weak var registry: ControlSessionRegistry?
     private weak var globalConfigStore: GlobalConfigStore?
     private weak var spendLedger: DailySpendLedger?
@@ -518,6 +531,7 @@ final class CoordinatorRunScheduler {
                                             refusedItems: standingRefusals(portfolio: portfolio),
                                             idleSince: idleSince,
                                             projectBudgets: projectDailyBudgets,
+                                            spendBudgetRefusals: spendBudgetRefusals,
                                             queueRefillPolicy: registry.queueRefill?.policy ?? .default,
                                             startingPaths: startsInFlight,
                                             now: now)

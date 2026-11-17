@@ -278,6 +278,19 @@ package enum ControlAPISpec {
         ], required: ["ceilingUSD"])
     }
 
+    /// An agent's or a project's day or month budget, as it is set and as it
+    /// is read back against the spend ledger.
+    static func ownedBudget(_ what: String) -> [String: Any] {
+        object([
+            "ceilingUSD": described(number, "What \(what) may cost in the period. Above zero."),
+            "period": described(string, "day or month — the Mac's local calendar day or month. day when absent."),
+            "warnAtFraction": described(number, "The share of the ceiling from which standing reads warning: above 0, at most 1. 0.8 when absent."),
+            "consequence": described(string, "What reaching the ceiling does. refuse, which is what an absent one reads as; ask and pause are not yet available here."),
+            "spentUSD": described(number, "Returned, not set: what the spend ledger's rows for it cost in the current day or month."),
+            "standing": described(string, "Returned, not set: under, warning (at or past warnAtFraction of the ceiling) or atLimit (at or past the ceiling).")
+        ], required: ["ceilingUSD"])
+    }
+
     private static var routineFields: [String: Any] {
         [
             "name": described(string, "What a person calls it. The id when absent."),
@@ -1027,7 +1040,8 @@ package enum ControlAPISpec {
                 "effort": described(string, "low, medium, high, xhigh or max."),
                 "thinking": described(bool, "Extended thinking on or off."),
                 "thinkingBudget": described(integer, "Thinking tokens per turn; turns thinking on."),
-                "maxBudgetUSD": described(nullable(number), "What one session may spend; null for no ceiling.")
+                "maxBudgetUSD": described(nullable(number), "What one session may spend; null for no ceiling."),
+                "budget": described(nullable(ownedBudget("everything the agent spends")), "The agent's own ceiling for a day or a month, over every row the spend ledger files under it. At the ceiling a routine or trigger firing aimed at the agent, and an autonomous autopilot run that would use it as worker or reviewer, is refused; a person's own message is not, and the chat says so once. null clears it. Read it back, with spentUSD and standing, from GET /v1/agents.")
             ], required: []),
             responses: [
                 Status(code: 200, description: "Changed.", schema: object([
@@ -1073,7 +1087,8 @@ package enum ControlAPISpec {
             summary: "List a project's agents",
             description: """
             Every agent hired into the project — id, name, model, state \
-            (`idle`, `working`, `waitingForHuman`), permission mode and, once known, how full its \
+            (`idle`, `working`, `waitingForHuman`), permission mode, its day or month budget \
+            against what it has spent and, once known, how full its \
             context window is. The id is what the message \
             and transcript endpoints take, though both accept the name too.
             """,
@@ -3907,6 +3922,7 @@ package enum ControlAPISpec {
                 "model": string,
                 "state": described(string, "idle, working or waitingForHuman."),
                 "mode": described(string, "The agent's permission mode: auto, acceptEdits, plan, default, dontAsk or bypassPermissions."),
+                "budget": described(nullable(ownedBudget("everything the agent spends")), "The agent's own day or month budget, with what it has spent in the current window and where that leaves it; null when it has none."),
                 "contextTokens": described(integer, "Tokens in the context window after the last turn — input, cache read and cache creation. Absent until the agent's chat is open, and on an Ollama or Copilot agent."),
                 "contextWindow": described(integer, "The context window's size. Absent until the CLI reports it, and on an Ollama or Copilot agent.")
             ], required: ["id", "name", "state"]))

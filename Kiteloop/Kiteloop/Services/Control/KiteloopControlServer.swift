@@ -733,7 +733,7 @@ final class KiteloopControlServer {
         case .hireAgent: return hireAgent(body: req.body)
         case .updateAgent: return await updateAgent(body: req.body)
         case .removeAgent: return removeAgent(query: req.query)
-        case .listAgents: return listAgents(project: req.query["project"])
+        case .listAgents: return await listAgents(project: req.query["project"])
         case .messageAgent: return await messageAgent(req)
         case .agentTranscript: return agentTranscript(query: req.query)
         case .agentEvents: return agentEvents(query: req.query)
@@ -5279,14 +5279,19 @@ final class KiteloopControlServer {
         }
     }
 
-    private func listAgents(project: String?) -> HTTPServer.Response {
+    private func listAgents(project: String?) async -> HTTPServer.Response {
         guard let project else { return .error("Missing ?project=", status: 400) }
         guard let entry = registry.entry(forProject: project) else {
             return .error("Project not open in Kiteloop: \(project)", status: 409)
         }
+        // Each budget that is set, read against the ledger: spent and standing.
+        let budgets = entry.session.orchestrator.agents.compactMap { ProjectSpendBudgets.owned($0) }
+        let readings = Dictionary(zip(budgets.map(\.owner), await budgetReadings(budgets)),
+                                  uniquingKeysWith: { first, _ in first })
         let agents = entry.session.orchestrator.agents.map { agent -> [String: Any] in
             var row: [String: Any] = ["id": agent.id, "name": agent.name, "model": agent.model,
-                                      "state": agent.state.rawValue, "mode": agent.permissionMode]
+                                      "state": agent.state.rawValue, "mode": agent.permissionMode,
+                                      "budget": readings[.agent(id: agent.id, name: agent.name)] ?? NSNull()]
             // `chatViewModels[…]`, not `chatViewModel(for:)`: listing never creates one.
             if let occupancy = entry.session.chatViewModels[agent.id]?.contextOccupancy {
                 row["contextTokens"] = occupancy.tokens

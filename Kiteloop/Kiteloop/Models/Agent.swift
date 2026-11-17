@@ -41,6 +41,12 @@ struct Agent: Identifiable, Codable, Equatable {
     /// The share of the context window, 50–95, at which this agent compacts
     /// itself after a turn (`ContextFillPolicy`). Nil — the default — is off.
     var contextCompactPercent: Int?
+    /// A ceiling on what this agent may spend in a day or a month, whatever
+    /// started the turn, read off the spend ledger (`OwnedSpendBudget`). At
+    /// the ceiling, unattended work that would use the agent is refused; a
+    /// person typing in its chat is told once and never refused. Nil — the
+    /// default — is no ceiling. Not the per-session `maxBudgetUSD`.
+    var budget: SpendBudget?
     /// Set when this agent is an ephemeral **aside** — a second agent forked
     /// from another's live session so the human can question it without
     /// spending the source's context. Holds the source agent's id.
@@ -161,7 +167,7 @@ struct Agent: Identifiable, Codable, Equatable {
         case permissionMode, subscriptions, mcpServers, skills, avatar, group
         case effort, maxBudgetUSD, thinkingEnabled, thinkingBudget
         case crossAgentAccess, canAcceptDelegation, runtimeKind, workspacePath, mcpConfigPath
-        case operatorToolsEnabled, controlAccess, contextCompactPercent, asideOfAgentID, state
+        case operatorToolsEnabled, controlAccess, contextCompactPercent, budget, asideOfAgentID, state
     }
 
     init(from decoder: Decoder) throws {
@@ -191,6 +197,7 @@ struct Agent: Identifiable, Codable, Equatable {
         operatorToolsEnabled = try container.decodeIfPresent(Bool.self, forKey: .operatorToolsEnabled) ?? false
         controlAccess = try container.decodeIfPresent(AgentControlAccess.self, forKey: .controlAccess) ?? .whenUnstated
         contextCompactPercent = try container.decodeIfPresent(Int.self, forKey: .contextCompactPercent)
+        budget = try container.decodeIfPresent(SpendBudget.self, forKey: .budget)
         asideOfAgentID = try container.decodeIfPresent(String.self, forKey: .asideOfAgentID)
         state = try container.decodeIfPresent(AgentState.self, forKey: .state) ?? .idle
     }
@@ -234,10 +241,12 @@ struct AgentEdit: Equatable {
     var thinkingBudget: Int?
     /// `.some(nil)` lifts the ceiling.
     var maxBudgetUSD: Double??
+    /// The agent's day or month budget: set, cleared, or — nil — left alone.
+    var budget: SpendBudget.Edit?
 
     static let textFields = ["name", "model", "systemPrompt", "avatar", "effort"]
     static let listFields = ["tools", "denied", "askFirst", "mcpServers", "crossAgentAccess", "skills"]
-    static let tuningFields = ["thinking", "thinkingBudget", "maxBudgetUSD"]
+    static let tuningFields = ["thinking", "thinkingBudget", "maxBudgetUSD", "budget"]
     static let effortLevels = ["low", "medium", "high", "xhigh", "max"]
 
     /// Why a body could not be read as an edit.
@@ -255,7 +264,7 @@ struct AgentEdit: Equatable {
         if let wrong = listFields.first(where: { json[$0] != nil && !(json[$0] is [String]) }) {
             return .failure(Refusal(reason: "\"\(wrong)\" must be an array of strings"))
         }
-        if let refusal = tuningRefusal(json) { return .failure(refusal) }
+        if let refusal = valueRefusal(json) { return .failure(refusal) }
         var edit = AgentEdit(
             name: (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
             model: json["model"] as? String,
@@ -275,6 +284,14 @@ struct AgentEdit: Equatable {
             return .failure(Refusal(reason: "Body must include at least one of: \(fields)"))
         }
         return .success(edit)
+    }
+
+    /// Why a value a body names cannot be taken: its effort, thinking or
+    /// per-session ceiling, or its day or month budget.
+    private static func valueRefusal(_ json: [String: Any]) -> Refusal? {
+        if let refusal = tuningRefusal(json) { return refusal }
+        let problems = SpendBudget.edit(json["budget"], on: .agent).problems
+        return problems.isEmpty ? nil : Refusal(reason: problems.joined(separator: "; "))
     }
 
     /// Why the effort, thinking or budget a body names cannot be taken.
@@ -316,6 +333,8 @@ struct AgentEdit: Equatable {
         if let budget = json["maxBudgetUSD"] {
             maxBudgetUSD = .some(Self.amount(budget))
         }
+        let read = SpendBudget.edit(json["budget"], on: .agent).edit
+        budget = read == .keep ? nil : read
     }
 
     /// Whether the edit changes something the agent's CLI process reads when
@@ -367,6 +386,7 @@ struct AgentEdit: Equatable {
             agent.thinkingBudget = thinkingBudget
         }
         if let maxBudgetUSD { agent.maxBudgetUSD = maxBudgetUSD }
+        if let budget { agent.budget = budget.applied(to: agent.budget) }
     }
 }
 
