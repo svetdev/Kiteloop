@@ -15,6 +15,8 @@ struct RoutineAgent {
     /// it started has ended — or at once, when the agent was mid-turn and the
     /// text only joined its queue.
     let send: @MainActor (String) async -> RoutineTurn
+    /// Starts the agent a new chat, for a routine that wants each run in one.
+    let startFresh: @MainActor () async -> Void
 }
 
 /// How a routine's turn ended.
@@ -260,17 +262,39 @@ final class RoutineRunner {
             run.reason = nothing
             return record(run)
         }
-        let text = Self.text(prompt: routine.prompt, command: routine.precheck, output: check.output,
-                             body: source.body)
+        let text = { (note: String?) in
+            Self.text(prompt: routine.prompt, command: routine.precheck, output: check.output,
+                      body: source.body, note: note)
+        }
         guard !target.isBusy() else {
             run.outcome = .queued
             record(run)
-            _ = await target.send(text)
+            _ = await target.send(text(nil))
             return
         }
+        let note = await startFreshIfAsked(routine, target: target)
         run.outcome = .started
         record(run)
-        await finish(run, with: await target.send(text), in: target.folder)
+        await finish(run, with: await target.send(text(note)), in: target.folder)
+    }
+
+    /// For a routine that starts each run in a new chat: the note of how its
+    /// last run went, read before this run is on record, and then the new
+    /// chat. Nil, and the open chat left as it is, for one that continues.
+    private func startFreshIfAsked(_ routine: Routine, target: RoutineAgent) async -> String? {
+        guard routine.startsFresh else { return nil }
+        let note = Self.note(lastRun: runs.last { $0.routine == routine.id && $0.outcome == .started })
+        await target.startFresh()
+        return note
+    }
+
+    /// What a fresh chat is told of the routine's previous run: when it ended
+    /// and the first line of its reply. Nil when there is no started run with
+    /// a reply to tell of.
+    static func note(lastRun: RoutineRun?) -> String? {
+        guard let lastRun, lastRun.outcome == .started, let reply = lastRun.reply, !reply.isEmpty else { return nil }
+        let when = ISO8601DateFormatter().string(from: lastRun.finishedAt ?? lastRun.at)
+        return "Last run (\(when)): \(reply)"
     }
 
     private func finish(_ started: RoutineRun, with turn: RoutineTurn, in folder: URL) {
@@ -330,10 +354,12 @@ final class RoutineRunner {
         return Check(output: said, nothingToDo: said.isEmpty ? "its check found nothing" : nil)
     }
 
-    /// What the agent is sent: the prompt, under it what the check printed,
-    /// and under that the body of the webhook call that fired it, if one did.
-    static func text(prompt: String, command: String?, output: String, body: Data? = nil) -> String {
-        var text = prompt
+    /// What the agent is sent: the note of the last run above the prompt, if
+    /// there is one, under the prompt what the check printed, and under that
+    /// the body of the webhook call that fired it, if one did.
+    static func text(prompt: String, command: String?, output: String, body: Data? = nil,
+                     note: String? = nil) -> String {
+        var text = note.map { $0 + "\n\n" + prompt } ?? prompt
         if let command, !output.isEmpty {
             text += "\n\nOutput of this routine's check (`\(command)`):\n\n```\n\(output)\n```"
         }

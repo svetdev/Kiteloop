@@ -72,6 +72,24 @@ final class KiteloopControlServerRoutinesTests: XCTestCase {
         XCTAssertEqual(kept["prompt"] as? String, "Shorter.")
     }
 
+    func testEveryRoutineIsListedWithItsConversationAndAFreshOneIsKept() async throws {
+        _ = await send("PUT", "/v1/routines/brief", brief)
+        var fresh = brief
+        fresh["conversation"] = "fresh"
+        _ = await send("PUT", "/v1/routines/daily", fresh)
+
+        let list = await send("GET", "/v1/routines")
+        let listed = try XCTUnwrap(json(list)["routines"] as? [[String: Any]])
+        let byID = Dictionary(uniqueKeysWithValues: listed.map { ($0["id"] as? String ?? "", $0["conversation"] as? String) })
+        XCTAssertEqual(byID, ["brief": "continues", "daily": "fresh"])
+
+        var unknown = brief
+        unknown["conversation"] = "sometimes"
+        let refused = await send("PUT", "/v1/routines/brief", unknown)
+        XCTAssertEqual(refused.status, 400)
+        XCTAssertEqual(json(refused)["error"] as? String, "\"conversation\" is \"continues\" or \"fresh\"")
+    }
+
     func testDeletingRemovesItAndASecondDeleteIs404() async {
         _ = await send("PUT", "/v1/routines/brief", brief)
 

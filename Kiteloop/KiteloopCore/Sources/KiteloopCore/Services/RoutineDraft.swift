@@ -33,6 +33,8 @@ package struct RoutineDraft: Equatable, Sendable {
     /// `Calendar` weekday numbers, 1 for Sunday.
     package var days: Set<Int> = RoutineDraft.everyDay
     package var armed = false
+    /// Which chat each run's prompt goes into.
+    package var conversation = Routine.Conversation.continues
 
     package static let everyDay = Set(1...7)
     package static let weekdays = Set(2...6)
@@ -55,6 +57,7 @@ package struct RoutineDraft: Equatable, Sendable {
         prompt = routine.prompt
         precheck = routine.precheck ?? ""
         armed = routine.armed
+        conversation = routine.conversation ?? .continues
         let trigger = routine.trigger
         if let at = trigger.at.flatMap(RoutineSchedule.minuteOfDay) { atMinute = at }
         if let every = trigger.every {
@@ -99,7 +102,10 @@ package struct RoutineDraft: Equatable, Sendable {
             trigger: trigger,
             precheck: check.isEmpty ? nil : check,
             armed: armed,
-            armedAt: existing?.armedAt)
+            armedAt: existing?.armedAt,
+            // A routine saved before there was a choice keeps having none
+            // until the choice is changed: nil already means `continues`.
+            conversation: conversation == (existing?.conversation ?? .continues) ? existing?.conversation : conversation)
     }
 
     /// An id for a routine called `name` that none of `taken` has: the name in

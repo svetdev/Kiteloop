@@ -120,6 +120,15 @@ struct RoutineEditorFields: View {
                     .font(.system(.body, design: .monospaced))
                     .accessibilityIdentifier("routine-editor-precheck")
             }
+            field("Conversation", note: "A fresh chat each run keeps the agent's context from growing; it opens with a note of how the last run went.") {
+                Picker("Conversation", selection: $draft.conversation) {
+                    Text("Continue its chat").tag(Routine.Conversation.continues)
+                    Text("Start a fresh chat").tag(Routine.Conversation.fresh)
+                }
+                .labelsHidden()
+                .fixedSize()
+                .accessibilityIdentifier("routine-editor-conversation")
+            }
             Toggle("Armed — runs on its schedule once saved", isOn: $draft.armed)
                 .toggleStyle(.switch)
                 .controlSize(.small)

@@ -103,9 +103,10 @@ package struct RoutineStore: Sendable {
 extension Routine {
     /// The routine a request body describes, or what is wrong with it. `id`
     /// comes from the path; `existing` is the routine being replaced, whose
-    /// name and `armed` stand when the body does not say.
+    /// name, `armed` and `conversation` stand when the body does not say.
     package static func parse(_ json: [String: Any], id: String, existing: Routine?) -> Result<Routine, Refusal> {
         let trigger = json["trigger"] as? [String: Any] ?? [:]
+        let conversation = parseConversation(json["conversation"], existing: existing)
         let routine = Routine(
             id: id,
             name: json["name"] as? String ?? existing?.name ?? id,
@@ -117,10 +118,19 @@ extension Routine {
                              days: trigger["days"] as? [String]),
             precheck: (json["precheck"] as? String).flatMap { $0.isEmpty ? nil : $0 },
             armed: json["armed"] as? Bool ?? existing?.armed ?? false,
-            armedAt: existing?.armedAt
+            armedAt: existing?.armedAt,
+            conversation: conversation.value
         )
-        let problems = routine.problems
+        let problems = routine.problems + conversation.problems
         return problems.isEmpty ? .success(routine) : .failure(Refusal(problems: problems))
+    }
+
+    /// The `conversation` a body gives: absent keeps `existing`'s, and a
+    /// value that is neither choice is a problem.
+    private static func parseConversation(_ value: Any?, existing: Routine?) -> (value: Conversation?, problems: [String]) {
+        guard let value else { return (existing?.conversation, []) }
+        if let text = value as? String, let conversation = Conversation(rawValue: text) { return (conversation, []) }
+        return (existing?.conversation, ["\"conversation\" is \"continues\" or \"fresh\""])
     }
 
     /// Everything that stops this routine from being kept, in the words the

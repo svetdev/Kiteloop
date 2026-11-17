@@ -5124,7 +5124,7 @@ curl -s -H "$H" "$B/routines?project=vault"
 { "routines": [
   { "id": "morning-brief", "name": "Morning brief", "project": "vault", "agent": "Chief of staff",
     "prompt": "Write today's brief.", "trigger": { "at": "07:00", "days": ["mon","tue","wed","thu","fri"] },
-    "armed": true, "when": "Weekdays at 07:00", "next": "2026-11-16T07:00:00Z",
+    "armed": true, "conversation": "continues", "when": "Weekdays at 07:00", "next": "2026-11-16T07:00:00Z",
     "lastRun": { "id": "…", "routine": "morning-brief", "scheduledFor": "2026-11-13T07:00:00Z",
                  "at": "2026-11-13T07:00:00Z", "outcome": "started", "finishedAt": "2026-11-13T07:02:10Z",
                  "reply": "Three things today.", "costUSD": 0.41 } } ] }
@@ -5149,6 +5149,7 @@ letters, digits and hyphens.
 | `trigger` | yes | Either `{"at": "07:00"}` — a time of day in the Mac's time zone — or `{"every": 30, "from": "08:00", "until": "18:00"}`, minutes between occurrences inside those hours (the whole day when absent). `"days": ["mon", …]` narrows either |
 | `name` | no | What a person calls it; the id when absent |
 | `precheck` | no | A shell command run in the project's folder before the turn. Failing, or printing nothing, skips the turn at no model cost; what it prints goes to the agent under the prompt. It has until the routine next falls |
+| `conversation` | no | `continues` (the default, and what a routine saved without the field reads as) sends the prompt into the agent's open chat; `fresh` starts the agent a new chat before each run, opened with a line giving the last started run's time and the first line of its reply. An agent mid-turn gets the prompt in its running chat either way. Absent on a replace keeps the routine's choice; any other value is refused with 400. Every routine is returned with it |
 | `armed` | no | `false` for a new routine. A replacement that does not say keeps what it had |
 
 ```bash

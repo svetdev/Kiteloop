@@ -36,6 +36,22 @@ final class RoutineDraftTests: XCTestCase {
         XCTAssertEqual(draft.routine(id: "other", project: "elsewhere", existing: poll), poll)
     }
 
+    func testTheConversationChoiceSurvivesTheRoundTrip() {
+        var fresh = routine(Routine.Trigger(at: "07:00"))
+        fresh.conversation = .fresh
+        let draft = RoutineDraft(routine: fresh)
+        XCTAssertEqual(draft.conversation, .fresh)
+        XCTAssertEqual(draft.routine(id: "brief", project: "vault", existing: fresh), fresh)
+
+        let older = routine(Routine.Trigger(at: "07:00"))
+        XCTAssertEqual(RoutineDraft(routine: older).conversation, .continues, "a routine with no choice continues")
+        XCTAssertEqual(RoutineDraft(routine: older).routine(id: "brief", project: "vault", existing: older), older)
+
+        var switched = RoutineDraft(routine: older)
+        switched.conversation = .fresh
+        XCTAssertTrue(switched.routine(id: "brief", project: "vault", existing: older).startsFresh)
+    }
+
     /// An interval with no hours runs all day, and is written back with none.
     func testAnIntervalWithNoHoursKeepsTheWholeDay() {
         let poll = routine(Routine.Trigger(every: 60))

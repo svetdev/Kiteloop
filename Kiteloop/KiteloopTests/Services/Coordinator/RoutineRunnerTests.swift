@@ -17,6 +17,9 @@ final class RoutineRunnerTests: XCTestCase {
     private var turn = RoutineTurn(reply: "Three things today.\nFirst…", costUSD: 0.25)
     private var unreachable: String?
     private var charged: [Double] = []
+    /// What the agent was asked to do, in order: `fresh` for a new chat,
+    /// `send` for a prompt.
+    private var calls: [String] = []
 
     private let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
@@ -33,9 +36,10 @@ final class RoutineRunnerTests: XCTestCase {
         calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute)) ?? .distantPast
     }
 
-    private func brief(armed: Bool = true, precheck: String? = nil) -> Routine {
+    private func brief(armed: Bool = true, precheck: String? = nil,
+                       conversation: Routine.Conversation? = nil) -> Routine {
         Routine(id: "brief", name: "Morning brief", project: "vault", agent: "Chief", prompt: "Write the brief.",
-                trigger: .init(at: "07:00"), precheck: precheck, armed: armed)
+                trigger: .init(at: "07:00"), precheck: precheck, armed: armed, conversation: conversation)
     }
 
     /// A started runner holding `routines`, armed as of the clock's reading.
@@ -48,9 +52,11 @@ final class RoutineRunnerTests: XCTestCase {
                 folder: URL(fileURLWithPath: "/tmp/vault"),
                 isBusy: { self.busy },
                 send: { text in
+                    self.calls.append("send")
                     self.sent.append(text)
                     return self.turn
-                }))
+                },
+                startFresh: { self.calls.append("fresh") }))
         }
         runner.charge = { [unowned self] cost, _ in self.charged.append(cost) }
         runner.start()
@@ -135,6 +141,74 @@ final class RoutineRunnerTests: XCTestCase {
         XCTAssertEqual(charged, [])
         XCTAssertNil(runner.lastRun(of: "brief")?.costUSD)
         XCTAssertNil(runner.lastRun(of: "brief")?.reply)
+    }
+
+    // MARK: - A fresh chat
+
+    func testAFreshRoutineStartsANewChatOnceBeforeSendingAndAContinuingOneNever() async throws {
+        let runner = try runner([brief(conversation: .fresh)])
+        now = date(16, 7)
+        for firing in runner.look() { await firing.value }
+        XCTAssertEqual(calls, ["fresh", "send"])
+
+        calls = []
+        try runner.put(brief(conversation: .continues))
+        now = date(17, 7)
+        for firing in runner.look() { await firing.value }
+        XCTAssertEqual(calls, ["send"])
+    }
+
+    func testAFreshRunOpensWithTheLastRunsReplyAndTheFirstWithJustThePrompt() async throws {
+        let runner = try runner([brief(conversation: .fresh)])
+        now = date(16, 7)
+        for firing in runner.look() { await firing.value }
+
+        now = date(17, 7)
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(sent, [
+            "Write the brief.",
+            "Last run (2026-11-16T07:00:00Z): Three things today.\n\nWrite the brief."
+        ])
+    }
+
+    func testARunThatWasSkippedOrRefusedLeavesNoNote() {
+        let at = date(16, 7)
+        for outcome in [RoutineRun.Outcome.skipped, .refused, .queued] {
+            XCTAssertNil(RoutineRunner.note(lastRun: RoutineRun(routine: "brief", scheduledFor: at, at: at,
+                                                                outcome: outcome, reply: "Said something.")))
+        }
+        XCTAssertNil(RoutineRunner.note(lastRun: nil))
+        XCTAssertNil(RoutineRunner.note(lastRun: RoutineRun(routine: "brief", scheduledFor: at, at: at,
+                                                            outcome: .started, reply: "")))
+    }
+
+    func testAFreshRoutineAfterARefusedRunSendsOnlyThePrompt() async throws {
+        let runner = try runner([brief(conversation: .fresh)])
+        runner.budgetRefusal = { _ in "daily budget spent" }
+        now = date(16, 7)
+        for firing in runner.look() { await firing.value }
+
+        runner.budgetRefusal = nil
+        now = date(17, 7)
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(sent, ["Write the brief."])
+    }
+
+    func testAFreshRoutineForABusyAgentIsQueuedInItsRunningChatWithNoNote() async throws {
+        let runner = try runner([brief(conversation: .fresh)])
+        now = date(16, 7)
+        for firing in runner.look() { await firing.value }
+
+        calls = []
+        busy = true
+        now = date(17, 7)
+        for firing in runner.look() { await firing.value }
+
+        XCTAssertEqual(calls, ["send"])
+        XCTAssertEqual(sent.last, "Write the brief.")
+        XCTAssertEqual(runner.lastRun(of: "brief")?.outcome, .queued)
     }
 
     // MARK: - Queued, refused, waiting

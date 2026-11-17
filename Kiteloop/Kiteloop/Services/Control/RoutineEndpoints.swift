@@ -166,7 +166,8 @@ extension KiteloopControlServer {
                                                   agentName: agent.name, reply: reply)
                 }
                 return RoutineTurn(reply: reply, costUSD: max(0, chat.costUSD - costBefore))
-            }
+            },
+            startFresh: { await chat.startNewChat() }
         ))
     }
 
