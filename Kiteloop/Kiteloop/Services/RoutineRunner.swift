@@ -11,7 +11,8 @@ struct RoutineAgent {
     /// spend is filed under.
     let folder: URL
     let isBusy: @MainActor () -> Bool
-    /// Sends the text as a person typing it would, and returns when the turn
+    /// Sends the text into the agent's chat as a routine's — typed text, less
+    /// the commands only a person may give — and returns when the turn
     /// it started has ended — or at once, when the agent was mid-turn and the
     /// text only joined its queue.
     let send: @MainActor (String) async -> RoutineTurn

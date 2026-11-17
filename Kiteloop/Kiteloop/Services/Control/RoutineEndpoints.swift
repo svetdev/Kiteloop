@@ -147,7 +147,8 @@ extension KiteloopControlServer {
         }
         let chat = entry.session.chatViewModel(for: agent.id)
         let project = entry.session.project.rootURL
-        // Sent as a person typing it would. A turn it started tells the phone
+        // Sent as typed text, but as a routine's: a command only the person
+        // may give is refused in the chat. A turn it started tells the phone
         // when it ends, as a turn started from the phone does — unless it
         // stopped on a question or a plan, whose own notice says so.
         return .success(RoutineAgent(
@@ -161,7 +162,7 @@ extension KiteloopControlServer {
                 // Only a turn this send starts is the routine's: text that joins
                 // a running turn's queue is charged as the chat it ends up in.
                 if !wasStreaming { chat.routineTurnInFlight = routine.id }
-                await chat.send()
+                await chat.send(from: .routine)
                 chat.routineTurnInFlight = nil
                 guard !wasStreaming else { return RoutineTurn(reply: "", costUSD: 0) }
                 let reply = Self.lastAgentReply(in: chat.messages, since: countBefore)

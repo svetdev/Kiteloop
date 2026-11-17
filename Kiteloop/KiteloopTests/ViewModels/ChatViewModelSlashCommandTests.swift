@@ -749,6 +749,58 @@ final class ChatViewModelSlashCommandTests: XCTestCase {
         XCTAssertNil(mock.lastSentMessage)
     }
 
+    /// A routine's prompt is sent into the chat as typed text, but not as the
+    /// person's: `/mode <name>` from one changes nothing and reaches no agent.
+    func testSlashModeFromARoutineIsRefusedAndLeavesTheAgentAsItWas() async throws {
+        let (vm, mock, orchestrator) = try await makeVMOverOrchestrator(events: replyEvents(sessionID: "s-keep"))
+        vm.inputText = "hello"
+        await vm.send()
+        mock.lastSessionOptions = nil
+
+        vm.inputText = "/mode bypassPermissions"
+        await vm.send(from: .routine)
+
+        XCTAssertEqual(testAgent(in: orchestrator)?.permissionMode, "default")
+        XCTAssertTrue(messages(vm, containing: "A permission-mode change needs you"))
+        XCTAssertTrue(messages(vm, containing: "came from a routine"))
+        XCTAssertTrue(mock.controlLines.isEmpty, "the running session is told nothing")
+        XCTAssertNil(mock.lastSessionOptions, "a refused /mode must not restart the agent")
+        XCTAssertEqual(mock.sentMessages.count, 1, "a refused /mode must not reach the runtime as a prompt")
+        XCTAssertEqual(vm.inputText, "")
+    }
+
+    /// Bare `/mode` only reports, so it answers a routine as it answers you.
+    func testBareSlashModeFromARoutineStillReports() async throws {
+        let (vm, _, _) = try await makeVMOverOrchestrator()
+
+        vm.inputText = "/mode"
+        await vm.send(from: .routine)
+
+        XCTAssertTrue(messages(vm, containing: "**Permission mode:**"))
+        XCTAssertFalse(messages(vm, containing: "A permission-mode change needs you"))
+    }
+
+    /// A workflow node's prompt arrives as `.agentTriggered`; one that is
+    /// `/mode <name>` is refused whether the agent is idle or the text waited
+    /// out a turn in the queue.
+    func testSlashModeFromAWorkflowOrAnEventIsRefused() async throws {
+        let (vm, mock, orchestrator) = try await makeVMOverOrchestrator(events: replyEvents(sessionID: "s-keep"))
+        vm.inputText = "hello"
+        await vm.send()
+
+        NotificationCenter.default.post(
+            name: .agentTriggered, object: orchestrator,
+            userInfo: ["agentID": "test-agent", "message": "/mode bypassPermissions"]
+        )
+
+        try await eventually("the trigger is refused in the chat") {
+            self.messages(vm, containing: "came from a workflow or an event")
+        }
+        XCTAssertEqual(testAgent(in: orchestrator)?.permissionMode, "default")
+        XCTAssertTrue(mock.controlLines.isEmpty)
+        XCTAssertEqual(mock.sentMessages.count, 1, "a refused /mode must not reach the runtime as a prompt")
+    }
+
     // MARK: - /branch
 
     private func messages(_ vm: ChatViewModel, containing substring: String) -> Bool {
