@@ -474,6 +474,33 @@ final class ClaudeCodeCLIRuntimeScopeTests: XCTestCase {
             .hasPrefix("\(SessionTempFiles.prefix)\(getpid())-"))
     }
 
+    /// Settings keeps a connector's env and header names with blank values;
+    /// the session's own config file carries the real ones from the store.
+    func testGlobalMCPConfigCarriesTheStoredSecrets() throws {
+        let secrets = InMemoryConnectorSecretStore([
+            ConnectorSecretKey(server: "docs", kind: .env, name: "API_KEY"): "abc",
+            ConnectorSecretKey(server: "remote", kind: .header, name: "Authorization"): "Bearer xyz",
+        ])
+        let runtime = ClaudeCodeCLIRuntime(
+            globalMCPServers: [
+                "docs": ClaudeMCPServerEntry(command: "npx", env: ["API_KEY": "", "UNSET": ""]),
+                "remote": ClaudeMCPServerEntry(extras: ["url": .string("https://example.com/mcp"),
+                                                        "headers": .dictionary(["Authorization": .string("")])]),
+            ],
+            connectorSecrets: secrets)
+        var args: [String] = []
+
+        let globalPath = try XCTUnwrap(runtime.appendMCPConfigArguments(
+            sessionID: UUID().uuidString, agent: agentForGlobalMCP(),
+            toolBridgeConfigPath: nil, to: &args))
+        defer { try? FileManager.default.removeItem(atPath: globalPath) }
+
+        let written = try XCTUnwrap(ClaudeMCPConfig.load(from: globalPath))
+        XCTAssertEqual(written.mcpServers["docs"]?.env, ["API_KEY": "abc", "UNSET": ""])
+        XCTAssertEqual(written.mcpServers["remote"]?.extras["headers"],
+                       .dictionary(["Authorization": .string("Bearer xyz")]))
+    }
+
     /// A server changed in Settings reaches the next session a live runtime
     /// spawns: the replaced list is what the config file holds and allows.
     func testReplacedGlobalMCPServersReachTheNextSession() throws {

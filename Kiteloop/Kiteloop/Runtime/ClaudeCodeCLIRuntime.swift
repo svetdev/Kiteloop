@@ -181,6 +181,9 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     /// arrives from the store while sessions spawn elsewhere.
     private var globalMCPServers: [String: ClaudeMCPServerEntry]
     private let globalMCPLock = NSLock()
+    /// Where the global servers' env and header values are read from when a
+    /// session's config file is written; Settings keeps the names only.
+    private let connectorSecrets: ConnectorSecretStore
 
     /// The note an agent with the operator-tools grant gets appended to its
     /// system prompt — `OperatorToolsKnowledge.note`, handed over because it is
@@ -192,12 +195,14 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     init(claudePath: String? = nil, nodePath: String? = nil,
          environmentForSpawn: (@Sendable (URL) -> [String: String])? = nil,
          globalMCPServers: [String: ClaudeMCPServerEntry] = [:],
-         operatorToolsNote: String = "") {
+         operatorToolsNote: String = "",
+         connectorSecrets: ConnectorSecretStore = KeychainConnectorSecretStore()) {
         self.claudePath = claudePath ?? CLIResolver.claude ?? "/usr/local/bin/claude"
         self.nodePath = nodePath ?? CLIResolver.node ?? "/usr/local/bin/node"
         self.environmentForSpawn = environmentForSpawn
         self.globalMCPServers = globalMCPServers
         self.operatorToolsNote = operatorToolsNote
+        self.connectorSecrets = connectorSecrets
         Self.globalLock.lock()
         Self.allInstances.append(WeakRuntime(instance: self))
         Self.globalLock.unlock()
@@ -1565,14 +1570,15 @@ extension ClaudeCodeCLIRuntime {
         return globalPath
     }
 
-    /// Writes the app-wide MCP servers to this session's own config file.
-    /// Nil when there are none, or when the file could not be written — the
+    /// Writes the app-wide MCP servers to this session's own config file, with
+    /// their secrets filled in from the store. Nil when there are none, or when the file could not be written — the
     /// session then spawns without them rather than not at all.
     private func writeGlobalMCPConfig(sessionID: String) -> String? {
         let servers = globalMCPLock.withLock { globalMCPServers }
         guard !servers.isEmpty else { return nil }
         let path = SessionTempFiles.path(for: .globalMCPConfig, sessionID: sessionID)
-        guard let data = try? JSONEncoder().encode(ClaudeMCPConfig(mcpServers: servers)),
+        let resolved = ConnectorSecrets.resolvingSecrets(servers, from: connectorSecrets)
+        guard let data = try? JSONEncoder().encode(ClaudeMCPConfig(mcpServers: resolved)),
               FileManager.default.createFile(atPath: path, contents: data) else { return nil }
         return path
     }
