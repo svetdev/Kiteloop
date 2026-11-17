@@ -35,6 +35,36 @@ private struct NewChatMenuButton: View {
     }
 }
 
+/// File > **Inspect Pack…**: choose a pack folder and read what it would add
+/// and what it would be allowed to do. It reads the folder and nothing else —
+/// nothing is installed, armed or started.
+private struct InspectPackMenuButton: View {
+    var body: some View {
+        Button("Inspect Pack…") { inspect() }
+    }
+
+    private func inspect() {
+        PermissionAuditLogger.shared.log(.filePanel, purpose: "inspect pack folder")
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a pack folder to inspect"
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+
+        let alert = NSAlert()
+        do {
+            alert.messageText = "Nothing was installed. This pack would add:"
+            alert.informativeText = try PackInspector().inspect(folder: folder).account
+        } catch {
+            alert.alertStyle = .warning
+            alert.messageText = "This folder cannot be read as a pack"
+            alert.informativeText = error.localizedDescription
+        }
+        alert.runModal()
+    }
+}
+
 /// The app menu's **Check for Updates…**, right under About. Disabled while a
 /// check is already on screen, and in a copy that does not update itself.
 private struct CheckForUpdatesMenuButton: View {
@@ -288,6 +318,7 @@ struct KiteloopApp: App {
         .commands {
             CommandGroup(replacing: .newItem) {
                 NewChatMenuButton()
+                InspectPackMenuButton()
             }
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesMenuButton(updater: softwareUpdater)
