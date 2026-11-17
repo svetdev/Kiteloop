@@ -394,3 +394,10 @@ Entry format:
 **Why:** A gate checked at one entry point holds only until a second entry point appears, so the refusal sits where the tools are dispatched and the approval is the single place that applies the change. The log records the team the approval left, since a hire can still fail after it is approved.
 **Evidence:** `ChatViewModel.teamChangeWithoutCard`, `applyTeamChange`, `holdConfigChange`; `ChatViewModelConfigChangeTests`.
 **Status:** holds
+
+## [2026-11-17] Answering for the person is a human gate, whatever the answer
+**Kind:** rule
+**What:** A control API route that answers something an agent put to the person — a permission card, a plan, an `ask_human` or choices question, a memory proposal — or that moves an agent's permission mode is a human gate: the control token and a paired phone call it, the operator token and every scoped token get 403. Refusing is gated with approving, and `/mode <name>` sent through `POST /v1/agents/message` is refused as the mode route is.
+**Why:** The operator token was kept from approving work but could clear the card that stopped a tool call, its holder's own included, or put itself in a mode that never asks — which makes every card advisory. No code path has one agent answer another's card, so nothing legitimate is lost; a refusal is gated too because the route is the person's voice either way, and one rule per route is one that cannot be half-applied.
+**Evidence:** `ControlRoute.answersForThePerson`, `ControlAccess`; `ControlAccessTests`. The only callers of these routes in the repo are the phone and tests.
+**Status:** holds — a routine whose prompt is `/mode <name>`, and `permissionMode` on `POST /v1/agents` and `PUT /v1/projects/settings`, are configuration writes and still open to the operator token.

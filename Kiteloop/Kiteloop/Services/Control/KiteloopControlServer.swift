@@ -556,18 +556,14 @@ final class KiteloopControlServer {
             return .error("No route for \(req.method) \(req.path)", status: 404)
         }
 
-        // The operator token authorizes everything else the API does — every
-        // config write, every run, every read — but not this: resolving the
-        // human gate stays a person's call, so an agent holding this token
-        // cannot approve its own team's work. Checked ahead of the handler
-        // rather than inside it, so no approve path can forget the guard.
-        if scope == .operatorScoped, matched.isHumanGate {
-            return .error(
-                "the human gate takes the operator's own token (scope: approve)",
-                status: 403
-            )
+        // What this credential may not call is decided ahead of the handler
+        // rather than inside it, so no approve path can forget the guard: a
+        // human gate stays a person's call, managing tokens takes the control
+        // token, and a scoped token keeps to its scope (`ControlAccess`).
+        if let credential = scope.credential,
+           let reason = ControlAccess.refusal(of: credential, calling: matched, as: "\(req.method) \(req.path)") {
+            return .error(reason, status: 403)
         }
-        if let refusal = Self.scopeRefusal(scope, matched, req) { return refusal }
 
         // Close whatever has ended before any handler reads a run. Done here, once,
         // rather than at each ending: a handler that forgets would leave a record
@@ -719,7 +715,7 @@ final class KiteloopControlServer {
         case .updateAgent: return await updateAgent(body: req.body)
         case .removeAgent: return removeAgent(query: req.query)
         case .listAgents: return listAgents(project: req.query["project"])
-        case .messageAgent: return await messageAgent(body: req.body)
+        case .messageAgent: return await messageAgent(req)
         case .agentTranscript: return agentTranscript(query: req.query)
         case .agentEvents: return agentEvents(query: req.query)
         default: return Self.notThisArea(route)
@@ -1173,29 +1169,8 @@ final class KiteloopControlServer {
         return scopedTokens?.token(for: String(header.dropFirst("Bearer ".count)))
     }
 
-    /// Why a credential may not call `route`, or nil when it may. Managing
-    /// tokens takes the full control token, so no narrower credential can mint
-    /// a wider one; a scoped token never resolves a human gate, and otherwise
-    /// reaches the routes its scope includes — scopes nest, configure over
-    /// operate over read.
-    private static func scopeRefusal(_ scope: AuthScope, _ route: ControlRoute,
-                                     _ req: HTTPServer.Request) -> HTTPServer.Response? {
-        if route.isTokenManagement, scope != .full {
-            return .error("managing scoped tokens takes the control token itself", status: 403)
-        }
-        guard case .scoped(let held) = scope else { return nil }
-        if route.isHumanGate {
-            return .error("the human gate takes the operator's own token; no scoped token resolves it", status: 403)
-        }
-        guard held.includes(route.scope) else {
-            return .error("this token's scope is \(held.rawValue); \(req.method) \(req.path) needs \(route.scope.rawValue)",
-                          status: 403)
-        }
-        return nil
-    }
-
     /// `/v1/tokens…`: list, mint and revoke scoped tokens. Reached only with
-    /// the control token — `scopeRefusal` has turned every other away.
+    /// the control token — `ControlAccess.refusal` has turned every other away.
     private func tokenRoute(_ route: ControlRoute, _ req: HTTPServer.Request) -> HTTPServer.Response {
         guard let scopedTokens else { return .error("This Kiteloop keeps no scoped tokens", status: 503) }
         switch route {
@@ -1246,6 +1221,17 @@ final class KiteloopControlServer {
         case scoped(ControlScope)
         /// No valid credential.
         case none
+
+        /// The credential as `ControlAccess` judges it, or nil for none.
+        var credential: ControlCredential? {
+            switch self {
+            case .full: return .full
+            case .paired: return .paired
+            case .operatorScoped: return .operatorToken
+            case .scoped(let held): return .scoped(held)
+            case .none: return nil
+            }
+        }
     }
 
     private func authScope(_ req: HTTPServer.Request) -> AuthScope {
@@ -5255,6 +5241,18 @@ final class KiteloopControlServer {
         }
         entry.session.removeAgent(agent.id)
         return .json(["removed": agent.id, "name": agent.name])
+    }
+
+    /// A message is run as typed, so one that would move the agent to another
+    /// permission mode is refused to the credentials `POST /v1/agents/mode`
+    /// refuses.
+    private func messageAgent(_ req: HTTPServer.Request) async -> HTTPServer.Response {
+        let text = Self.jsonBody(req.body)["message"] as? String ?? ""
+        if let credential = authScope(req).credential,
+           let reason = ControlAccess.messageRefusal(of: credential, sending: text) {
+            return .error(reason, status: 403)
+        }
+        return await messageAgent(body: req.body)
     }
 
     private func messageAgent(body: Data) async -> HTTPServer.Response {

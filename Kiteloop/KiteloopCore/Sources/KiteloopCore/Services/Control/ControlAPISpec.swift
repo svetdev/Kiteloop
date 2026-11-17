@@ -103,7 +103,7 @@ package enum ControlAPISpec {
         var operation: [String: Any] = [
             "operationId": detail.id,
             "summary": detail.summary,
-            "responses": responses(detail, requiresAuth: endpoint.requiresAuth)
+            "responses": responses(detail, requiresAuth: endpoint.requiresAuth, humanGate: endpoint.route.isHumanGate)
         ]
         if let description = detail.description { operation["description"] = description }
         if !detail.query.isEmpty {
@@ -122,7 +122,7 @@ package enum ControlAPISpec {
         return operation
     }
 
-    private static func responses(_ detail: Detail, requiresAuth: Bool) -> [String: Any] {
+    private static func responses(_ detail: Detail, requiresAuth: Bool, humanGate: Bool) -> [String: Any] {
         var responses: [String: Any] = [:]
         for status in detail.responses {
             var response: [String: Any] = ["description": status.description]
@@ -135,6 +135,10 @@ package enum ControlAPISpec {
         // rather than repeated thirty times below.
         if requiresAuth {
             responses["401"] = errorResponse("Missing or invalid bearer token.")
+        }
+        // A human gate refuses the same credentials the same way, wherever it is.
+        if humanGate {
+            responses["403"] = errorResponse("A human gate: the caller holds the operator token or a scoped token, not the control token or a paired phone's.")
         }
         return responses
     }
@@ -1099,6 +1103,7 @@ package enum ControlAPISpec {
             responses: [
                 Status(code: 200, description: "The agent's reply, or queued.", schema: ref("AgentMessage")),
                 errorStatus(400, "Body is missing \"project\" or \"agent\", or has neither a message nor an image."),
+                errorStatus(403, "The message is `/mode <name>` and the caller holds the operator token or a scoped token: changing a permission mode is a human gate."),
                 errorStatus(404, "No such agent in this project."),
                 errorStatus(409, "Project not open in Kiteloop."),
                 errorStatus(413, "An image over the 5 MB a model takes, or a body over 2 MB."),
