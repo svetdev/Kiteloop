@@ -945,7 +945,8 @@ package enum ControlAPISpec {
             summary: "List a project's agents",
             description: """
             Every agent hired into the project — id, name, model, state \
-            (`idle`, `working`, `waitingForHuman`) and permission mode. The id is what the message \
+            (`idle`, `working`, `waitingForHuman`), permission mode and, once known, how full its \
+            context window is. The id is what the message \
             and transcript endpoints take, though both accept the name too.
             """,
             query: [projectQuery(required: true)],
@@ -3496,7 +3497,9 @@ package enum ControlAPISpec {
                 "name": string,
                 "model": string,
                 "state": described(string, "idle, working or waitingForHuman."),
-                "mode": described(string, "The agent's permission mode: auto, acceptEdits, plan, default, dontAsk or bypassPermissions.")
+                "mode": described(string, "The agent's permission mode: auto, acceptEdits, plan, default, dontAsk or bypassPermissions."),
+                "contextTokens": described(integer, "Tokens in the context window after the last turn — input, cache read and cache creation. Absent until the agent's chat is open, and on an Ollama or Copilot agent."),
+                "contextWindow": described(integer, "The context window's size. Absent until the CLI reports it, and on an Ollama or Copilot agent.")
             ], required: ["id", "name", "state"]))
         ], required: ["agents"]),
         "AgentMessage": object([

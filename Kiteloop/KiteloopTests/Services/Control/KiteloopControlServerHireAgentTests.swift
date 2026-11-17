@@ -418,6 +418,9 @@ final class KiteloopControlServerHireAgentTests: XCTestCase {
         XCTAssertEqual(builder["name"] as? String, "Builder")
         XCTAssertEqual(builder["model"] as? String, "sonnet")
         XCTAssertEqual(builder["state"] as? String, "idle")
+        // No chat view model yet, so the context figure is unknown and absent, not null.
+        XCTAssertNil(builder["contextTokens"])
+        XCTAssertNil(builder["contextWindow"])
     }
 
     func testListAgentsWithoutProjectIs400AndUnknownProjectIs409() async throws {

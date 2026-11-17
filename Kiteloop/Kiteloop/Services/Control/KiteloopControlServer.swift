@@ -5185,8 +5185,14 @@ final class KiteloopControlServer {
             return .error("Project not open in Kiteloop: \(project)", status: 409)
         }
         let agents = entry.session.orchestrator.agents.map { agent -> [String: Any] in
-            ["id": agent.id, "name": agent.name, "model": agent.model, "state": agent.state.rawValue,
-             "mode": agent.permissionMode]
+            var row: [String: Any] = ["id": agent.id, "name": agent.name, "model": agent.model,
+                                      "state": agent.state.rawValue, "mode": agent.permissionMode]
+            // `chatViewModels[…]`, not `chatViewModel(for:)`: listing never creates one.
+            if let occupancy = entry.session.chatViewModels[agent.id]?.contextOccupancy {
+                row["contextTokens"] = occupancy.tokens
+                if let window = occupancy.windowSize { row["contextWindow"] = window }
+            }
+            return row
         }
         return .json(["agents": agents])
     }

@@ -9,6 +9,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 ## 0.7.2 — unreleased
 
 ### Added
+- The chat header shows how full the agent's context window is as tokens against the window — `42.1k / 200k · 21%` — updated as each turn finishes, and `GET /v1/agents` reports the same figure as `contextTokens` and `contextWindow`.
 - The control API changes and removes agents: `PATCH /v1/agents` replaces an agent's name, model, prompt, avatar, tools, refused and always-ask calls, MCP servers and the teammates it may message, and says whether the change is in effect now, restarted the idle session or waits for the agent's next start; `DELETE /v1/agents` takes an agent off the team. Until now an agent could be hired over the API but only edited or removed in the app.
 - `PATCH /v1/agents` also sets an agent's skills, effort, thinking and session budget.
 - An agent's session is started, stopped and restarted over the API (`/v1/agents/start`, `stop`, `restart`), and its chats are listed, started, switched and deleted (`/v1/agents/chats`).

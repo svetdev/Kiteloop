@@ -2452,7 +2452,8 @@ curl -s -H "$H" "$B/agents?project=kiteloop"
 ```
 
 ```json
-{"agents": [{"id": "…", "name": "Planner", "model": "opus", "state": "idle", "mode": "auto"}]}
+{"agents": [{"id": "…", "name": "Planner", "model": "opus", "state": "idle", "mode": "auto",
+             "contextTokens": 42100, "contextWindow": 200000}]}
 ```
 
 `state` is `idle`, `working` or `waitingForHuman` — the agent is stopped on
@@ -2461,6 +2462,13 @@ offered for approval, a call waiting on leave to run, or its own questions
 with choices. `mode` is the agent's permission mode as stored — `auto`,
 `acceptEdits`, `plan`, `default`, `dontAsk` or `bypassPermissions` — which
 [`POST /v1/agents/mode`](#post-v1agentsmode) changes.
+
+`contextTokens` is how full the agent's context window is — the last turn's
+input, cache-read and cache-creation tokens, output left out — and
+`contextWindow` is the window's size: the same figure the chat header and
+`/context` show. Both are absent, never null, until the agent's chat is open in
+the app, and on an Ollama or Copilot agent, whose window Kiteloop does not
+know; `contextWindow` is also absent until the CLI has reported the window.
 
 **Status:** 200 · 400 (missing `project`) · 409 (project not open)
 
