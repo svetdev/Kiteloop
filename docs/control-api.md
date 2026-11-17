@@ -4016,7 +4016,10 @@ slugs to nothing gets a generated id). The answer comes at once. With `groom`,
 the same pass the Mac's **Groom** button runs then writes what it proposes —
 the detail, the line's `verify:` and size — without the Mac's preview; the item
 stays at `draft`, so promoting it ([`POST /v1/backlog/groom`](#post-v1backloggroom))
-is still a person's step. A pass that fails says why in the item's Notes.
+is still a person's step. A proposal whose backticked paths and symbols the
+grounding check refuses goes back to the model to reword, up to two times; one
+that still fails is not written, and the item's Notes say what was refused. A
+pass that fails says why in the item's Notes.
 `grooming` is `started`, `not asked`, or why it could not start (no model
 runner on this Mac).
 

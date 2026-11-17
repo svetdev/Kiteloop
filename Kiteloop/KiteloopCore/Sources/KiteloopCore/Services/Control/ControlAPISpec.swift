@@ -1762,7 +1762,9 @@ package enum ControlAPISpec {
             and the `note`, when given, as its detail file's What. Answers 201 at once. \
             With `"groom": true` the same grooming pass the Mac's Groom button runs then \
             writes the detail, `verify:` and size it proposes; the item stays at `draft`, \
-            so promoting it is still a person's step. `grooming` says whether that pass \
+            so promoting it is still a person's step. A proposal the grounding check \
+            still refuses after the model has been asked to reword it is not written, \
+            and the item's Notes say what was refused. `grooming` says whether that pass \
             started, or why it could not. A filing that carries a `key` is filed once: the \
             key, slugged, is the item's id, and filing it again answers 200 with the item \
             already there — or `closed` once it has left the backlog — and writes nothing.

@@ -816,9 +816,9 @@ struct BacklogItemDetailView: View {
     }
 
     /// What `GroundingCheck` found unresolved — a claimed path, symbol or
-    /// executable the repo doesn't bear out. Shown, not blocked: the human
-    /// reading the preview decides whether to apply it anyway, same as every
-    /// other AI proposal here.
+    /// executable the repo doesn't bear out, after the groomer's correction
+    /// rounds. Shown so the refusal Apply answers with is already on screen:
+    /// `BacklogViewModel.writeGrooming` does not write a proposal in this state.
     @ViewBuilder
     private func groomGroundingNotice(_ proposal: BacklogGroomer.Proposal) -> some View {
         if !proposal.grounding.isGrounded {

@@ -1688,10 +1688,16 @@ class BacklogViewModel {
     /// promotion past Draft is its own gated step. A detail file already
     /// linked keeps its `## Notes`, the record of which gate parked the item.
     /// Answers why nothing was written, or nil when it was; a `verify:` the
-    /// line cannot hold is refused before anything is written.
+    /// line cannot hold is refused before anything is written. So is a
+    /// proposal the grounding check still refuses after the groomer's
+    /// correction rounds: written, it would be refused again at pickup and
+    /// parked, with the refusal nowhere the person grooming it would see.
     func writeGrooming(_ proposal: BacklogGroomer.Proposal) -> String? {
         guard let item = item(withID: proposal.itemID) else { return "it is no longer in the backlog" }
         if let refusal = BacklogItemDetailViewModel.groomVerifyRefusal(proposal.draft.verify) { return refusal }
+        guard proposal.grounding.isGrounded else {
+            return "the grounding check still refuses it — \(proposal.grounding.summary)"
+        }
         let existingNotes = BacklogParser.plainBullets((loadDetail(for: item)?.notes ?? "").components(separatedBy: "\n"))
         let content = proposal.draft.detailMarkdown(notes: existingNotes)
         let outcome = item.detailPath != nil

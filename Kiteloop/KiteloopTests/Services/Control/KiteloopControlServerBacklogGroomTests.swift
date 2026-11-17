@@ -148,6 +148,34 @@ final class KiteloopControlServerBacklogGroomTests: XCTestCase {
         XCTAssertEqual(status(of: "refunds-round-to-the-cent", project: root), "draft", "promotion stays a person's step")
     }
 
+    /// A grooming the grounding check still refuses after its correction
+    /// rounds is not written: the item keeps its bare line, stays a draft, and
+    /// its Notes say what was refused — even filed without a note, when there
+    /// was no detail file to hold one.
+    func testAGroomingTheGroundingCheckStillRefusesIsNotedAndNotWritten() async throws {
+        let root = try registerProject(named: "alpha")
+        harness.server.groomOneShot = { _, _, _, _ in
+            #"{"items":[{"id":"x","title":"x","size":"S","verify":"swift build","what":"Update `Sources/Refunds.swift` to round half up.","how":"Round half up.","validation":["A refund of 0.005 rounds to 0.01"]}]}"#
+        }
+
+        let (code, _) = try await harness.post("/v1/backlog/items", [
+            "project": "alpha", "title": "Refunds round to the cent", "groom": true
+        ])
+
+        XCTAssertEqual(code, 201)
+        try await eventually("the refusal was noted") {
+            ((try? self.detailNotes("refunds-round-to-the-cent", in: root)) ?? "")
+                .contains("the grounding check still refuses it — ")
+        }
+        let detail = try XCTUnwrap(try detailNotes("refunds-round-to-the-cent", in: root))
+        XCTAssertTrue(detail.contains("Sources/Refunds.swift"), detail)
+        XCTAssertFalse(detail.contains("Round half up."), "the refused grooming is not written: \(detail)")
+        let backlog = try String(contentsOf: URL(fileURLWithPath: root).appending(path: "BACKLOG.md"), encoding: .utf8)
+        let line = try XCTUnwrap(backlog.split(separator: "\n").first { $0.contains("refunds-round-to-the-cent") })
+        XCTAssertFalse(line.contains("swift build"), "the line keeps no proposed verify: \(line)")
+        XCTAssertEqual(status(of: "refunds-round-to-the-cent", project: root), "draft")
+    }
+
     func testWithoutAModelRunnerTheItemIsFiledAndGroomingSaysWhyNot() async throws {
         try registerProject(named: "alpha")
 

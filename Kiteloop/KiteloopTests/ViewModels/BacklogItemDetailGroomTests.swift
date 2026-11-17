@@ -124,6 +124,35 @@ final class BacklogItemDetailGroomTests: XCTestCase {
         XCTAssertTrue(note.contains("field separator"), note)
     }
 
+    /// A proposal the grounding check still refuses after the groomer's
+    /// correction rounds is not written: it would be refused again at pickup
+    /// and parked. The preview stays open and the note says what was refused.
+    func testAProposalTheGroundingCheckStillRefusesIsNotWritten() async throws {
+        let backlog = try makeBacklog()
+        let lineBefore = try XCTUnwrap(backlog.item(withID: "task-1"))
+        // `Sources/Summary.swift` is nowhere under the fixture, and nothing
+        // in the sentence says the item creates it.
+        let model = try await reviewedModel(
+            itemID: "task-1", backlog: backlog,
+            proposal: proposal.replacingOccurrences(of: "The `BACKLOG.md` file gains",
+                                                    with: "The `Sources/Summary.swift` file gains"))
+
+        model.applyGroom()
+
+        let item = try XCTUnwrap(backlog.item(withID: "task-1"))
+        XCTAssertNil(item.detailPath)
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: tempDir.appending(path: "backlog/task-1.md").path(percentEncoded: false)))
+        XCTAssertEqual(item.verify, lineBefore.verify)
+        XCTAssertEqual(item.size, lineBefore.size)
+        if case .review = model.groomPhase {} else {
+            XCTFail("the proposal stays open: \(model.groomPhase)")
+        }
+        let note = try XCTUnwrap(model.actionNote)
+        XCTAssertTrue(note.hasPrefix("task-1 was not groomed — the grounding check still refuses it — "), note)
+        XCTAssertTrue(note.contains("Sources/Summary.swift"), note)
+    }
+
     /// A blank verify is refused the same way. The groomer's parser already
     /// drops a draft with none, so it is asserted on the check Apply runs.
     func testABlankProposedVerifyIsRefused() throws {

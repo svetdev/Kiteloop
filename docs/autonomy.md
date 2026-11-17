@@ -165,6 +165,17 @@ directions on purpose: only backticked, code-shaped tokens count as claims, and 
 reference the draft proposes to *create* is exempt. A missed invention costs one
 run; a wrongly refused item strands real work and nobody finds out why.
 
+Pickup is the last place the check runs, not the first. A grooming pass — the
+**Groom** button, or `"groom": true` on `POST /v1/backlog/items` — judges its
+own proposal with the same check and hands a refusal back to the model that
+wrote it, in the check's words, to reword: a path or symbol the item creates
+introduced as one, an existing path spelled in full. It gets as many rounds as
+a failing pull-request check gets fix rounds (`GroomingCorrection.maxRounds`),
+and a proposal still refused after them is not written — Apply says what was
+refused and keeps the preview open, and the unattended pass records it in the
+item's Notes. The rule is the same one either way; only who hears the refusal
+changes, from a person finding a parked draft to the groomer that can fix it.
+
 ## Definition-of-Done
 
 What the worker must satisfy before handing off:

@@ -345,4 +345,10 @@ Entry format:
 **What:** A worker that used its whole turn budget and left changes or commits in its worktree gets one more pass there — same branch, same session, same item run — before the item is blocked. One, with no setting: the bound is the pass itself, not a number. A continuation that is cut short again or leaves `HEAD`, the diff and the untracked files unchanged blocks the item with the same note as before, and a first pass that left nothing is not continued.
 **Why:** A blocked item's next run starts on a fresh branch and replaces the work, so a turn cap made the same work be paid for twice. A second continuation would only be a larger turn budget under another name, and that budget is already derived from the project's runs. The cost caps and the budget stay the hard stop: both passes are one item's spend.
 **Evidence:** `CutShortContinuation`, `BacklogAutopilot.finishingCutShortWork`, `CutShortContinuationTests`, `BacklogAutopilotPreReviewGateRunTests.testACutShortWorkerThatLeftWorkIsContinuedInTheSameWorktree`.
+
+## [2026-11-17] A grooming the grounding check refuses is corrected by the groomer, and never written
+**Kind:** decision
+**What:** A grooming pass judges its proposal with `GroundingCheck` and hands a refusal back to the model to reword, for as many rounds as a failing pull-request check gets fix rounds (`GroomingCorrection.maxRounds` is `PullRequestChecks.maxFixRounds`). A proposal still refused is not written — by Apply or by the unattended pass. The rule and the pickup check are unchanged.
+**Why:** The verdict was computed at grooming and acted on only at pickup, when the model that wrote the citation was gone and the only one left to fix it was a person finding a parked draft. The bound is borrowed because the case is the same one — a machine check refused the work and its author gets the refusal — and a second number would have to be argued for separately.
+**Evidence:** `BacklogGroomer.propose`, `BacklogViewModel.writeGrooming`, `GroomingCorrectionTests.testTheRewordingThePromptAsksForClearsTheCheck`.
 **Status:** holds

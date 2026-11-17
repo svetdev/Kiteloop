@@ -6255,12 +6255,23 @@ final class KiteloopControlServer {
                 item: item, detail: backlog.loadDetail(for: item), backlog: file, sources: sources,
                 runOneShot: { prompt in try await oneShot(prompt, root, system, grant) })
             if let refusal = backlog.writeGrooming(proposal) {
-                _ = backlog.appendNote(itemID: id, "Grooming filed from the phone was not written — \(refusal)")
+                Self.noteUnwrittenGrooming(refusal, itemID: id, in: backlog)
             }
         } catch {
             controlLog.error("Grooming \(id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             _ = backlog.appendNote(itemID: id, "Grooming filed from the phone failed — \(error.localizedDescription)")
         }
+    }
+
+    /// Says on the item why its grooming was not written — a proposal the
+    /// grounding check still refuses, most often. An item filed without a note
+    /// has no detail file and so nowhere to hold one; it gets the file a noted
+    /// filing gets, its What the title, rather than a refusal nobody can read.
+    private static func noteUnwrittenGrooming(_ refusal: String, itemID: String, in backlog: BacklogViewModel) {
+        if let item = backlog.item(withID: itemID), item.detailPath == nil {
+            backlog.createDetail(for: item, content: "## What\n\n\(item.title)\n")
+        }
+        _ = backlog.appendNote(itemID: itemID, "Grooming filed from the phone was not written — \(refusal)")
     }
 
     /// Resolves a backlog item's human gate: approve → merge the item's branch
