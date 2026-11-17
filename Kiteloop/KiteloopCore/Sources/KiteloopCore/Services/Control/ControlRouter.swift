@@ -215,6 +215,22 @@ package enum ControlRoute: Equatable {
     package var isHumanGate: Bool {
         switch self {
         case .approveBacklogItem, .approveRun, .landBacklogItem, .answerConfigChange: return true
+        default: return answersForThePerson
+        }
+    }
+
+    /// Whether this route answers something an agent put to the person: a
+    /// permission card (a tool call or an always-ask rule), a plan, a question
+    /// (`ask_human`, or the model's own with choices), a memory proposal — or
+    /// moves an agent to another permission mode, which decides whether it
+    /// asks at all. Each is a human gate: nothing in the app has one agent
+    /// answer another's card, so an agent that could call these would be
+    /// answering for the person, its own cards included.
+    package var answersForThePerson: Bool {
+        switch self {
+        case .answerAgentPermission, .answerAgentPlan, .answerAgentQuestion, .answerAgentChoices,
+             .setAgentMode, .approveMemoryProposal, .rejectMemoryProposal:
+            return true
         default: return false
         }
     }

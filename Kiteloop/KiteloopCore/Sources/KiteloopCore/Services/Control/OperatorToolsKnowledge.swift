@@ -41,6 +41,10 @@ package enum OperatorToolsKnowledge {
             "which answer **403** for this token — resolving a human gate stays the operator's own call. " +
             "If the work is ready for sign-off, say so and let the operator approve it themselves; " +
             "do not look for another way to mark it done.",
+        "The same holds for anything an agent is waiting on the operator for — a permission card, a plan, " +
+            "a question, a memory proposal — and for an agent's permission mode, yours included: those are " +
+            "among the routes above, and a message that is `/mode <name>` is refused the same way. Say what " +
+            "is waiting and leave the answer to the operator.",
         "Listing, minting or revoking scoped tokens and webhooks — \(cited(where: \.isTokenManagement)) — " +
             "takes the control token itself and answers 403 for this token too.",
         "A call that changes configuration — hiring, editing or removing an agent, settings, autopilot, " +

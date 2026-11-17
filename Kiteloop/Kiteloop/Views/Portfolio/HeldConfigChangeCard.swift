@@ -118,7 +118,7 @@ struct HeldConfigChangeSheet: ViewModifier {
             .sheet(item: $onCard) { change in
                 HeldConfigChangeCard(
                     change: controlServer.configChanges.waiting.first { $0.id == change.id } ?? change,
-                    answer: { controlServer.answerConfigChange(change.id, approve: $0) },
+                    answer: { ConfigChangeEndpoints(server: controlServer).answer(change.id, approve: $0) },
                     onClose: { onCard = nil })
             }
             .onChange(of: requestID) { _, asked in

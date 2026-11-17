@@ -6,6 +6,10 @@ import XCTest
 final class ConfigChangeGateTests: XCTestCase {
 
     private var endpoints: [ControlRouter.Endpoint] { ControlRouter.endpoints }
+    /// The credentials handed to something other than the person.
+    private let agents: [ControlCredential] = [.operatorToken, .scoped(.configure), .scoped(.operate), .scoped(.read)]
+    /// The person's own, and a request with none.
+    private let persons: [ControlCredential?] = [.full, .paired, nil]
 
     /// Nothing an agent's token can change about the setup gets through
     /// unheld: every configure route that is not a read.
@@ -13,7 +17,7 @@ final class ConfigChangeGateTests: XCTestCase {
         let mutating = endpoints.filter { $0.method != "GET" && $0.scope == .configure }
         XCTAssertFalse(mutating.isEmpty)
         for endpoint in mutating {
-            for credential in [ControlCredentialKind.operatorToken, .scoped] {
+            for credential in agents {
                 XCTAssertTrue(
                     ConfigChangeGate.waitsOnAPerson(route: endpoint.route, method: endpoint.method, credential: credential),
                     "\(endpoint.method) \(endpoint.path) must wait on a person for \(credential)")
@@ -24,20 +28,20 @@ final class ConfigChangeGateTests: XCTestCase {
     /// The person's own token and a paired phone are never held, whatever the route.
     func testNothingIsHeldForThePersonsOwnCredentials() {
         for endpoint in endpoints {
-            for credential in [ControlCredentialKind.full, .paired, .none] {
+            for credential in persons {
                 XCTAssertFalse(
                     ConfigChangeGate.waitsOnAPerson(route: endpoint.route, method: endpoint.method, credential: credential),
-                    "\(endpoint.method) \(endpoint.path) must not be held for \(credential)")
+                    "\(endpoint.method) \(endpoint.path) must not be held for \(String(describing: credential))")
             }
         }
     }
 
     func testNoReadIsHeldForAnyCredential() {
         for endpoint in endpoints where endpoint.method == "GET" {
-            for credential in ControlCredentialKind.allCases {
+            for credential in agents + persons {
                 XCTAssertFalse(
                     ConfigChangeGate.waitsOnAPerson(route: endpoint.route, method: endpoint.method, credential: credential),
-                    "GET \(endpoint.path) must not be held for \(credential)")
+                    "GET \(endpoint.path) must not be held for \(String(describing: credential))")
             }
         }
     }
@@ -56,7 +60,7 @@ final class ConfigChangeGateTests: XCTestCase {
     func testTheSameRouteIsHeldOrNotByWhoCalls() {
         let route = ControlRoute.manage(.setSettings)
         XCTAssertTrue(ConfigChangeGate.waitsOnAPerson(route: route, method: "PUT", credential: .operatorToken))
-        XCTAssertTrue(ConfigChangeGate.waitsOnAPerson(route: route, method: "PUT", credential: .scoped))
+        XCTAssertTrue(ConfigChangeGate.waitsOnAPerson(route: route, method: "PUT", credential: .scoped(.configure)))
         XCTAssertFalse(ConfigChangeGate.waitsOnAPerson(route: route, method: "PUT", credential: .full))
         XCTAssertFalse(ConfigChangeGate.waitsOnAPerson(route: route, method: "PUT", credential: .paired))
     }
@@ -93,8 +97,23 @@ final class ConfigChangeGateTests: XCTestCase {
                                                       credential: .operatorToken))
     }
 
-    func testOnlyTheFullAndPairedCredentialsAreAPersons() {
-        XCTAssertEqual(ControlCredentialKind.allCases.filter(\.isAPersons), [.full, .paired])
+    /// The configure routes through which an agent's token could loosen
+    /// approvals — an agent's permission mode or always-ask rules, a project's
+    /// mode, a routine whose prompt is `/mode <name>`, autopilot's
+    /// `approveReviewPassedRuns` and autonomy dial — are all held, so none of
+    /// those changes is made without a person reading it on a card.
+    func testTheRoutesThatCouldLoosenApprovalsAreHeld() {
+        let loosening: [(String, String)] = [
+            ("POST", "/v1/agents"), ("PATCH", "/v1/agents"), ("PUT", "/v1/projects/settings"),
+            ("PUT", "/v1/routines/loosen"), ("PUT", "/v1/autopilot"), ("POST", "/v1/autopilot/reset")
+        ]
+        for (method, path) in loosening {
+            for credential in [ControlCredential.operatorToken, .scoped(.configure)] {
+                let route = ControlRouter.match(method: method, path: path)
+                XCTAssertEqual(route.map { ConfigChangeGate.waitsOnAPerson(route: $0, method: method, credential: credential) },
+                               true, "\(method) \(path) for \(credential)")
+            }
+        }
     }
 }
 

@@ -394,3 +394,17 @@ Entry format:
 **Why:** A gate checked at one entry point holds only until a second entry point appears, so the refusal sits where the tools are dispatched and the approval is the single place that applies the change. The log records the team the approval left, since a hire can still fail after it is approved.
 **Evidence:** `ChatViewModel.teamChangeWithoutCard`, `applyTeamChange`, `holdConfigChange`; `ChatViewModelConfigChangeTests`.
 **Status:** holds
+
+## [2026-11-17] Answering for the person is a human gate, whatever the answer
+**Kind:** rule
+**What:** A control API route that answers something an agent put to the person — a permission card, a plan, an `ask_human` or choices question, a memory proposal — or that moves an agent's permission mode is a human gate: the control token and a paired phone call it, the operator token and every scoped token get 403. Refusing is gated with approving, and `/mode <name>` sent through `POST /v1/agents/message` is refused as the mode route is.
+**Why:** The operator token was kept from approving work but could clear the card that stopped a tool call, its holder's own included, or put itself in a mode that never asks — which makes every card advisory. No code path has one agent answer another's card, so nothing legitimate is lost; a refusal is gated too because the route is the person's voice either way, and one rule per route is one that cannot be half-applied.
+**Evidence:** `ControlRoute.answersForThePerson`, `ControlAccess`; `ControlAccessTests`. The only callers of these routes in the repo are the phone and tests.
+**Status:** holds — a routine whose prompt is `/mode <name>`, and `permissionMode` on `POST /v1/agents` and `PUT /v1/projects/settings`, are configuration writes and still open to the operator token.
+
+## [2026-11-17] An agent's configuration change over the API is held, keyed on the credential
+**Kind:** rule
+**What:** A control API call that needs the `configure` scope and is not a read, made with the operator token or a scoped token, is held until a person approves it on a card; the decision is written to `config-changes.jsonl` before the change applies, and a failed write refuses the change. The control token, a paired phone and the app are never held. The route that answers the card is a human gate, and the switch that turns the hold off is itself a held change, so the credentials it applies to can neither answer nor lift it. On by default.
+**Why:** The human gates stop an agent approving work or answering a card, but every one of them can be loosened through a configuration write — `permissionMode` or always-ask rules on an agent, a project's mode, a routine whose prompt is `/mode <name>`, `approveReviewPassedRuns` and the autonomy dial — and listing those fields one by one is a list that goes stale. Holding the whole `configure` scope, read off the classification every route already carries, covers a route or field added later; keying on the credential rather than the route keeps the person's own calls unslowed.
+**Evidence:** `ConfigChangeGate`, `HeldConfigChanges`, `ConfigChangeEndpoints.refusal`; `ConfigChangeGateTests` walks every route against every credential.
+**Status:** holds — closes, while the hold is on, the open ends named in the two entries above (`POST`/`DELETE /v1/agents` with no card; routine prompts and `permissionMode` open to the operator token). A routine that already exists is still fired by the operator token with `POST /v1/routines/{id}/run`; what it sends was approved when it was written.

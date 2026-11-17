@@ -1,30 +1,5 @@
 import Foundation
 
-/// Which of the control API's credentials a request came with, reduced to
-/// what decides who is asking: a person, or something a person handed a
-/// token to.
-package enum ControlCredentialKind: Sendable, CaseIterable {
-    /// The full control token — the person's own.
-    case full
-    /// A paired phone's token — the person's own, on their phone.
-    case paired
-    /// The operator token, handed to an agent with operator tools.
-    case operatorToken
-    /// A token minted over `/v1/tokens`, whatever its scope.
-    case scoped
-    /// No valid credential.
-    case none
-
-    /// Whether the credential is one a person holds themselves, rather than
-    /// one given to an agent or a script.
-    package var isAPersons: Bool {
-        switch self {
-        case .full, .paired: return true
-        case .operatorToken, .scoped, .none: return false
-        }
-    }
-}
-
 /// Whether a call is a configuration change made by an agent — one that waits
 /// on a person's approval before it applies (`HeldConfigChanges`).
 ///
@@ -42,15 +17,12 @@ package enum ConfigChangeGate {
     }
 
     /// Whether this call waits on a person: a configuration change, made with
-    /// the operator token or a scoped one.
+    /// a credential that is not the person's own (`ControlCredential`) — the
+    /// operator token or a scoped one. Nil is a request with no credential.
     package static func waitsOnAPerson(route: ControlRoute, method: String,
-                                       credential: ControlCredentialKind) -> Bool {
-        switch credential {
-        case .operatorToken, .scoped:
-            return isConfigurationChange(route: route, method: method)
-        case .full, .paired, .none:
-            return false
-        }
+                                       credential: ControlCredential?) -> Bool {
+        guard let credential, !credential.isThePersons else { return false }
+        return isConfigurationChange(route: route, method: method)
     }
 }
 
