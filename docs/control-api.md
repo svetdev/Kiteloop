@@ -283,6 +283,7 @@ curl -s http://127.0.0.1:4517/health
   "processMemoryMB": 312.5,
   "activeSubprocessCount": 3,
   "holds": [],
+  "routines": [],
   "tools": [
     { "project": "kiteloop", "path": "/Users/me/code/kiteloop",
       "tools": [
@@ -310,6 +311,7 @@ curl -s http://127.0.0.1:4517/health
 | `processMemoryMB` | Resident memory, in MB; `null` when the kernel refused the reading |
 | `activeSubprocessCount` | Live Claude Code subprocesses |
 | `holds` | Projects whose **autonomous** starts are being withheld by their own failed runs. Empty is the healthy state |
+| `routines` | Routines whose last run went badly — `refused`, `waiting` or `skipped` — each with a `severity`. Empty is the healthy state |
 | `tools` | Per open project, every executable its verify commands run and where the app's search path resolved it — or `null` with the directories searched — and, as `exports`, the variables every verify and agent spawn on the project's behalf runs with beyond `PATH` |
 
 Each entry in `holds` carries `project`, `path`, a `reason` naming the failures
@@ -320,6 +322,24 @@ and what would end the hold, the `failures` still standing as evidence, the
 {"holds": [{"project": "kiteloop", "path": "/Users/me/code/kiteloop",
             "reason": "3 autonomous runs in kiteloop failed (last: summary-line blocked: verify failed) — held until its queue changes",
             "failures": 3, "items": 1, "systemic": false}]}
+```
+
+Each entry in `routines` is a routine whose newest ledger entry a monitor
+should act on, carrying `routine` (its id), `project`, `outcome`, `at` (when
+the run was handled, ISO 8601), `severity`, and `reason` when the run gave one.
+A routine whose last run started or queued, or which has never run, is left
+out; `status` does not look at this list.
+
+| `outcome` | `severity` | Meaning |
+|---|---|---|
+| `refused` | `error` | Final — the day's budget, or nobody to send it to; the occurrence is lost |
+| `waiting` | `warning` | Its project is not open or the fleet is held; the occurrence is owed and runs when it can |
+| `skipped` | `info` | The precheck found nothing to do |
+
+```json
+{"routines": [{"routine": "morning-brief", "project": "vault", "outcome": "refused",
+               "reason": "the day's routine budget is spent", "at": "2026-11-17T07:00:04Z",
+               "severity": "error"}]}
 ```
 
 `tools` answers **which tools can this app reach for this project, and where?**

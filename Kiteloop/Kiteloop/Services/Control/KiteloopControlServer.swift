@@ -1003,6 +1003,10 @@ final class KiteloopControlServer {
     /// sidebar of a window nobody was in front of, which is how one project's
     /// three retries stopped the fleet for six hours on 2026-08-12 without
     /// anything saying so. Empty is the healthy state and the shipped one.
+    ///
+    /// `routines` asks the same of routines: which last went badly — refused,
+    /// waiting or skipped — each with a severity (`RoutineHealth`). Empty too
+    /// when all is well, and for a server that keeps no routines.
     private func health() -> HTTPServer.Response {
         let snapshot = healthSnapshotProvider()
         let degraded = snapshot.mainThreadLatencyMs >= HealthMonitor.hitchThresholdMs
@@ -1018,6 +1022,8 @@ final class KiteloopControlServer {
             "processMemoryMB": snapshot.processMemoryMB as Any,
             "activeSubprocessCount": snapshot.activeSubprocessCount,
             "holds": (runScheduler?.holds.active ?? []).map(Self.holdJSON),
+            "routines": RoutineHealth.attention(routines: routines?.routines ?? [],
+                                                lastRun: { [routines] in routines?.lastRun(of: $0) }).map(\.json),
             "tools": registry.openProjects.map { Self.toolsJSON($0.session.toolReachability()) }
         ])
     }
