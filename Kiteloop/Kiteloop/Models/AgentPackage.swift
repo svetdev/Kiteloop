@@ -1,4 +1,5 @@
 import Foundation
+import KiteloopCore
 
 struct AgentPackage: Codable, Sendable {
     let handle: String
@@ -31,6 +32,10 @@ struct PackageTemplate: Codable, Sendable {
     /// environment. Optional so a package written before the key still decodes;
     /// absent means off.
     let operatorToolsEnabled: Bool?
+    /// Which credential that grant is — `"operator"` or `"read"`
+    /// (`AgentControlAccess`). Absent means the operator token, as before the
+    /// key existed.
+    var controlAccess: AgentControlAccess? = nil
 }
 
 struct KnowledgeConfig: Codable, Sendable {
@@ -47,6 +52,12 @@ struct KnowledgeConfig: Codable, Sendable {
 
 extension AgentPackage {
     func toAgentTemplate(id: String? = nil) -> AgentTemplate {
+        var stamped = baseTemplate(id: id)
+        stamped.controlAccess = template.controlAccess ?? .whenUnstated
+        return stamped
+    }
+
+    private func baseTemplate(id: String?) -> AgentTemplate {
         AgentTemplate(
             id: id ?? handleNormalized,
             name: template.name,

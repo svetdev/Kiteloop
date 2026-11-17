@@ -191,17 +191,27 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     /// one may not reach. Empty appends nothing, which is what a test runtime
     /// wants.
     private let operatorToolsNote: String
+    /// The note for an agent whose `controlAccess` is read-only —
+    /// `OperatorToolsKnowledge.readOnlyNote`, handed over for the same reason.
+    private let readOnlyToolsNote: String
+    /// The read token such an agent is spawned with (`AgentReadToken.current`).
+    /// Nil — a test runtime — hands a read-only agent no credential at all.
+    private let readOnlyControlToken: (@Sendable () -> String?)?
 
     init(claudePath: String? = nil, nodePath: String? = nil,
          environmentForSpawn: (@Sendable (URL) -> [String: String])? = nil,
          globalMCPServers: [String: ClaudeMCPServerEntry] = [:],
          operatorToolsNote: String = "",
+         readOnlyToolsNote: String = "",
+         readOnlyControlToken: (@Sendable () -> String?)? = nil,
          connectorSecrets: ConnectorSecretStore = KeychainConnectorSecretStore()) {
         self.claudePath = claudePath ?? CLIResolver.claude ?? "/usr/local/bin/claude"
         self.nodePath = nodePath ?? CLIResolver.node ?? "/usr/local/bin/node"
         self.environmentForSpawn = environmentForSpawn
         self.globalMCPServers = globalMCPServers
         self.operatorToolsNote = operatorToolsNote
+        self.readOnlyToolsNote = readOnlyToolsNote
+        self.readOnlyControlToken = readOnlyControlToken
         self.connectorSecrets = connectorSecrets
         Self.globalLock.lock()
         Self.allInstances.append(WeakRuntime(instance: self))
@@ -468,9 +478,17 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     /// moment the app's `KiteloopControlServer` is built (at launch, whether or
     /// not the API is switched on), so this is ordinarily a read; it only mints
     /// if that file is somehow missing.
-    private static func loadOperatorToolsGrant() -> OperatorToolsGrant {
+    ///
+    /// An agent whose `controlAccess` is read-only is handed `readToken`'s
+    /// answer in the operator token's place, and no grant at all when there is
+    /// none to hand: it never falls back to the operator token.
+    private static func loadOperatorToolsGrant(access: AgentControlAccess,
+                                               readToken: (@Sendable () -> String?)?) -> OperatorToolsGrant? {
         let port = SpawnTimeConfigRead.load()?.controlServerPort
-        let token = KiteloopControlServer.loadOrCreateToken(at: KiteloopControlServer.defaultOperatorTokenURL)
+        let held = access.token(
+            operatorToken: { KiteloopControlServer.loadOrCreateToken(at: KiteloopControlServer.defaultOperatorTokenURL) },
+            readToken: { readToken?() })
+        guard let token = held else { return nil }
         let resolvedPort = KiteloopControlServer.resolvedPort(port)
         return OperatorToolsGrant(token: token, controlURL: "http://127.0.0.1:\(resolvedPort)/v1")
     }
@@ -489,7 +507,9 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     /// The child's full environment: auth and the spawn overlay, the session
     /// variables and operator-tools grant, then the agent's thinking settings.
     private func processEnvironment(agent: Agent, auth: ClaudeAuthConfig, cwd: URL, unattended: Bool) -> [String: String] {
-        let operatorGrant = agent.operatorToolsEnabled ? Self.loadOperatorToolsGrant() : nil
+        let operatorGrant = agent.operatorToolsEnabled
+            ? Self.loadOperatorToolsGrant(access: agent.controlAccess, readToken: readOnlyControlToken)
+            : nil
         return Self.sessionEnvironment(spawnEnvironment(auth: auth, cwd: cwd),
                                        unattended: unattended,
                                        operatorTools: operatorGrant)
@@ -504,8 +524,11 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
         let auth = ClaudeAuthConfig.loadCurrent()
         process.environment = processEnvironment(agent: agent, auth: auth, cwd: cwd, unattended: options.unattended)
 
+        // The note that matches the credential: an agent holding the read
+        // token is told the reads only.
+        let controlNote = agent.controlAccess.note(operatorNote: operatorToolsNote, readOnlyNote: readOnlyToolsNote)
         var args = Self.launchArguments(agent: agent, auth: auth, options: options,
-                                         operatorToolsNote: operatorToolsNote)
+                                         operatorToolsNote: controlNote)
 
         let toolBridge = setupToolBridge(sessionID: sessionID, agent: agent)
 

@@ -4,7 +4,7 @@ import KiteloopTestSupport
 
 /// The bundled Watch agent reads the control API and reports. Its profile names
 /// the reads by hand, so these hold that list to the routing table — and hold
-/// the package to reading only, since its token would let it do more.
+/// the package to reading only, down to the read-only token it asks for.
 final class WatchAgentPackageTests: XCTestCase {
 
     private let package = RepositoryRoot.of().appending(path: "Kiteloop/examples/agents/watch")
@@ -87,6 +87,8 @@ final class WatchAgentPackageTests: XCTestCase {
         let template = try XCTUnwrap(json["template"] as? [String: Any])
 
         XCTAssertEqual(template["operatorToolsEnabled"] as? Bool, true)
+        XCTAssertEqual(template["controlAccess"] as? String, AgentControlAccess.readOnly.rawValue,
+                       "the package reads only, so the token it is spawned with must too")
         XCTAssertEqual(template["tools"] as? [String], ["Read", "Bash", "recall_knowledge"])
         let denied = Set(try XCTUnwrap(template["denied"] as? [String]))
         XCTAssertTrue(denied.isSuperset(of: ["Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch"]))

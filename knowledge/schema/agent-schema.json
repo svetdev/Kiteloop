@@ -93,6 +93,12 @@
           "type": "boolean",
           "default": false,
           "description": "Turns on Operator tools: the agent's environment carries credentials for the local control API."
+        },
+        "controlAccess": {
+          "type": "string",
+          "enum": ["operator", "read"],
+          "default": "operator",
+          "description": "Which credential Operator tools hands the agent: the operator token, or a read-scoped token that can only call the control API's GET endpoints. Decides nothing while operatorToolsEnabled is off. A value the app does not know is taken as read."
         }
       }
     },

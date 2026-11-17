@@ -190,6 +190,32 @@ server is switched on) — the same way the control token is — so granting the
 toggle to an agent does not by itself create or reveal the credential; it only
 decides whether that agent's environment carries it.
 
+**An agent that should only read gets a read-only token instead.** With
+**Operator Tools** on, the agent's **Access** — `controlAccess` on the agent and
+in an agent package's `template`, `"operator"` or `"read"` — says which
+credential that is. Absent means `operator`, so an agent or package that says
+nothing is spawned as before; a value the app does not know is taken as `read`.
+A `read` agent is spawned with a `read` [scoped token](#post-v1tokens) in the
+same `KITELOOP_OPERATOR_TOKEN` variable, and its note lists the `GET` endpoints
+that scope may call and nothing else; every other call answers **403** by the
+scope check every scoped token goes through. The bundled Watch agent asks for
+`read`. That token's lifecycle:
+
+- **One token, minted by the app itself** on the first spawn of a `read` agent —
+  in process, not over the API — and listed by [`GET /v1/tokens`](#get-v1tokens)
+  under the name `Kiteloop read-only agents`. An install with no `read` agent has
+  none.
+- **Reused** by every later spawn of every `read` agent. The store keeps only a
+  token's hash, so the token itself is kept in `~/.kiteloop/agent-read-token`
+  (`0600`), beside the operator token. It is never written into a project
+  folder; an agent receives it only in its environment.
+- **Revocable**: [`DELETE /v1/tokens/{id}`](#delete-v1tokensid) stops it at once
+  for every session holding it. The next `read` agent to start is given a newly
+  minted one, so a revoke is a rotation; to take the access away, turn the
+  agent's Operator Tools off.
+- If the token cannot be kept on disk, the agent starts with **no** credential
+  — never with the operator token in its place.
+
 Details that matter when scripting:
 
 - The comparison is exact and full-string, against **either** token — a truncated

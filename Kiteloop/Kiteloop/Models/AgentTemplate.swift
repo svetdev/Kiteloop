@@ -1,4 +1,5 @@
 import Foundation
+import KiteloopCore
 
 struct AgentTemplate: Codable, Identifiable, Sendable {
     let id: String
@@ -19,6 +20,8 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
     var runtimeKind: String?
     var crossAgentAccess: [String]
     var operatorToolsEnabled: Bool
+    /// See `Agent.controlAccess`.
+    var controlAccess: AgentControlAccess = .whenUnstated
 
     static let defaultAvatarEmoji: [String] = [
         "🧙‍♂️", "🧙‍♀️", "👺", "👹", "🤖", "🦉", "🐉", "🧛", "🧟", "🦹",
@@ -93,6 +96,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
         runtimeKind = try container.decodeIfPresent(String.self, forKey: .runtimeKind)
         crossAgentAccess = try container.decodeIfPresent([String].self, forKey: .crossAgentAccess) ?? []
         operatorToolsEnabled = try container.decodeIfPresent(Bool.self, forKey: .operatorToolsEnabled) ?? false
+        controlAccess = try container.decodeIfPresent(AgentControlAccess.self, forKey: .controlAccess) ?? .whenUnstated
     }
 
     /// Snapshot of a live agent, for persisting the team back to team.json.
@@ -115,6 +119,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
             operatorToolsEnabled: agent.operatorToolsEnabled
         )
         askFirst = agent.askFirst
+        controlAccess = agent.controlAccess
     }
 
     func instantiateAgent() -> Agent {
@@ -145,6 +150,7 @@ struct AgentTemplate: Codable, Identifiable, Sendable {
             state: .idle
         )
         agent.askFirst = askFirst
+        agent.controlAccess = controlAccess
         return agent
     }
 }

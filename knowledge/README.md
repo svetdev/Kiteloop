@@ -36,7 +36,10 @@ file's path, e.g. `profile.md`) — and `knowledge`, with its `critical`, `files
 and `imports` lists. There is no `id`; the handle is the identity. `avatar`,
 `group`, a one-line `description` and the rest are optional —
 `operatorToolsEnabled: true` among them, which turns Operator tools on for the
-agent, off when absent; the setup wizard lists such a package unticked. The app decodes
+agent, off when absent; the setup wizard lists such a package unticked. Beside
+it, `controlAccess: "read"` hands the agent a token that can only read the
+control API in place of the operator token (`"operator"`, the default when
+absent); an agent that reports and never acts should ask for it. The app decodes
 the file on load and refuses one missing a required key; the schema's patterns
 and enums are documentation for you, not something the app checks. What the
 agent sees is what `knowledge` declares: `critical` files are inlined into its

@@ -23,6 +23,7 @@ struct AgentEditorSheet: View {
     @State private var pulledModels: [String]?
     @State private var permissionMode: String = Agent.defaultPermissionMode
     @State private var operatorToolsEnabled: Bool = false
+    @State private var controlAccess: AgentControlAccess = .whenUnstated
     @State private var autoCompactEnabled: Bool = false
     @State private var autoCompactPercent: Int = 80
     @State private var avatar: String?
@@ -108,6 +109,13 @@ struct AgentEditorSheet: View {
                     Toggle("Operator Tools", isOn: $operatorToolsEnabled)
                         .help("Grants this agent the operator-scoped control-API token at spawn (KITELOOP_OPERATOR_TOKEN, KITELOOP_CONTROL_URL) plus a knowledge note on using it. Authorized for the whole control API except the two approve endpoints, which stay a human's call. Off by default.")
                         .accessibilityIdentifier("agent-editor-operator-tools-toggle")
+                    Picker("Access", selection: $controlAccess) {
+                        Text("Operator").tag(AgentControlAccess.operatorToken)
+                        Text("Read only").tag(AgentControlAccess.readOnly)
+                    }
+                    .disabled(!operatorToolsEnabled)
+                    .help("Operator hands the agent the operator token. Read only hands it a token that can call the control API's GET endpoints and nothing else; it is listed under GET /v1/tokens, where revoking it replaces it at the agent's next start.")
+                    .accessibilityIdentifier("agent-editor-control-access-picker")
                 }
 
                 Section("Context") {
@@ -182,6 +190,7 @@ struct AgentEditorSheet: View {
         model = ModelCatalog.normalize(agent.model)
         permissionMode = agent.permissionMode
         operatorToolsEnabled = agent.operatorToolsEnabled
+        controlAccess = agent.controlAccess
         autoCompactEnabled = agent.contextCompactPercent != nil
         autoCompactPercent = agent.contextCompactPercent ?? 80
         avatar = agent.avatar
@@ -205,6 +214,7 @@ struct AgentEditorSheet: View {
             agent.model = model
             agent.permissionMode = permissionMode
             agent.operatorToolsEnabled = operatorToolsEnabled
+            agent.controlAccess = controlAccess
             agent.contextCompactPercent = autoCompactEnabled ? autoCompactPercent : nil
             agent.avatar = avatar
             agent.tools = toolsText.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
