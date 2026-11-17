@@ -31,6 +31,7 @@ extension Orchestrator {
                         options: SessionOptions, for agentID: String) {
         takeBackPermissionPrompts(for: agentID)
         sessions[agentID] = ManagedSession(session: session, runtime: runtime, options: options)
+        forgetPersonStop(of: agentID)
         let token = UUID()
         unpromptedTurns.sessionTokens[agentID] = token
         let turns = runtime.unpromptedTurns(of: session)

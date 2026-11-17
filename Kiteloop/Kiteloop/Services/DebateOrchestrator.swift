@@ -57,16 +57,11 @@ class DebateOrchestrator {
     }
 
     func run(contract: DebateContract) async -> DebateResult {
-        let proposerAgent = orchestrator.agents.first { $0.name.lowercased() == contract.proposer.lowercased() }
-        let criticAgent = orchestrator.agents.first { $0.name.lowercased() == contract.critic.lowercased() }
-
-        guard let proposerID = proposerAgent?.id else {
-            debateLog.error("Proposer agent '\(contract.proposer, privacy: .public)' not found")
-            return DebateResult(finalArtifact: "Error: proposer agent not found", rounds: 0, terminated: .error)
-        }
-        guard let criticID = criticAgent?.id else {
-            debateLog.error("Critic agent '\(contract.critic, privacy: .public)' not found")
-            return DebateResult(finalArtifact: "Error: critic agent not found", rounds: 0, terminated: .error)
+        let proposerID: String
+        let criticID: String
+        switch participants(of: contract) {
+        case .refused(let result): return result
+        case .ready(let proposer, let critic): (proposerID, criticID) = (proposer, critic)
         }
 
         let fieldsInstruction = contract.artifactFields.isEmpty
@@ -131,6 +126,35 @@ class DebateOrchestrator {
 
         debateLog.info("Debate concluded: round limit reached")
         return DebateResult(finalArtifact: lastProposal, rounds: maxRounds, terminated: .roundLimit)
+    }
+
+    /// The two agents a debate runs between, or the result it ends with
+    /// before a turn is sent.
+    private enum Participants {
+        case ready(proposerID: String, criticID: String)
+        case refused(DebateResult)
+    }
+
+    private func participants(of contract: DebateContract) -> Participants {
+        let proposerAgent = orchestrator.agents.first { $0.name.lowercased() == contract.proposer.lowercased() }
+        let criticAgent = orchestrator.agents.first { $0.name.lowercased() == contract.critic.lowercased() }
+
+        guard let proposerID = proposerAgent?.id else {
+            debateLog.error("Proposer agent '\(contract.proposer, privacy: .public)' not found")
+            return .refused(DebateResult(finalArtifact: "Error: proposer agent not found", rounds: 0, terminated: .error))
+        }
+        guard let criticID = criticAgent?.id else {
+            debateLog.error("Critic agent '\(contract.critic, privacy: .public)' not found")
+            return .refused(DebateResult(finalArtifact: "Error: critic agent not found", rounds: 0, terminated: .error))
+        }
+        // A debate turn is one agent speaking to another: it does not start an
+        // agent the person stopped, and says so instead of debating silence.
+        if let stopped = orchestrator.teammateRefusal(sendingTo: criticID)
+            ?? orchestrator.teammateRefusal(sendingTo: proposerID) {
+            debateLog.error("Debate not started: \(stopped, privacy: .public)")
+            return .refused(DebateResult(finalArtifact: stopped, rounds: 0, terminated: .error))
+        }
+        return .ready(proposerID: proposerID, criticID: criticID)
     }
 
     private func sendAndCollect(message: String, to agentID: String) async -> String {

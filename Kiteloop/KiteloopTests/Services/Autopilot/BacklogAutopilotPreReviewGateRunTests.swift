@@ -524,7 +524,14 @@ final class BacklogAutopilotPreReviewGateRunTests: XCTestCase {
                              atomically: true, encoding: .utf8)
         }
 
-        orchestrator = Orchestrator(runtime: MockAgentRuntime())
+        let runtime = MockAgentRuntime()
+        // A start gives a sessionless worker or reviewer a session, so agents
+        // that are to stay without one are ones that cannot be started.
+        if !startSessions {
+            runtime.startSessionError = NSError(domain: "test", code: 1,
+                                                userInfo: [NSLocalizedDescriptionKey: "no claude"])
+        }
+        orchestrator = Orchestrator(runtime: runtime)
         observer = NotificationCenter.default.addObserver(
             forName: .agentTriggered, object: orchestrator, queue: nil
         ) { [triggers] note in

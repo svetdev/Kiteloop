@@ -3083,6 +3083,23 @@ Same body as start. Answers `{"agent": "…", "running": false, "stopped": true}
 `stopped` is false when nothing was running. Refused while an autopilot run in
 flight is using the agent as its worker or reviewer.
 
+This is the person's Stop, as Stop Agent in the sidebar is, and it is
+remembered — in the project's `.kiteloop/stopped-agents.json`, so across a
+relaunch too — until the agent is started again:
+
+- **Another agent does not start it.** A `message_agent` call, a broadcast, a
+  `/delegate` hand-over or a debate turn aimed at it is not delivered; the
+  sender is answered `<name> was stopped by the person and is not running, so
+  the message was not delivered. …` and the same line is shown in the sender's
+  chat.
+- **What the person does or set up does.** A message to it (`POST
+  /v1/agents/message`, the app's chat), `POST /v1/agents/start` or `restart`, a
+  routine whatever fired it, a workflow node or an event it subscribes to, a
+  `/goal` or `/loop` in its chat, and an autopilot run that uses it as worker
+  or reviewer — a run starts a worker or reviewer that has no session rather
+  than refusing with `no-agent-session`, which is now the answer only when one
+  of them could not be started.
+
 **Status:** 200 · 400 · 404 · 409 (project not open, or an autopilot run is using the agent)
 
 ### POST /v1/agents/restart
@@ -5016,7 +5033,8 @@ Behaviour worth knowing:
   [`autopilot-runbook.md`](autopilot-runbook.md) → §C.
 - **409 means come back.** Everything else that can refuse a start — a spent daily
   ceiling, a spent **session** cost cap, a project with no orchestrator or backlog,
-  worker/reviewer unset, agents with no session, a run already executing — is a
+  worker/reviewer unset, a worker or reviewer with no session that could not be
+  started, a run already executing — is a
   condition of the moment, and the item is fine.
 - A **spent session cost cap** is refused here rather than accepted: the error is
   the pause's own line, `Session cost cap $5.00 reached ($6.25) — pausing autopilot;

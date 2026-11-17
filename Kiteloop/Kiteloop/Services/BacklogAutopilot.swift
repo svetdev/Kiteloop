@@ -2230,7 +2230,7 @@ class BacklogAutopilot {
         }
         await noteBaseHealth()
         resetRunState()
-        guard hasAgentSessions(context) else { return }
+        guard await hasAgentSessions(context) else { return }
         isExecutingRun = true
         defer { isExecutingRun = false }
         beginRun(context: context, skipped: outcome.skippedCount)
@@ -2691,13 +2691,18 @@ class BacklogAutopilot {
         consecutiveNoWorkBlocks = 0
     }
 
-    /// Whether both agents have a session to run the queue in — and, when one
-    /// doesn't, the refusal saying so and an emptied queue.
-    private func hasAgentSessions(_ context: StartContext) -> Bool {
+    /// Whether both agents have a session to run the queue in, starting one
+    /// for an agent that has none — stopped by the person included: the run is
+    /// theirs, started or armed by them. When one cannot be started, the
+    /// refusal saying which and why, and an emptied queue.
+    private func hasAgentSessions(_ context: StartContext) async -> Bool {
+        let failure = await context.orchestrator.startSessionsIfMissing(
+            for: [context.worker] + (context.reviewer.map { [$0] } ?? []),
+            cwd: projectRoot)
         let worker = context.orchestrator.hasSession(for: context.worker)
         let reviewer = context.reviewer.map { context.orchestrator.hasSession(for: $0) } ?? true
         guard worker, reviewer else {
-            let detail = "worker or reviewer agent has no active session — open the agent chat first"
+            let detail = failure ?? "worker or reviewer agent has no session"
             appendLog("Cannot start: \(detail)")
             recordStartOutcome(.noAgentSession, detail)
             logPhase(.runStart, [
