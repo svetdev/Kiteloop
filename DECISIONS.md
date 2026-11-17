@@ -332,3 +332,10 @@ Entry format:
 **Why:** A forecast built on a price list or a tuned model is a guess that reads as a measurement. Under three runs a median has no middle run distinct from the ends, so the honest answer is the count. The window of twenty latest runs is the one bound that is a choice, not a derivation: it keeps a routine whose prompt or model changed from being forecast off how it used to run.
 **Evidence:** `SpendForecast.fewestRuns`, `SpendForecast.runsConsidered`, `SpendForecastTests`.
 **Status:** holds — the projection is compared to no budget; no monthly budget exists.
+
+## [2026-11-17] An event fires a routine by kind and project only, and never the turn that raised it
+**Kind:** rule
+**What:** A routine whose trigger is `on` fires when the feed publishes an event of that kind in its project; nothing in the event's subject or title chooses the routine or the agent, and both only appear under the prompt. An event the routine's own agent raised, or one an agent raised inside a turn a routine started, is refused and written to the ledger.
+**Why:** A routine's turn files notices of its own — a question, a permission card — and each would otherwise fire the routine again, or a second routine that fires the first, for as long as the day's budget lasts.
+**Evidence:** `Routine.matches`, `RoutineRunner.echo`; `RoutineRunnerTests.testAnEventARoutinesOwnAgentRaisedDoesNotFireIt`, `testAnEventRaisedInsideARoutinesTurnFiresNoRoutine`.
+**Status:** holds — a prompt that joined a busy agent's queue runs in a turn the runner does not see end, so a notice from that later turn is stopped only when the routine's own agent raised it; the daily budget bounds the rest.
