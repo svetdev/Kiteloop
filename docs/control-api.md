@@ -176,6 +176,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/projects/close` | Close an open project, as closing its tab does |
 | GET | `/v1/projects/settings?project=` | Read a project's settings — default model, mode, effort, budget, goal, companions |
 | PUT | `/v1/projects/settings` | Change them; the fields named are replaced, null clears |
+| GET | `/v1/projects/setup?project=` | Export the project's whole setup as one file — team, routines (disarmed), settings, pinned document, connector names; no secrets |
 | PATCH | `/v1/backlog/items` | Change an item's title, verify, size or detail file |
 | DELETE | `/v1/backlog/items?project=&item=` | Remove an item from the backlog |
 | GET | `/v1/memory?project=&agent=` | What Kiteloop remembers for an agent — index, facts, archived facts |
@@ -2996,6 +2997,42 @@ curl -s -X PUT -H "$H" -d '{"project":"kiteloop","model":"opus","permissionMode"
 **Status:** 200 · 400 (a mistyped field, an unknown mode, effort or space, a
 companion without a name and a path, or nothing to change) · 409 (project not open) ·
 500 (the settings file could not be written)
+
+### GET /v1/projects/setup
+
+The project's whole setup as one JSON document: its team as package refs
+(`.kiteloop/team.json`), its routines, the settings
+[`GET /v1/projects/settings`](#get-v1projectssettings) reports except `space`,
+its pinned document and the names of the MCP servers its agents need. Every
+routine comes back with `armed: false` and no `armedAt`, so one applied
+elsewhere fires only once someone arms it. Needs a `read` token.
+
+```bash
+curl -s -H "$H" "$B/projects/setup?project=kiteloop"
+```
+
+```json
+{"format": 1,
+ "team": {"agents": [{"id": "chief", "ref": "shared:chief",
+                      "overrides": {"mcpServers": ["github", "linear"]}}]},
+ "routines": [{"id": "brief", "name": "Morning brief", "project": "kiteloop", "agent": "chief",
+               "prompt": "Write the brief.", "trigger": {"at": "07:00"}, "armed": false}],
+ "settings": {"model": null, "permissionMode": "auto", "effort": null, "maxBudgetUSD": null,
+              "goal": null, "companions": [{"name": "site", "path": "../site", "baseBranch": "main"}]},
+ "pinnedDocument": "docs/brief.md",
+ "connectors": ["github", "linear"]}
+```
+
+`connectors` is every agent's `overrides.mcpServers`, sorted, each once — the
+names only, never a server's command, URL, headers or secrets. Nothing bound
+to this Mac is in the file: no Bedrock or telemetry settings, build
+environment, extra executable paths, denied tools, session ids, Claude Code
+version or paused flag. A team stored as a list of templates rather than
+package refs is not exported: `team` is null and `"teamShape": "templates"`
+says so. With no routine runner, `routines` is empty. Knowledge packages,
+memory, the shared context and the backlog are not in it.
+
+**Status:** 200 · 400 (missing `project`) · 409 (project not open)
 
 ### PATCH /v1/backlog/items
 

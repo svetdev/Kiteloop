@@ -34,7 +34,8 @@ extension KiteloopControlServer {
         case .startAgent, .stopAgent, .restartAgent,
              .listAgentChats, .newAgentChat, .openAgentChat, .deleteAgentChat:
             return try await agentSessionRoute(route, req)
-        case .closeProject, .getProjectSettings, .setProjectSettings, .updateBacklogItem, .deleteBacklogItem:
+        case .closeProject, .getProjectSettings, .setProjectSettings, .exportProjectSetup,
+             .updateBacklogItem, .deleteBacklogItem:
             return try await ProjectSetupEndpoints(server: self).answer(route, req)
         case .getAgentMemory, .addMemoryFact, .rewriteMemoryFact, .archiveMemoryFact,
              .getSharedMemory, .setSharedMemory:

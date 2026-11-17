@@ -1,6 +1,6 @@
 import Foundation
 
-package struct PackageTeamConfig: Codable, Sendable {
+package struct PackageTeamConfig: Codable, Equatable, Sendable {
     package let agents: [PackageAgentRef]
 
     /// The memberwise init, spelled out: a `package` type's synthesised one is
@@ -10,7 +10,7 @@ package struct PackageTeamConfig: Codable, Sendable {
     }
 }
 
-package struct PackageAgentRef: Codable, Identifiable, Sendable {
+package struct PackageAgentRef: Codable, Equatable, Identifiable, Sendable {
     package let id: String
     package let ref: String
     package let version: String?
@@ -40,7 +40,7 @@ package struct PackageAgentRef: Codable, Identifiable, Sendable {
     }
 }
 
-package struct AgentOverrides: Codable, Sendable {
+package struct AgentOverrides: Codable, Equatable, Sendable {
     package let model: String?
     package let tools: [String]?
     package let denied: [String]?
