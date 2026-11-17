@@ -146,9 +146,15 @@ package actor NotificationStore: NotificationStoring {
     package private(set) var undecodableLineCount = 0
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
+    /// Where each notice filed here also goes out as an event, and the project
+    /// it names when the notice names none. Nil keeps the store to itself.
+    private let feed: AppEventFeed?
+    private let feedProject: String?
 
-    package init(notificationsURL: URL) {
+    package init(notificationsURL: URL, feed: AppEventFeed? = nil, feedProject: String? = nil) {
         self.notificationsURL = notificationsURL
+        self.feed = feed
+        self.feedProject = feedProject
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
         let decoder = JSONDecoder()
@@ -160,7 +166,7 @@ package actor NotificationStore: NotificationStoring {
         self.undecodableLineCount = loaded.undecodable.count
     }
 
-    package func add(_ item: NotificationItem) {
+    package func add(_ item: NotificationItem) async {
         // A notice with a roll-up key is a reading of a live state, so the
         // reading before it is stale the moment this one exists. Resolved rather
         // than deleted: the Resolved section is where somebody goes to find out
@@ -171,6 +177,7 @@ package actor NotificationStore: NotificationStoring {
         }
         items.append(item)
         persistItem(item)
+        await feed?.publish(item, fallbackProject: feedProject)
     }
 
     @discardableResult

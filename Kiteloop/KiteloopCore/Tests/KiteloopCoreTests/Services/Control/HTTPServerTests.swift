@@ -731,6 +731,37 @@ final class HTTPServerTests: XCTestCase {
         XCTAssertEqual(frames, [#"data: {"n":1}"#, #"data: {"n":2}"#, #"data: {"n":3}"#])
     }
 
+    /// A frame sent with an id carries its `id:` line ahead of its `data:` line,
+    /// which is what a reconnecting client echoes back as `Last-Event-ID`.
+    func testSendWithIDWritesTheIDLineBeforeTheDataLine() async throws {
+        let port = try freeLoopbackPort()
+        let server = HTTPServer(port: port) { _ in
+            .sse(keepAlive: 0) { writer in
+                writer.send(#"{"n":1}"#, id: "7")
+                // Park until the client hangs up, which cancels this handler
+                // and so ends the iteration.
+                let (park, held) = AsyncStream<Void>.makeStream()
+                for await _ in park {}
+                held.finish()
+            }
+        }
+        try server.start()
+        defer { server.stop() }
+        let session = streamingSession()
+        defer { session.invalidateAndCancel() }
+
+        var lines: [String] = []
+        do {
+            for try await line in try await openStream(session, port: port, path: "/v1/events") where !line.isEmpty {
+                lines.append(line)
+                if lines.count == 2 { break }
+            }
+        } catch {
+            // The stream ended early; the assertion below says after what.
+        }
+        XCTAssertEqual(lines, ["id: 7", #"data: {"n":1}"#])
+    }
+
     // MARK: - Helpers
 
     /// One end of a socket pair nothing reads — enough to build an SSEWriter

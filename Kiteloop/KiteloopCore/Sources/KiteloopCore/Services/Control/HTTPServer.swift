@@ -377,6 +377,16 @@ package final class HTTPServer: @unchecked Sendable {
             }
         }
 
+        /// Sends one `data:` frame preceded by an `id:` line, so a client that
+        /// reconnects can say where it left off with `Last-Event-ID`.
+        package func send(_ payload: String, id: String) {
+            guard !isClosed else { return }
+            let frame = "id: \(id)\ndata: \(payload)\n\n"
+            connection.send(Data(frame.utf8)) { [weak self] error in
+                if error != nil { self?.close() }
+            }
+        }
+
         /// Sends a `:` comment frame — ignored by SSE clients, but a failed write
         /// tells us the peer is gone, which is the point of the keepalive.
         package func comment(_ text: String) {

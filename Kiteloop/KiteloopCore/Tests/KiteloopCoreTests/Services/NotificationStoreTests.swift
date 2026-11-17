@@ -27,6 +27,39 @@ final class NotificationStoreTests: XCTestCase {
         XCTAssertEqual(pending.first?.title, "Task done")
     }
 
+    // MARK: - The event feed
+
+    /// Every notice filed goes out as exactly one event, the store's project
+    /// standing in for a notice that names none.
+    func testAddWithAFeedPublishesOneEventPerNotice() async {
+        let feed = AppEventFeed()
+        let store = NotificationStore(notificationsURL: notificationsURL, feed: feed, feedProject: "/p/alpha")
+
+        await store.add(NotificationItem(agentID: "coder", type: .complete, title: "A", body: ""))
+        await store.add(NotificationItem(agentID: "reviewer", type: .approval, title: "B", body: "",
+                                         itemID: "item-1", projectPath: "/p/own"))
+
+        let events = await feed.events(after: nil)
+        XCTAssertEqual(events.map(\.title), ["A", "B"])
+        XCTAssertEqual(events.map(\.project), ["/p/alpha", "/p/own"])
+        XCTAssertEqual(events.map(\.subject), ["coder", "item-1"])
+        let pending = await store.pending()
+        XCTAssertEqual(pending.count, 2, "the notices are still filed as before")
+    }
+
+    /// A store built without a feed files as it always has and publishes nowhere.
+    func testAddWithoutAFeedPublishesNothing() async {
+        let shared = await AppEventFeed.shared.events(after: nil).count
+        let store = NotificationStore(notificationsURL: notificationsURL)
+
+        await store.add(NotificationItem(agentID: "coder", type: .complete, title: "A", body: ""))
+
+        let pending = await store.pending()
+        XCTAssertEqual(pending.map(\.title), ["A"])
+        let after = await AppEventFeed.shared.events(after: nil).count
+        XCTAssertEqual(after, shared)
+    }
+
     func testMarkResolved() async {
         let store = NotificationStore(notificationsURL: notificationsURL)
         let item = NotificationItem(agentID: "coder", type: .approval, title: "Approve PR", body: "PR #42")
