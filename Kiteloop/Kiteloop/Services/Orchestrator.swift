@@ -867,10 +867,10 @@ class Orchestrator {
         Task.detached(priority: .utility) { await store.prune() }
     }
 
-    /// Enables agent notifications (questions, completions),
-    /// persisted to the given log file.
+    /// Enables agent notifications, persisted to `<project>/.kiteloop/<log>`, each also sent to `GET /v1/events`.
+    /// The log's grandparent is the project a notice without its own `projectPath` came from.
     func configureNotifications(notificationsURL: URL) {
-        notificationStore = NotificationStore(notificationsURL: notificationsURL)
+        notificationStore = NotificationStore(notificationsURL: notificationsURL, feed: AppEventFeed.shared, feedProject: notificationsURL.deletingLastPathComponent().deletingLastPathComponent().path)
     }
 
     /// Records a notification for the human operator, and — for the types that

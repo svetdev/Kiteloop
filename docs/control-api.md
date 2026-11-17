@@ -154,6 +154,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/fleet/quiesce` | Stop the whole fleet taking new work, and wait for it to drain |
 | POST | `/v1/fleet/resume` | Lift the hold and pick the held queues back up |
 | GET | `/v1/usage` | How close the agents are to their rate limit, and the last day's spend per project |
+| GET | `/v1/events` | Every open project's inbox notices as one live, resumable SSE stream |
 | GET | `/v1/memory/proposals?project=` | List a project's pending memory proposals |
 | POST | `/v1/memory/proposals/approve` | Approve one — applies it to the agent's memory |
 | POST | `/v1/memory/proposals/reject` | Reject one — takes it off the list, writes nothing |
@@ -2252,6 +2253,51 @@ curl -s -H "$H" $B/usage
 | `spend` | The last 24 hours — the day the shared daily budget covers — per project, busiest first, from the same report as [`GET /v1/report`](#get-v1report), capped as it is, with the rest named in `omittedProjects`. On a subscription these are token-equivalent dollars. `null` on a build that keeps no metrics |
 
 **Status:** 200
+
+---
+
+### GET /v1/events
+
+Every **open project's inbox** as one Server-Sent Events stream: each notice any
+project files — the same rows the app's activity feed shows — goes out as one
+event, so a monitoring agent or script follows this one stream instead of polling
+each project.
+
+| Query / header | Required | Notes |
+|---|---|---|
+| `Last-Event-ID` header | no | The last event `id` the client holds; the stream first sends every buffered event after it |
+| `after` | no | The same, for a client that cannot set the header. `Last-Event-ID` wins when both are sent |
+
+```bash
+curl -sN -H "$H" $B/events
+curl -sN -H "$H" -H "Last-Event-ID: 41" $B/events
+```
+
+```text
+id: 42
+data: {"id":42,"kind":"approval","project":"/Users/me/src/kiteloop","subject":"fix-login","time":"2026-11-16T09:30:00Z","title":"fix-login is waiting for approval"}
+```
+
+Each event is an `id:` line carrying its sequence number, then a `data:` line
+holding one compact JSON object:
+
+| Field | Meaning |
+|---|---|
+| `id` | The event's sequence number — one sequence across every project, only ever going up |
+| `project` | The project the notice is about, by root path: the notice's own project, else the project whose inbox filed it |
+| `kind` | `approval` (a run waiting at the gate), `question` (an agent stopped to ask), `complete` (an agent finished), `error` or `event` |
+| `subject` | The backlog item the notice is about, else the agent that raised it |
+| `title` | The notice's title, as the activity feed shows it |
+| `time` | When the notice was filed, ISO 8601 |
+
+**Resuming.** A client that reconnects with `Last-Event-ID: n` (or `?after=n`)
+gets every buffered event after `n`, then the live ones; a client with neither
+gets live events only. The buffer is **in memory and bounded** — the newest 1000
+events, the oldest dropped first — so a resume point older than the buffer gets
+only what is still held, and nothing survives an app restart. Resolutions and
+dismissals are not sent. A `: keepalive` comment goes out every 15s.
+
+**Status:** 200 · 401.
 
 ---
 

@@ -117,6 +117,8 @@ package enum ControlRoute: Equatable {
     case resumeFleet
     /// `GET /v1/usage` — the agents' rate limits and the last day's spend per project.
     case usage
+    /// `GET /v1/events` — every open project's inbox notices as one SSE stream.
+    case appEvents
 
     // Memory
     case listMemoryProposals
@@ -208,7 +210,7 @@ package enum ControlRoute: Equatable {
              .listQuickReplies, .workspaceChanges, .workspaceFile, .previewScreenshot,
              .listAgentTasks, .backlogItemDetail, .backlogItemDiff, .listTemplates,
              .listBacklog, .listMetrics, .listEstimates, .listGrooming, .portfolioReport,
-             .getAutopilot, .fleetStatus, .usage, .listMemoryProposals,
+             .getAutopilot, .fleetStatus, .usage, .appEvents, .listMemoryProposals,
              .getCoordinatorRefill, .getCoordinatorScheduling, .listProposals,
              .listRoutines, .listRoutineRuns, .openAPIDocument,
              .listRuns, .runStatus, .runResult, .runEvents, .runLog:
@@ -375,6 +377,7 @@ package enum ControlRouter {
         Row("POST", "/v1/fleet/quiesce")        { _ in .quiesceFleet },
         Row("POST", "/v1/fleet/resume")         { _ in .resumeFleet },
         Row("GET",  "/v1/usage")                { _ in .usage },
+        Row("GET",  "/v1/events")               { _ in .appEvents },
 
         Row("GET",  "/v1/memory/proposals")             { _ in .listMemoryProposals },
         Row("POST", "/v1/memory/proposals/approve")     { _ in .approveMemoryProposal },

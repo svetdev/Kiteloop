@@ -292,9 +292,11 @@ final class KiteloopControlServer {
         deviceTokens: ControlDeviceTokens? = nil,
         scopedTokens: ControlScopedTokens? = nil,
         accessLog: ControlAccessLog? = nil,
+        eventFeed: AppEventFeed = .shared,
         startedAt: Date = Date()
     ) {
         self.registry = registry
+        self.eventFeed = eventFeed
         self.deviceTokens = deviceTokens
         self.scopedTokens = scopedTokens
         self.accessLog = accessLog
@@ -596,7 +598,7 @@ final class KiteloopControlServer {
              .listProposals, .approveProposal, .dismissProposal,
              .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine:
             return loopsRoute(route, req)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
             return await fleetRoute(route, req)
         case .startRun, .listRuns, .runStatus, .runResult, .runEvents, .runLog,
              .approveRun, .cancelRun, .steerRun, .manage:
@@ -846,7 +848,27 @@ final class KiteloopControlServer {
         case .quiesceFleet: return await quiesceFleet(body: req.body)
         case .resumeFleet: return await resumeFleet()
         case .usage: return usage()
+        case .appEvents: return appEvents(req)
         default: return Self.notThisArea(route)
+        }
+    }
+
+    /// `GET /v1/events`: every open project's inbox notices as one stream. A
+    /// client resuming with `Last-Event-ID` — or `?after=` where a header
+    /// cannot be set — first gets every buffered event after it; one with
+    /// neither starts from now.
+    private func appEvents(_ req: HTTPServer.Request) -> HTTPServer.Response {
+        let after = (req.header("Last-Event-ID") ?? req.query["after"]).flatMap { Int($0) }
+        let feed = eventFeed
+        return .sse(keepAlive: 15) { writer in
+            let (backlog, live) = await feed.subscribe(after: after)
+            for event in backlog { writer.send(event.json, id: String(event.seq)) }
+            // A client that hangs up cancels this task, which ends the
+            // iteration and so the subscription.
+            for await event in live {
+                if writer.isClosed { break }
+                writer.send(event.json, id: String(event.seq))
+            }
         }
     }
 
@@ -1023,6 +1045,9 @@ final class KiteloopControlServer {
     /// One line per request in `~/.kiteloop/logs/control-access.log`; nil for
     /// a server that keeps none, as tests build by default.
     private let accessLog: ControlAccessLog?
+    /// What `GET /v1/events` streams; the app-wide feed unless a test hands
+    /// in its own.
+    private let eventFeed: AppEventFeed
 
     var pairedPhones: [ControlDevice] { deviceTokens?.devices ?? [] }
 

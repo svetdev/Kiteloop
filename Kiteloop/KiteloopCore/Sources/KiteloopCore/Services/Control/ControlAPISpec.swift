@@ -196,7 +196,7 @@ package enum ControlAPISpec {
              .listMetrics, .listEstimates, .listGrooming, .portfolioReport:
             return backlogDetail(for: route)
         case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot,
-             .fleetStatus, .quiesceFleet, .resumeFleet, .usage:
+             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
@@ -1851,7 +1851,7 @@ package enum ControlAPISpec {
         case .getAutopilot, .setAutopilot, .resetAutopilot,
              .pauseAutopilot, .resumeAutopilot:
             return autopilotDetail(for: route)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
             return fleetDetail(for: route)
         default:
             preconditionFailure("\(route) is not a queue route")
@@ -1998,9 +1998,36 @@ package enum ControlAPISpec {
         case .quiesceFleet: return quiesceFleetDetail()
         case .resumeFleet: return resumeFleetDetail()
         case .usage: return usageDetail()
+        case .appEvents: return appEventsDetail()
         default:
             preconditionFailure("\(route) is not a fleet route")
         }
+    }
+
+    private static func appEventsDetail() -> Detail {
+        return Detail(
+            id: "streamAppEvents",
+            summary: "Every open project's inbox notices as one stream (SSE)",
+            description: """
+            Each notice any open project files in its inbox goes out as one frame: an \
+            `id:` line carrying its sequence number, then a `data:` line holding one \
+            JSON object — `id`, `project`, `kind` (approval, question, complete, \
+            error or event), `subject` (the item id, else the agent id), `title` and \
+            `time` (ISO 8601). With `Last-Event-ID` or `after`, every buffered event \
+            after that number is sent first, then the live ones; without either the \
+            stream starts from now. The buffer is in memory and bounded, so a resume \
+            point older than it gets only what is still held, and nothing survives a \
+            restart. A `: keepalive` comment goes out every 15s.
+            """,
+            query: [QueryParameter(name: "after", required: false, schema: integer,
+                                   description: "The last event id the client holds; `Last-Event-ID` wins when both are sent.")],
+            responses: [
+                Status(code: 200,
+                       description: "An SSE stream of inbox notices.",
+                       schema: described(string, "SSE frames, newline-delimited."),
+                       contentType: "text/event-stream")
+            ]
+        )
     }
 
     private static func usageDetail() -> Detail {
