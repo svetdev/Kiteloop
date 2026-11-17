@@ -259,6 +259,7 @@ extension ControlAPISpec {
             "effort": described(nullable(string), "low, medium, high, xhigh or max; null follows the app's."),
             "maxBudgetUSD": described(nullable(number), "What one agent session may spend; null for no ceiling."),
             "goal": described(nullable(string), "The project's stated goal, shown to the Planner."),
+            "space": described(nullable(enumOf(ProjectSpace.names)), "The space the project is labelled as belonging to; null for unassigned. A label only — it isolates nothing."),
             "companions": described(array(of: companion), "The other repositories an item may change with this one.")
         ]
     }
@@ -300,7 +301,7 @@ extension ControlAPISpec {
             requestBody: object(body, required: ["project"]),
             responses: [
                 ok("The settings as they now stand.", projectSettings, required: ["permissionMode", "companions"]),
-                errorStatus(400, "A missing or mistyped field, an unknown mode or effort, or nothing to change."), notOpen,
+                errorStatus(400, "A missing or mistyped field, an unknown mode, effort or space, or nothing to change."), notOpen,
                 errorStatus(500, "The project's settings file could not be written.")
             ]
         )

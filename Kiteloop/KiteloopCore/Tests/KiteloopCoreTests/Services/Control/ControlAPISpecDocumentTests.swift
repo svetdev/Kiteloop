@@ -38,7 +38,9 @@ final class ControlAPISpecDocumentTests: XCTestCase {
         let health = try operation("get", "/health")
         XCTAssertNil(health["parameters"])
         let projects = try operation("get", "/v1/projects")
-        XCTAssertNil(projects["parameters"])
+        XCTAssertEqual(try queryParameterNames(of: projects), ["space"])
+        let space = try queryParameter("space", of: projects)
+        XCTAssertEqual(space["required"] as? Bool, false, "without it the list is every open project")
     }
 
     /// Where the answer is scoped to one project the caller has to say which,

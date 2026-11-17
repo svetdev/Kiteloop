@@ -318,3 +318,10 @@ Entry format:
 **Why:** The inspection is what a person reads before letting someone else's setup in, and it is shown on screen and will be returned over the API, so a value in it is a value leaked. Listing every part by path means a pack holds exactly what its manifest says and cannot reach a file beside it.
 **Evidence:** `PackManifest`, `PackInspector.resolve`, `PackInspectorTests.testNoSecretValueAppearsAnywhereInTheInspection`, `testAListedPathThatLeavesThePackThroughASymlinkIsRefused`.
 **Status:** holds — a secret written into a connector's command line or URL is still shown, as part of what the connector runs.
+
+## [2026-11-17] A project's space is a label in its own config, and an unknown one reads as unassigned
+**Kind:** decision
+**What:** A project's space is the optional `space` in its `.kiteloop/config.json` — `work` or `personal`, absent for unassigned — and `unassigned` is a value of the `?space=` filter only, never stored. A stored value this build has no name for loads as unassigned instead of refusing the file.
+**Why:** A config the decoder refuses is moved aside and the project reads defaults, which would unpark a paused project over a mistyped label; the label is not worth that. Keeping it in the project's config means a project with no space is byte-for-byte the project it was.
+**Evidence:** `ProjectSpace`, `ProjectSpaceFilter`, `ProjectConfig.init(from:)`; `KiteloopProjectConfigStoreTests.testAnUnknownSpaceReadsAsUnassignedWithoutRefusingTheFile`.
+**Status:** holds — the label isolates nothing yet; budgets, connectors and memory per space are later slices.
