@@ -2168,13 +2168,18 @@ package enum ControlAPISpec {
         )
     }
 
-    private static func usageDetail() -> Detail {
-        let rateLimit = object([
+    /// One rate-limit reading, as GET /v1/usage and GET /v1/spend both serve it.
+    private static var rateLimitReading: [String: Any] {
+        object([
             "status": described(string, "allowed while under the limit; anything else is a warning, rejected a refusal."),
             "window": described(nullable(string), "The window the status is about — five_hour, seven_day."),
             "resetsAt": described(nullable(string), "When the window resets, ISO 8601."),
             "utilization": described(nullable(number), "That window's share used, 0…1.")
         ], required: ["status"])
+    }
+
+    private static func usageDetail() -> Detail {
+        let rateLimit = rateLimitReading
         let spend = object([
             "hours": integer,
             "totalUSD": number,
@@ -2213,7 +2218,10 @@ package enum ControlAPISpec {
             (default 7, clamped to 1…90); `from` and `to` are the window, ISO 8601. `rows` \
             is one per key, costliest first; a row with nothing to group by is under \
             `unknown`. `basis` is `usd`, `token-equivalent` (spend on a subscription login, \
-            where the CLI's figure is not a bill) or `mixed`.
+            where the CLI's figure is not a bill) or `mixed`. `rateLimit` is the headroom \
+            that subscription spend is drawn from — the reading closest to its limit among \
+            every open project's agents, as GET /v1/usage serves it; null when `basis` is \
+            `usd` or no agent has reported one this launch.
             """,
             query: [
                 QueryParameter(name: "by", required: true, schema: enumOf(["agent", "project", "routine", "model", "day"]),
@@ -2227,9 +2235,11 @@ package enum ControlAPISpec {
                     "from": string,
                     "to": string,
                     "basis": enumOf(["usd", "token-equivalent", "mixed"]),
+                    "rateLimit": described(nullable(rateLimitReading),
+                                           "The reading closest to its limit; null for usd spend or when none is reported."),
                     "totalUSD": number,
                     "rows": array(of: row)
-                ], required: ["by", "from", "to", "basis", "totalUSD", "rows"])),
+                ], required: ["by", "from", "to", "basis", "rateLimit", "totalUSD", "rows"])),
                 errorStatus(400, "`by` is missing or not one of agent, project, routine, model, day.")
             ]
         )
