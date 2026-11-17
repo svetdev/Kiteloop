@@ -1567,10 +1567,20 @@ struct MainWindow: View {
                 projectRoot: session.project.rootURL,
                 // Team only, as the Autopilot's roles are: an aside does
                 // not outlive a restart, and a routine does.
-                agentNames: session.orchestrator.teamAgents.map(\.name)
+                agentNames: session.orchestrator.teamAgents.map(\.name),
+                openRoots: openProjects.map(\.rootURL),
+                agentsByRoot: openProjectTeams
             )
             .id("\(session.project.id)-routines")
         }
+    }
+
+    /// Each open project's team agents by name, keyed by its root — team
+    /// only, for the same reason as `routinesPage(session:)`'s own.
+    private var openProjectTeams: [URL: [String]] {
+        Dictionary(openProjects.map { project in
+            (project.rootURL, sessions[project.id]?.orchestrator.teamAgents.map(\.name) ?? [])
+        }, uniquingKeysWith: { first, _ in first })
     }
 
     private var portfolioPage: some View {
