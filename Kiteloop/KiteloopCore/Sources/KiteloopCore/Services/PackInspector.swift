@@ -42,6 +42,11 @@ package struct PackInspection: Equatable, Sendable {
         /// Nil when the agent takes the app's default tools.
         package let tools: [String]?
         package let mcpServers: [String]
+        /// Whether the agent asks for Operator tools: a control API credential
+        /// in its environment.
+        package let operatorTools: Bool
+        /// Which credential that is; nil when the agent does not say.
+        package let controlAccess: AgentControlAccess?
     }
 
     package struct RoutineEntry: Equatable, Sendable {
@@ -114,7 +119,18 @@ extension PackInspection.Agent {
         let allowed = tools.map { $0.isEmpty ? "no tools" : "tools \($0.joined(separator: ", "))" }
             ?? "the app's default tools"
         let servers = mcpServers.isEmpty ? "" : ", and uses connectors \(mcpServers.joined(separator: ", "))"
-        return "Agent \(handle) (\(name)) runs in \(mode) with \(allowed)\(servers)."
+        let operatorTools = credential.map { ", and holds Operator tools (\($0))" } ?? ""
+        return "Agent \(handle) (\(name)) runs in \(mode) with \(allowed)\(servers)\(operatorTools)."
+    }
+
+    /// The control API credential the agent asks for, in words; nil for an
+    /// agent that asks for none.
+    package var credential: String? {
+        guard operatorTools else { return nil }
+        switch controlAccess ?? .whenUnstated {
+        case .operatorToken: return "the control API's operator token"
+        case .readOnly: return "a read-only control API token"
+        }
     }
 }
 
@@ -169,6 +185,8 @@ package struct PackInspector {
             let permissionMode: String?
             let tools: [String]?
             let mcpServers: [String]?
+            let operatorToolsEnabled: Bool?
+            let controlAccess: AgentControlAccess?
         }
         let handle: String
         let template: Template
@@ -182,7 +200,9 @@ package struct PackInspector {
         return PackInspection.Agent(path: listed, handle: decoded.handle, name: decoded.template.name,
                                     permissionMode: decoded.template.permissionMode,
                                     tools: decoded.template.tools,
-                                    mcpServers: decoded.template.mcpServers ?? [])
+                                    mcpServers: decoded.template.mcpServers ?? [],
+                                    operatorTools: decoded.template.operatorToolsEnabled ?? false,
+                                    controlAccess: decoded.template.controlAccess)
     }
 
     private func routine(at listed: String, in folder: URL) throws -> PackInspection.RoutineEntry {
@@ -251,7 +271,7 @@ package struct PackInspector {
 
     /// The file a manifest path names, refused unless it exists and stays
     /// inside the pack folder once every symlink on the way is followed.
-    private func resolve(_ listed: String, field: String, in folder: URL) throws -> URL {
+    func resolve(_ listed: String, field: String, in folder: URL) throws -> URL {
         let escape = PackInspectionError.escapesPack(path: listed, field: field)
         guard !listed.hasPrefix("/"), !listed.split(separator: "/").contains("..") else { throw escape }
         let url = folder.appendingPathComponent(listed)
@@ -263,7 +283,7 @@ package struct PackInspector {
         return url
     }
 
-    private func decode<T: Decodable>(_ type: T.Type, file: String, at url: URL) throws -> T {
+    func decode<T: Decodable>(_ type: T.Type, file: String, at url: URL) throws -> T {
         guard let data = try? Data(contentsOf: url) else {
             throw PackInspectionError.undecodable(file: file, field: nil, reason: "cannot be read")
         }

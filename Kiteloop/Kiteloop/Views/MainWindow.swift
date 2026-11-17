@@ -463,6 +463,8 @@ struct MainWindow: View {
             }
         }
         .modifier(HeldConfigChangeSheet(controlServer: controlServer, requestID: $answeringConfigChange))
+        .modifier(PackInstallSheetPresenter(session: currentSession, routines: routineRunner,
+                                            globalConfigStore: globalConfigStore))
         .sheet(item: projectSettingsSheetPage) { page in
             if let session = currentSession {
                 ProjectSettingsView(

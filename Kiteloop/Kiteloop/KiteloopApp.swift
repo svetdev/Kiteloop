@@ -65,6 +65,28 @@ private struct InspectPackMenuButton: View {
     }
 }
 
+/// File > **Install Pack…**: choose a pack folder to install into the project
+/// in the front window. Choosing installs nothing: the window puts up what the
+/// pack would add and be allowed to do, and a person answers it there.
+private struct InstallPackMenuButton: View {
+    @FocusedValue(\.projectSession) private var session
+    var body: some View {
+        Button("Install Pack…") { choose() }
+            .disabled(session == nil)
+    }
+
+    private func choose() {
+        PermissionAuditLogger.shared.log(.filePanel, purpose: "install pack folder")
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.message = "Select a pack folder to install into this project"
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        session?.offeredPack = OfferedPack(folder: folder)
+    }
+}
+
 /// The app menu's **Check for Updates…**, right under About. Disabled while a
 /// check is already on screen, and in a copy that does not update itself.
 private struct CheckForUpdatesMenuButton: View {
@@ -343,6 +365,7 @@ struct KiteloopApp: App {
             CommandGroup(replacing: .newItem) {
                 NewChatMenuButton()
                 InspectPackMenuButton()
+                InstallPackMenuButton()
             }
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesMenuButton(updater: softwareUpdater)
