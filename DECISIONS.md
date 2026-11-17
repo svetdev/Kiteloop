@@ -311,3 +311,10 @@ Entry format:
 **Why:** Driving work needs to see what it drives, and setting a team up needs to try it, so separate scopes would have every useful token hold two or three. Keeping token management to the control token stops a scoped token minting a wider one.
 **Evidence:** `ControlScope.includes`, `ControlRoute.scope`, `KiteloopControlServer.scopeRefusal`; `ControlRouterTests.testScopesNest`.
 **Status:** holds
+
+## [2026-11-17] A pack is a folder with a `pack.json`, and inspecting it repeats no secret
+**Kind:** rule
+**What:** A pack's `pack.json` holds `name`, `version`, an optional `description` and four optional lists of paths relative to the pack folder: `agents` (directories holding an `agent.json`), `routines` (one routine per file), `connectors` (a map of server name to MCP server entry per file) and `templates`. A listed path that is absolute, climbs through `..` or leaves the folder through a symlink refuses the whole pack. Inspection reports the names of a connector's `env` and `headers` keys and never their values, and a decoding error is reported in fixed words rather than the decoder's own, which can quote the file.
+**Why:** The inspection is what a person reads before letting someone else's setup in, and it is shown on screen and will be returned over the API, so a value in it is a value leaked. Listing every part by path means a pack holds exactly what its manifest says and cannot reach a file beside it.
+**Evidence:** `PackManifest`, `PackInspector.resolve`, `PackInspectorTests.testNoSecretValueAppearsAnywhereInTheInspection`, `testAListedPathThatLeavesThePackThroughASymlinkIsRefused`.
+**Status:** holds — a secret written into a connector's command line or URL is still shown, as part of what the connector runs.
