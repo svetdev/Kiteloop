@@ -172,7 +172,7 @@ final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
                         ("POST", "/v1/memory/facts"), ("PUT", "/v1/memory/shared"),
                         ("PUT", "/v1/memory/claude"), ("PUT", "/v1/knowledge/file")]
         for (method, path) in everyday {
-            let answer = Answer()
+            let answer = HeldAnswerBox()
             let asked = send(method, path, [:], bearer: operatorToken)
             Task { answer.response = await asked.value }
             try await eventually("\(method) \(path) to be answered without a person") { answer.response != nil }
@@ -442,7 +442,7 @@ final class KiteloopControlServerConfigChangeGateTests: XCTestCase {
 
 /// Where a request's answer lands once it has one.
 @MainActor
-private final class Answer {
+private final class HeldAnswerBox {
     var response: HTTPServer.Response?
 }
 
