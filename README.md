@@ -78,7 +78,7 @@ knowledge/agents/my-agent/
 └── knowledge/      # domain docs — the ones agent.json's `knowledge` block names are inlined or linked into the agent's context
 ```
 
-Two example agents and a Project Setup agent — it interviews you, proposes a team, routines, budgets and connectors, and applies what you approve — ship in `Kiteloop/examples/agents/`. The format is documented in [knowledge/README.md](knowledge/README.md).
+Two example agents, a Project Setup agent — it interviews you, proposes a team, routines, budgets and connectors, and applies what you approve — and a Watch agent — it writes a daily brief of what the agents did, what it cost and what is waiting on you, and changes nothing — ship in `Kiteloop/examples/agents/`. The format is documented in [knowledge/README.md](knowledge/README.md).
 
 ## Repo Structure
 

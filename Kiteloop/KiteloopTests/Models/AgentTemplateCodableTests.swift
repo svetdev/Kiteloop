@@ -533,6 +533,23 @@ final class AgentTemplateCodableTests: XCTestCase {
         XCTAssertFalse(profile.contains("/v1/"))
     }
 
+    func testTheBundledWatchAgentDecodesReadOnlyWithTheGrantOnAndItsFilesPresent() throws {
+        let (package, directory) = try bundledPackage("watch")
+        let template = package.toAgentTemplate()
+
+        XCTAssertEqual(package.handle, "@watch")
+        XCTAssertTrue(template.operatorToolsEnabled)
+        XCTAssertEqual(template.tools, ["Read", "Bash", "recall_knowledge"])
+        XCTAssertTrue(Set(template.denied).isSuperset(of: ["Edit", "Write"]))
+        XCTAssertEqual(template.mcpServers, [])
+        XCTAssertEqual(package.knowledge.files, ["daily-brief.md"])
+        let files = [package.template.systemPrompt] + package.knowledge.files.map { "knowledge/\($0)" }
+        for file in files {
+            let path = directory.appending(path: file).path(percentEncoded: false)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: path), "\(file) is missing from the package")
+        }
+    }
+
     func testTheBundledExamplesGainNoOperatorTools() throws {
         for name in ["example-coder", "example-reviewer"] {
             XCTAssertFalse(try bundledPackage(name).package.toAgentTemplate().operatorToolsEnabled, name)
@@ -546,6 +563,8 @@ final class AgentTemplateCodableTests: XCTestCase {
         let plain = try package()
         let setup = try bundledPackage("project-setup").package
 
-        XCTAssertEqual(SetupWizardViewModel.preselectedAgentIDs(among: [plain, setup]), ["desk"])
+        let watch = try bundledPackage("watch").package
+
+        XCTAssertEqual(SetupWizardViewModel.preselectedAgentIDs(among: [plain, setup, watch]), ["desk"])
     }
 }
