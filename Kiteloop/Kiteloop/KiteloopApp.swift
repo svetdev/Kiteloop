@@ -302,6 +302,15 @@ struct KiteloopApp: App {
                 let configStore = globalConfigStore
                 PushRelay.shared.configure(devices: PushDeviceStore(url: PushDeviceStore.defaultURL),
                                            key: { configStore.config.pushKey })
+                // Outbound webhooks: read once; no file, no dispatcher.
+                let webhooks = OutboundWebhooks.load(from: OutboundWebhooks.defaultURL)
+                if !webhooks.isEmpty {
+                    let dispatcher = OutboundWebhookDispatcher(webhooks: webhooks, transport: { request in
+                        let (data, response) = try await URLSession.shared.data(for: request)
+                        return ((response as? HTTPURLResponse)?.statusCode ?? 0, data)
+                    })
+                    Task.detached { await dispatcher.run(feed: AppEventFeed.shared) }
+                }
                 controlServer.quickReplies = { QuickReplies.effective(configStore.config) }
                 // Grooming an item filed from the phone: the Groom button's one-shot.
                 let groomer = BacklogAIEditor(runtimeFactory: { runtime }, globalConfigStore: configStore)

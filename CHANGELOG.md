@@ -9,6 +9,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 ## 0.7.2 — unreleased
 
 ### Added
+- Kiteloop posts its events — approvals waiting, questions, finished agents, errors — to the webhook URLs listed in `~/.kiteloop/webhooks.json`, each POST signed with that webhook's secret in `X-Kiteloop-Signature`, filtered by the kinds it asks for, and retried when the receiver fails or is busy, so a chat tool or dashboard hears about them without polling `GET /v1/events`.
 - `GET /v1/spend` says how much subscription headroom is left when its figures are token-equivalents: `rateLimit` holds the rate-limit window closest to its limit, the share of it used and when it resets, so one call answers both what was spent and what it was spent against.
 - File > Inspect Pack… reads a pack folder — a `pack.json` naming agents, routines, connectors and templates — and shows what it would add and be allowed to do: each agent's permission mode and tools, each connector's command line or endpoint with the names (never the values) of the secrets it expects, and each routine's agent, schedule and precheck command. Nothing is installed or started, and a malformed pack is refused naming the file and the field.
 - Spend is kept in one ledger: every chat turn you start, every routine turn, autopilot run and Planner pass adds a row, and `GET /v1/spend?by=agent|project|routine|model|day&days=N` totals it over the last days, saying whether the figures are billed dollars or a subscription's token-equivalents.
