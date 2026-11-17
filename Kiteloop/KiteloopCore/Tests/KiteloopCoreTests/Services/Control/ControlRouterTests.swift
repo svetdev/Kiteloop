@@ -29,6 +29,7 @@ final class ControlRouterTests: XCTestCase {
             ("DELETE", "/v1/agents/chats", .manage(.deleteAgentChat)),
             ("POST", "/v1/projects/close", .manage(.closeProject)),
             ("GET", "/v1/projects/settings", .manage(.getProjectSettings)),
+            ("GET", "/v1/projects/setup", .manage(.exportProjectSetup)),
             ("PUT", "/v1/projects/settings", .manage(.setProjectSettings)),
             ("PATCH", "/v1/backlog/items", .manage(.updateBacklogItem)),
             ("DELETE", "/v1/backlog/items", .manage(.deleteBacklogItem)),
@@ -156,6 +157,7 @@ final class ControlRouterTests: XCTestCase {
             (.putRoutine(id: "r"), .configure),
             (.mintToken, .configure),
             (.manage(.getSettings), .read),
+            (.manage(.exportProjectSetup), .read),
             (.manage(.startAgent), .operate),
             (.manage(.setSettings), .configure),
             // The human gates are operate, and still refused to every scoped token.

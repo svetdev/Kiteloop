@@ -19,6 +19,7 @@ package enum ManagementRoute: Equatable, Sendable {
     case closeProject
     case getProjectSettings
     case setProjectSettings
+    case exportProjectSetup
 
     // Backlog items
     case updateBacklogItem
@@ -53,7 +54,7 @@ package enum ManagementRoute: Equatable, Sendable {
     /// stop and chats are `operate`, and every edit is `configure`.
     package var scope: ControlScope {
         switch self {
-        case .listAgentChats, .getProjectSettings, .getAgentMemory, .getSharedMemory,
+        case .listAgentChats, .getProjectSettings, .exportProjectSetup, .getAgentMemory, .getSharedMemory,
              .listClaudeMemory, .listKnowledge, .getKnowledgeFile, .listMCPServers, .getSettings:
             return .read
         case .startAgent, .stopAgent, .restartAgent, .newAgentChat, .openAgentChat:
@@ -75,7 +76,8 @@ extension ControlAPISpec {
         case .startAgent, .stopAgent, .restartAgent,
              .listAgentChats, .newAgentChat, .openAgentChat, .deleteAgentChat:
             return agentSessionDetail(for: route)
-        case .closeProject, .getProjectSettings, .setProjectSettings, .updateBacklogItem, .deleteBacklogItem:
+        case .closeProject, .getProjectSettings, .setProjectSettings, .exportProjectSetup,
+             .updateBacklogItem, .deleteBacklogItem:
             return projectSetupDetail(for: route)
         case .getAgentMemory, .addMemoryFact, .rewriteMemoryFact, .archiveMemoryFact,
              .getSharedMemory, .setSharedMemory:
@@ -242,6 +244,7 @@ extension ControlAPISpec {
         case .closeProject: return closeProjectDetail()
         case .getProjectSettings: return getProjectSettingsDetail()
         case .setProjectSettings: return setProjectSettingsDetail()
+        case .exportProjectSetup: return exportProjectSetupDetail()
         case .updateBacklogItem: return updateBacklogItemDetail()
         default: return deleteBacklogItemDetail()
         }
@@ -303,6 +306,31 @@ extension ControlAPISpec {
                 ok("The settings as they now stand.", projectSettings, required: ["permissionMode", "companions"]),
                 errorStatus(400, "A missing or mistyped field, an unknown mode, effort or space, or nothing to change."), notOpen,
                 errorStatus(500, "The project's settings file could not be written.")
+            ]
+        )
+    }
+
+    private static func exportProjectSetupDetail() -> Detail {
+        Detail(
+            id: "exportProjectSetup",
+            summary: "Export a project's whole setup as one file",
+            description: "Its team as package refs, its routines (every one disarmed), its settings, its pinned document and the names of the connectors its agents need. No secret is in it: no Bedrock, telemetry, build environment or connector configuration.",
+            query: [projectQuery(required: true)],
+            responses: [
+                ok("The setup file.", [
+                    "format": described(integer, "The file's version; 1."),
+                    "team": described(nullable(object(["agents": array(of: object([:], required: []))], required: ["agents"])),
+                                      "The team as package refs; null when there is none in that shape."),
+                    "teamShape": described(string, "\"templates\" when the team is stored as templates, which the file does not carry."),
+                    "routines": described(array(of: object([:], required: [])), "The project's routines, each with armed false."),
+                    "settings": object([
+                        "model": nullable(string), "permissionMode": string, "effort": nullable(string),
+                        "maxBudgetUSD": nullable(number), "goal": nullable(string), "companions": array(of: object([:], required: []))
+                    ], required: ["permissionMode", "companions"]),
+                    "pinnedDocument": nullable(string),
+                    "connectors": described(array(of: string), "The MCP servers the agents name, sorted, by name only.")
+                ], required: ["format", "team", "routines", "settings", "pinnedDocument", "connectors"]),
+                errorStatus(400, "Missing ?project=."), notOpen
             ]
         )
     }

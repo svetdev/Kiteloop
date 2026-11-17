@@ -429,6 +429,7 @@ package enum ControlRouter {
         Row("DELETE", "/v1/agents/chats") { _ in .manage(.deleteAgentChat) },
         Row("POST", "/v1/projects/close") { _ in .manage(.closeProject) },
         Row("GET", "/v1/projects/settings") { _ in .manage(.getProjectSettings) },
+        Row("GET", "/v1/projects/setup") { _ in .manage(.exportProjectSetup) },
         Row("PUT", "/v1/projects/settings") { _ in .manage(.setProjectSettings) },
         Row("PATCH", "/v1/backlog/items") { _ in .manage(.updateBacklogItem) },
         Row("DELETE", "/v1/backlog/items") { _ in .manage(.deleteBacklogItem) },

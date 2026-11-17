@@ -236,6 +236,73 @@ final class KiteloopControlServerManagementTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: session.project.configURL), before, "the goal beside a refused space is not written")
     }
 
+    // MARK: - The setup file
+
+    func testAProjectsSetupIsExportedAsOneFileWithItsRoutinesDisarmed() async throws {
+        let session = try registerProject()
+        var config = session.project.loadConfig()
+        config.goal = "Ship."
+        config.pinnedDocument = "docs/brief.md"
+        var bedrock = BedrockConfig.default
+        bedrock.profile = "secret-profile"
+        config.bedrock = bedrock
+        try session.project.saveConfig(config)
+        let team = PackageTeamConfig(agents: [
+            PackageAgentRef(id: "chief", ref: "shared:chief", version: nil,
+                            overrides: AgentOverrides(mcpServers: ["linear", "github"]))
+        ])
+        try JSONEncoder().encode(team).write(to: session.project.teamConfigURL)
+        let routines = RoutineRunner(store: RoutineStore(directory: tempDir.appendingPathComponent("home")))
+        harness.server.routines = routines
+        try routines.put(Routine(id: "brief", name: "Brief", project: "alpha", agent: "chief", prompt: "Write it.",
+                                 trigger: Routine.Trigger(at: "07:00"), armed: true, armedAt: Date()))
+        try routines.put(Routine(id: "other", name: "Other", project: "elsewhere", agent: "chief", prompt: "No.",
+                                 trigger: Routine.Trigger(at: "08:00")))
+
+        let (status, body) = try await harness.get("/v1/projects/setup?project=alpha")
+
+        XCTAssertEqual(status, 200)
+        XCTAssertEqual(body["format"] as? Int, 1)
+        XCTAssertEqual(body["pinnedDocument"] as? String, "docs/brief.md")
+        XCTAssertEqual(body["connectors"] as? [String], ["github", "linear"])
+        XCTAssertEqual((body["settings"] as? [String: Any])?["goal"] as? String, "Ship.")
+        let agents = try XCTUnwrap((body["team"] as? [String: Any])?["agents"] as? [[String: Any]])
+        XCTAssertEqual(agents.map { $0["ref"] as? String }, ["shared:chief"])
+        let exported = try XCTUnwrap(body["routines"] as? [[String: Any]])
+        XCTAssertEqual(exported.map { $0["id"] as? String }, ["brief"], "only this project's routines")
+        XCTAssertEqual(exported.first?["armed"] as? Bool, false)
+        XCTAssertNil(body["teamShape"])
+        XCTAssertNil(body["bedrock"])
+        let raw = String(data: try JSONSerialization.data(withJSONObject: body), encoding: .utf8) ?? ""
+        XCTAssertFalse(raw.contains("secret-profile"), raw)
+    }
+
+    func testATemplateTeamIsNamedNotExportedAndNoRunnerMeansNoRoutines() async throws {
+        let session = try registerProject()
+        let template = AgentTemplate(name: "Builder")
+        try JSONEncoder().encode([template]).write(to: session.project.teamConfigURL)
+
+        let (status, body) = try await harness.get("/v1/projects/setup?project=alpha")
+
+        XCTAssertEqual(status, 200)
+        XCTAssertTrue(body["team"] is NSNull)
+        XCTAssertEqual(body["teamShape"] as? String, "templates")
+        XCTAssertEqual((body["routines"] as? [Any])?.count, 0)
+        XCTAssertEqual(body["connectors"] as? [String], [])
+        XCTAssertTrue(body["pinnedDocument"] is NSNull)
+    }
+
+    func testASetupExportNamesAnOpenProjectAndNeedsAToken() async throws {
+        try registerProject()
+
+        let (missing, _) = try await harness.get("/v1/projects/setup")
+        let (closed, _) = try await harness.get("/v1/projects/setup?project=nowhere")
+        let (anonymous, _) = try await harness.get("/v1/projects/setup?project=alpha", bearer: nil)
+
+        XCTAssertEqual([missing, closed, anonymous], [400, 409, 401])
+        XCTAssertEqual(ControlRoute.manage(.exportProjectSetup).scope, .read)
+    }
+
     func testProjectsAreListedBySpace() async throws {
         let alpha = try registerProject()
         _ = try registerProject(named: "beta")

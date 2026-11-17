@@ -11,6 +11,7 @@ struct ProjectSetupEndpoints {
         case .closeProject: return try await closeProject(KiteloopControlServer.jsonBody(req.body))
         case .getProjectSettings: return .json(Self.settingsJSON(try server.openProject(req.query["project"]).session.project.loadConfig()))
         case .setProjectSettings: return try setProjectSettings(KiteloopControlServer.jsonBody(req.body))
+        case .exportProjectSetup: return try exportSetup(req.query["project"])
         case .updateBacklogItem: return try updateBacklogItem(KiteloopControlServer.jsonBody(req.body))
         default: return try deleteBacklogItem(req.query)
         }
@@ -60,6 +61,27 @@ struct ProjectSetupEndpoints {
         }
         try project.saveConfig(config)
         return .json(Self.settingsJSON(config))
+    }
+
+    // MARK: - The setup file
+
+    /// The project's setup as one file. The team file is read in the two
+    /// shapes `ProjectSession.loadTeamConfig` knows; one stored as templates
+    /// is not carried: `team` is null and `teamShape` says why.
+    private func exportSetup(_ name: String?) throws -> HTTPServer.Response {
+        let project = try server.openProject(name).session.project
+        let data = try? Data(contentsOf: project.teamConfigURL)
+        let team = data.flatMap { try? JSONDecoder().decode(PackageTeamConfig.self, from: $0) }
+        let templates = team == nil && !(data.flatMap { try? JSONDecoder().decode([AgentTemplate].self, from: $0) } ?? []).isEmpty
+        let routines = (server.routines?.routines ?? []).filter {
+            server.registry.entry(forProject: $0.project)?.session.project.id == project.id
+        }
+        let file = ProjectSetupFile.make(config: project.loadConfig(), team: team, routines: routines)
+        guard var body = try JSONSerialization.jsonObject(with: file.encoded()) as? [String: Any] else {
+            throw ControlRefusal("The setup file could not be encoded", status: 500)
+        }
+        if templates { body["teamShape"] = "templates" }
+        return .json(body)
     }
 
     // MARK: - Backlog items
