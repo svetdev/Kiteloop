@@ -60,7 +60,7 @@ final class OperatorToolsKnowledgeCoverageTests: XCTestCase {
 
     func testHumanGatesAppearOnlyInTheParagraphThatSaysTheyAnswer403() {
         let gates = ControlRouter.endpoints.filter(\.route.isHumanGate)
-        XCTAssertEqual(gates.count, 3)
+        XCTAssertEqual(gates.count, 10)
         let paragraphs = note.components(separatedBy: "\n\n")
         for gate in gates {
             let citation = "`\(OperatorToolsKnowledge.citation(gate))`"
@@ -69,6 +69,18 @@ final class OperatorToolsKnowledgeCoverageTests: XCTestCase {
             XCTAssertTrue(citing.allSatisfy { $0.contains("403") && $0.contains("human gate") })
         }
         XCTAssertTrue(note.contains("`POST $KITELOOP_CONTROL_URL/backlog/land`"))
+    }
+
+    /// An agent is not told it may answer a card, a memory proposal or change
+    /// a permission mode — its own included.
+    func testNoRouteThatAnswersForThePersonIsListed() {
+        let answering = ControlRouter.endpoints.filter(\.route.answersForThePerson)
+        XCTAssertEqual(answering.count, 7)
+        for endpoint in answering {
+            XCTAssertFalse(note.contains(listing(endpoint)), "\(endpoint.method) \(endpoint.path) is listed")
+            XCTAssertNotNil(OperatorToolsKnowledge.exclusionReason(for: endpoint.route))
+        }
+        XCTAssertTrue(note.contains("`/mode <name>`"))
     }
 
     func testPathsAreRelativeToABaseURLEndingInV1() {

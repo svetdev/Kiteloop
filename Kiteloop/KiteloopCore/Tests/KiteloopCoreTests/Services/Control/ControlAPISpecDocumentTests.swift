@@ -27,6 +27,20 @@ final class ControlAPISpecDocumentTests: XCTestCase {
         XCTAssertNil(health["parameters"], "a path without a capture declares no parameters")
     }
 
+    // MARK: - Human gates
+
+    /// Every human gate declares the 403 it answers a credential that is not
+    /// the person's, and a route that is no gate does not pick one up.
+    func testEveryHumanGateDeclaresIts403() throws {
+        for endpoint in ControlRouter.endpoints where endpoint.route.isHumanGate {
+            let responses = try XCTUnwrap(
+                try operation(endpoint.method.lowercased(), endpoint.templatedPath)["responses"] as? [String: Any])
+            XCTAssertNotNil(responses["403"], "\(endpoint.method) \(endpoint.path)")
+        }
+        let message = try XCTUnwrap(try operation("post", "/v1/agents/interrupt")["responses"] as? [String: Any])
+        XCTAssertNil(message["403"])
+    }
+
     // MARK: - Query parameters
 
     /// An operation lists its query parameters only when it takes some — the

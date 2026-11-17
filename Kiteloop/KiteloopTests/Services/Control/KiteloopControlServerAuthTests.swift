@@ -166,6 +166,42 @@ final class KiteloopControlServerAuthTests: XCTestCase {
         XCTAssertEqual(body["error"] as? String, "the human gate takes the operator's own token (scope: approve)")
     }
 
+    /// Answering an agent's card, a memory proposal or changing its mode is
+    /// the person's call: refused ahead of the handler, so the operator token
+    /// learns nothing about the project or the card it named.
+    func testOperatorTokenIsRejectedOnEveryRouteThatAnswersForThePerson() async throws {
+        let paths = ["/v1/agents/permission", "/v1/agents/plan", "/v1/agents/answer", "/v1/agents/choices",
+                     "/v1/agents/mode", "/v1/memory/proposals/approve", "/v1/memory/proposals/reject"]
+        for path in paths {
+            let (status, body) = try await request(method: "POST", path: path,
+                                                   authorization: "Bearer \(operatorToken)", body: Data(#"{}"#.utf8))
+            XCTAssertEqual(status, 403, path)
+            XCTAssertEqual(body["error"] as? String,
+                           "the human gate takes the operator's own token (scope: approve)", path)
+            let (full, _) = try await request(method: "POST", path: path,
+                                              authorization: "Bearer \(token)", body: Data(#"{}"#.utf8))
+            XCTAssertNotEqual(full, 403, path)
+        }
+    }
+
+    /// `/mode <name>` sent as a message would change the mode as the chat
+    /// does, so it is the mode route's gate; any other message goes through.
+    func testOperatorTokenCannotChangeAModeByMessage() async throws {
+        let mode = Data(#"{"project":"demo","agent":"Builder","message":"/mode bypassPermissions"}"#.utf8)
+        let (status, body) = try await request(method: "POST", path: "/v1/agents/message",
+                                               authorization: "Bearer \(operatorToken)", body: mode)
+        XCTAssertEqual(status, 403)
+        XCTAssertEqual(body["error"] as? String, "the human gate takes the operator's own token (scope: approve)")
+
+        let (full, _) = try await request(method: "POST", path: "/v1/agents/message",
+                                          authorization: "Bearer \(token)", body: mode)
+        XCTAssertNotEqual(full, 403)
+        let plain = Data(#"{"project":"demo","agent":"Builder","message":"status?"}"#.utf8)
+        let (other, _) = try await request(method: "POST", path: "/v1/agents/message",
+                                           authorization: "Bearer \(operatorToken)", body: plain)
+        XCTAssertNotEqual(other, 403)
+    }
+
     /// The full token is unaffected by the operator scope check — it still
     /// reaches the handler (404, no such run) rather than 403.
     func testFullTokenIsNotSubjectToTheOperatorScopeCheck() async throws {

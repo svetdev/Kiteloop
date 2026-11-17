@@ -48,11 +48,38 @@ authorize:
 | Token | File | Authorized for |
 |---|---|---|
 | **Control token** | `~/.kiteloop/control-token` | The whole API. This is the operator's own credential. |
-| **Operator token** | `~/.kiteloop/operator-token` | The whole API **except** the endpoints that resolve a human gate: [`POST /v1/backlog/approve`](#post-v1backlogapprove), [`POST /v1/runs/{runId}/approve`](#post-v1runsrunidapprove) and [`POST /v1/backlog/land`](#post-v1backlogland), the merge half of an approval taken later. All three answer **403** for this token. |
+| **Operator token** | `~/.kiteloop/operator-token` | The whole API **except** the endpoints that resolve a [human gate](#human-gates), which answer **403** for this token. |
 | **Phone token** | `~/.kiteloop/control-devices.json` (its SHA-256 only) | The whole API, as the control token. Minted for that one phone when it claims the one-time code **Pair a phone** shows ([`POST /v1/pair`](#post-v1pair)); revoked alone under **Settings → Control API → Paired phones**, leaving the other phones and the control token working. |
-| **Scoped token** | `~/.kiteloop/control-scoped-tokens.json` (its SHA-256 only) | The routes inside its scope: `read`, `operate` or `configure`. Scopes nest — `configure` includes `operate`, which includes `read`. A route outside the scope answers **403** naming the scope the token lacks, e.g. `this token's scope is read; POST /v1/runs needs operate`. No scoped token resolves a human gate, calls `/v1/tokens` or mints or revokes a [routine's webhook](#post-v1hooks): all answer **403**. Minted and revoked with the control token over [`/v1/tokens`](#post-v1tokens). |
+| **Scoped token** | `~/.kiteloop/control-scoped-tokens.json` (its SHA-256 only) | The routes inside its scope: `read`, `operate` or `configure`. Scopes nest — `configure` includes `operate`, which includes `read`. A route outside the scope answers **403** naming the scope the token lacks, e.g. `this token's scope is read; POST /v1/runs needs operate`. No scoped token resolves a [human gate](#human-gates), calls `/v1/tokens` or mints or revokes a [routine's webhook](#post-v1hooks): all answer **403**. Minted and revoked with the control token over [`/v1/tokens`](#post-v1tokens). |
 
-Both are minted the same way, at first use, `0600`: `cat ~/.kiteloop/control-token`
+#### Human gates
+
+A human gate is an answer only the person gives. These take the control token
+or a paired phone's token; the operator token and every scoped token, whatever
+its scope, get **403** before the handler runs:
+
+- Approving work: [`POST /v1/backlog/approve`](#post-v1backlogapprove),
+  [`POST /v1/runs/{runId}/approve`](#post-v1runsrunidapprove) and
+  [`POST /v1/backlog/land`](#post-v1backlogland), the merge half of an approval
+  taken later.
+- Answering what an agent is waiting on a person for:
+  [`POST /v1/agents/permission`](#post-v1agentspermission) (a tool call, or one
+  an always-ask rule stopped), [`POST /v1/agents/plan`](#post-v1agentsplan),
+  [`POST /v1/agents/answer`](#post-v1agentsanswer),
+  [`POST /v1/agents/choices`](#post-v1agentschoices),
+  [`POST /v1/memory/proposals/approve`](#post-v1memoryproposalsapprove) and
+  [`POST /v1/memory/proposals/reject`](#post-v1memoryproposalsreject). Refusing
+  is an answer too, so `deny`, `keepPlanning` and `reject` are gated with the
+  approvals.
+- Changing an agent's permission mode, which decides whether it asks at all:
+  [`POST /v1/agents/mode`](#post-v1agentsmode), and
+  [`POST /v1/agents/message`](#post-v1agentsmessage) when the message is
+  `/mode <name>`, which the chat would run as that change.
+
+Nothing in the app has one agent answer another's card, so an agent holding the
+operator token cannot clear a card — its own included — by calling the API.
+
+Both shared tokens are minted the same way, at first use, `0600`: `cat ~/.kiteloop/control-token`
 / `cat ~/.kiteloop/operator-token`. The Settings pane shows the control token's
 path when the server is enabled, next to the **Regenerate...** button that
 replaces it; the operator token has no Settings UI and is not rotatable from the
@@ -86,8 +113,10 @@ Details that matter when scripting:
 - Auth is checked **before** routing, so an unknown `/v1/...` path returns 401 (not
   404) when unauthenticated — the route table isn't discoverable without a token.
 - 401 body: `{"error": "Missing or invalid bearer token"}`.
-- 403 body for the operator token on an approve endpoint:
-  `{"error": "the human gate takes the operator's own token (scope: approve)"}`.
+- 403 body for the operator token on a [human gate](#human-gates):
+  `{"error": "the human gate takes the operator's own token (scope: approve)"}`;
+  for a scoped token:
+  `{"error": "the human gate takes the operator's own token; no scoped token resolves it"}`.
 - **Rotation is a Settings action, not an endpoint** — a credential is not rotated
   over the channel it authenticates. **Settings → General → Local Control API →
   Regenerate...** (available while the server is enabled) confirms first, then
@@ -2685,7 +2714,8 @@ The same button the Memory tab offers a person, pressed remotely; before this,
 that button was `MemoryManager.approve`'s only caller, so a proposal filed during
 an unattended run could never be answered and the index could never accumulate a
 fact. This is an operator answering from somewhere else, not a loop that approves
-its own memory.
+its own memory: it is a [human gate](#human-gates), so it takes the control token
+or a paired phone's.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -2722,7 +2752,7 @@ and approve again; this is the same sentence the Memory tab shows on the card.
 }
 ```
 
-**Status:** 200 · 400 (body missing `project` or `id`) · 401 · 404 (no pending
+**Status:** 200 · 400 (body missing `project` or `id`) · 401 · 403 (the [operator token](#authentication) or a scoped token: a [human gate](#human-gates)) · 404 (no pending
 proposal with that id) · 409 (project not open) · 422 (the index refused the
 write; nothing changed).
 
@@ -2744,7 +2774,7 @@ Rejecting the same id twice is a 404. The status is written to the proposal's ow
 JSON before it is reported, so a write that did not land answers 422 with the
 reason rather than a 200 the next launch would contradict.
 
-**Status:** 200 · 400 (body missing `project` or `id`) · 401 · 404 (no pending
+**Status:** 200 · 400 (body missing `project` or `id`) · 401 · 403 (the [operator token](#authentication) or a scoped token: a [human gate](#human-gates)) · 404 (no pending
 proposal with that id) · 409 (project not open) · 422 (the status could not be
 written; the proposal is still pending).
 
@@ -3273,8 +3303,14 @@ An agent mid-turn still answers `queued: true` at once under `wait`.
 The whole body is capped at 2 MB, so a photo goes as a JPEG scaled to the
 1568-pixel long edge a model looks at — the phone does this before sending.
 
+A message is run as typed, so `/mode <name>` would move the agent to that
+permission mode. That is a [human gate](#human-gates): from the operator token
+or a scoped token such a message answers **403** and is not delivered. Bare
+`/mode`, which only reports the mode, goes through.
+
 **Status:** 200 · 400 (missing `project`/`agent`, or neither a message nor an
-image) · 404 (no such agent) · 409 (project not open) · 413 (an image over
+image) · 403 (a `/mode <name>` message from the operator token or a scoped
+token) · 404 (no such agent) · 409 (project not open) · 413 (an image over
 5 MB, or a body over 2 MB) · 415 (an attachment that is not an image)
 
 ### GET /v1/agents/transcript
@@ -3407,7 +3443,7 @@ curl -s -H "$H" -d '{"project":"kiteloop","agent":"Planner","message":"<plan id>
 | `answer` | string | `approveAuto`, `approveAcceptEdits` or `keepPlanning`. Required |
 | `feedback` | string | With `keepPlanning`: what should change |
 
-**Status:** 200 · 400 (missing field, unknown answer) · 404 (no such agent) ·
+**Status:** 200 · 400 (missing field, unknown answer) · 403 (the [operator token](#authentication) or a scoped token: a [human gate](#human-gates)) · 404 (no such agent) ·
 409 (project not open, or no open plan with that id)
 
 ### POST /v1/agents/answer
@@ -3420,7 +3456,7 @@ the transcript; the reply shows on the events stream.
 curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","request":"<request id>","answer":"Keep the old rounding"}' $B/agents/answer
 ```
 
-**Status:** 200 · 400 (missing field, blank answer) · 404 (no such agent) ·
+**Status:** 200 · 400 (missing field, blank answer) · 403 (the [operator token](#authentication) or a scoped token: a [human gate](#human-gates)) · 404 (no such agent) ·
 409 (project not open, or the agent is not waiting on that question)
 
 ### POST /v1/agents/permission
@@ -3460,7 +3496,7 @@ Auto included, and the CLI offers nothing to remember with the answer. In a
 session nobody attends — an autopilot run — the same rule refuses the call.
 
 **Status:** 200 · 400 (missing field, unknown answer, an `input` that is not
-text by field or came with a `deny`) · 404 (no such agent) · 409 (project not
+text by field or came with a `deny`) · 403 (the [operator token](#authentication) or a scoped token: a [human gate](#human-gates)) · 404 (no such agent) · 409 (project not
 open, or no such card is open — answered already, taken back, it offers
 nothing at that position, or `input` names something that is not one of its
 text fields)
@@ -3475,7 +3511,7 @@ the question is `multiSelect`, or words of your own.
 curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","request":"<request id>","answers":["Coffee"]}' $B/agents/choices
 ```
 
-**Status:** 200 · 400 (missing field) · 404 (no such agent) · 409 (project not
+**Status:** 200 · 400 (missing field) · 403 (the [operator token](#authentication) or a scoped token: a [human gate](#human-gates)) · 404 (no such agent) · 409 (project not
 open, or no such card is open, or the answers do not number its questions or
 one is blank)
 
@@ -3498,7 +3534,7 @@ curl -s -H "$H" -d '{"project":"kiteloop","agent":"Builder","mode":"acceptEdits"
 {"agent": "…", "mode": "acceptEdits"}
 ```
 
-**Status:** 200 · 400 (missing field, unknown mode) · 404 (no such agent) ·
+**Status:** 200 · 400 (missing field, unknown mode) · 403 (the [operator token](#authentication) or a scoped token: a [human gate](#human-gates)) · 404 (no such agent) ·
 409 (project not open)
 
 ### GET /v1/agents/tasks
