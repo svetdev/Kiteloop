@@ -44,6 +44,15 @@ class ChatViewModel {
     private(set) var agentCatalogStore: AgentCatalogStore?
     private(set) var knowledgeIndex: KnowledgeIndex?
     private(set) var globalConfigStore: GlobalConfigStore?
+    /// Where a chat turn's cost is written as one row. Nil writes nothing — a
+    /// test, or a chat built outside a project session.
+    var spendLedger: SpendLedger?
+    /// The project root a chat row is filed under, when the agent's folder is
+    /// not the root itself; nil files it under `projectURL`.
+    var spendProject: String?
+    /// The routine whose turn is running, set by the routine while it waits on
+    /// the turn. Its cost is the routine's row, so the turn writes no chat row.
+    var routineTurnInFlight: String?
 
     /// The window's web preview pane while this agent is the selected one — set
     /// by the host on every selection change (see `WebPreviewViewModel.retarget`),
@@ -2236,6 +2245,7 @@ class ChatViewModel {
     private func recordResult(_ payload: StreamEvent.ResultPayload, currentText: String) async {
         let costDeltaUSD = Self.costDelta(for: payload, lastSeenBySession: &lastSeenCostBySession)
         await recordTurnSpan(payload: payload, costDeltaUSD: costDeltaUSD)
+        await recordChatSpend(costDeltaUSD)
         costUSD += costDeltaUSD
         if let window = payload.contextWindow(for: resolvedModel) {
             reportedContextWindowSize = window
@@ -2497,6 +2507,18 @@ class ChatViewModel {
         let delta = max(0, payload.costUSD - baseline)
         lastSeenBySession[key] = payload.costUSD
         return delta
+    }
+
+    /// One spend-ledger row for a turn a person started. A turn a run owns is
+    /// charged by the run, and a routine's by the routine, so neither is
+    /// written here — that would count it twice.
+    private func recordChatSpend(_ costDeltaUSD: Double) async {
+        guard let spendLedger, costDeltaUSD > 0, routineTurnInFlight == nil,
+              await orchestrator.activeWorkflowExecution(for: agentID) == nil else { return }
+        let auth = globalConfigStore.map { ClaudeAuthConfig.resolve(from: $0.config) } ?? ClaudeAuthConfig.loadCurrent()
+        spendLedger.append(SpendRow(at: Date(), source: .chat, project: spendProject ?? projectURL.path(percentEncoded: false),
+                                    agent: agentID, model: resolvedModel, costUSD: costDeltaUSD,
+                                    basis: SpendRow.Basis(auth: auth.method)))
     }
 
     private func recordTurnSpan(payload: StreamEvent.ResultPayload, costDeltaUSD: Double) async {

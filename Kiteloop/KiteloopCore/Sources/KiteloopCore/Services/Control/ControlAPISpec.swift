@@ -196,7 +196,7 @@ package enum ControlAPISpec {
              .listMetrics, .listEstimates, .listGrooming, .portfolioReport:
             return backlogDetail(for: route)
         case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot,
-             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
+             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .appEvents:
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
@@ -1933,7 +1933,7 @@ package enum ControlAPISpec {
         case .getAutopilot, .setAutopilot, .resetAutopilot,
              .pauseAutopilot, .resumeAutopilot:
             return autopilotDetail(for: route)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .appEvents:
             return fleetDetail(for: route)
         default:
             preconditionFailure("\(route) is not a queue route")
@@ -2080,6 +2080,7 @@ package enum ControlAPISpec {
         case .quiesceFleet: return quiesceFleetDetail()
         case .resumeFleet: return resumeFleetDetail()
         case .usage: return usageDetail()
+        case .spend: return spendDetail()
         case .appEvents: return appEventsDetail()
         default:
             preconditionFailure("\(route) is not a fleet route")
@@ -2141,6 +2142,40 @@ package enum ControlAPISpec {
                     "agentsReporting": integer,
                     "spend": described(nullable(spend), "The last day's spend per project.")
                 ], required: ["rateLimit", "agentsReporting", "spend"]))
+            ]
+        )
+    }
+
+    private static func spendDetail() -> Detail {
+        let row = object(["key": string, "costUSD": number, "count": integer],
+                         required: ["key", "costUSD", "count"])
+        return Detail(
+            id: "spend",
+            summary: "What was spent over the last days, grouped by agent, project, routine, model or day",
+            description: """
+            Read off the spend ledger, where every chat turn, routine turn, autopilot run \
+            and Planner pass adds one row. `days` counts back from today's local midnight \
+            (default 7, clamped to 1…90); `from` and `to` are the window, ISO 8601. `rows` \
+            is one per key, costliest first; a row with nothing to group by is under \
+            `unknown`. `basis` is `usd`, `token-equivalent` (spend on a subscription login, \
+            where the CLI's figure is not a bill) or `mixed`.
+            """,
+            query: [
+                QueryParameter(name: "by", required: true, schema: enumOf(["agent", "project", "routine", "model", "day"]),
+                               description: "How the rows are grouped."),
+                QueryParameter(name: "days", required: false, schema: integer,
+                               description: "Days back from today's local midnight; default 7, clamped to 1…90.")
+            ],
+            responses: [
+                Status(code: 200, description: "The breakdown.", schema: object([
+                    "by": string,
+                    "from": string,
+                    "to": string,
+                    "basis": enumOf(["usd", "token-equivalent", "mixed"]),
+                    "totalUSD": number,
+                    "rows": array(of: row)
+                ], required: ["by", "from", "to", "basis", "totalUSD", "rows"])),
+                errorStatus(400, "`by` is missing or not one of agent, project, routine, model, day.")
             ]
         )
     }

@@ -187,6 +187,43 @@ final class ChatViewModelCostDeltaTests: XCTestCase {
 
     // MARK: - Fixtures
 
+    // MARK: - The spend ledger
+
+    /// A person's turns each write one chat row of their own delta, with the
+    /// agent and the model — not the session's running total.
+    func testAHumanTurnWritesOneChatRowOfItsOwnDelta() async throws {
+        let (vm, mock) = try await makeVM()
+        let ledger = SpendLedger(url: tempDir.appendingPathComponent("spend-ledger.jsonl"))
+        vm.spendLedger = ledger
+
+        for total in [1.5, 1.75] {
+            mock.events = [.assistantText("turn"), .result(Self.resultPayload(costUSD: total, sessionID: "s1"))]
+            vm.inputText = "go"
+            await vm.send()
+        }
+
+        let rows = ledger.rows()
+        XCTAssertEqual(rows.map(\.source), [.chat, .chat])
+        XCTAssertEqual(rows.map(\.agent), ["test-agent", "test-agent"])
+        XCTAssertEqual(rows.map(\.model), ["sonnet", "sonnet"])
+        XCTAssertEqual(rows.map(\.costUSD), [1.5, 0.25])
+        XCTAssertNil(rows.first?.routine)
+    }
+
+    /// A turn a routine is waiting on is the routine's to charge: no chat row.
+    func testARoutinesTurnWritesNoChatRow() async throws {
+        let (vm, mock) = try await makeVM()
+        let ledger = SpendLedger(url: tempDir.appendingPathComponent("spend-ledger.jsonl"))
+        vm.spendLedger = ledger
+        vm.routineTurnInFlight = "brief"
+
+        mock.events = [.assistantText("turn"), .result(Self.resultPayload(costUSD: 0.4, sessionID: "s1"))]
+        vm.inputText = "go"
+        await vm.send()
+
+        XCTAssertEqual(ledger.rows(), [])
+    }
+
     private func makeVM() async throws -> (ChatViewModel, MockAgentRuntime) {
         let mock = MockAgentRuntime()
         let orchestrator = Orchestrator(runtime: mock)

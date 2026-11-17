@@ -334,6 +334,13 @@ final class DailySpendLedger {
     private let clock: () -> Date
     private let reporter: StoreProblemReporter
 
+    /// Where an attributed charge is written as one row — beside
+    /// `daily-spend.json` unless a caller names another file.
+    let spendLedger: SpendLedger
+    /// What kind of figure a charge is under the login in force when it is
+    /// written. A seam for tests; production reads the settings fresh.
+    @ObservationIgnored var spendBasis: () -> SpendRow.Basis = { SpendRow.Basis(auth: ClaudeAuthConfig.loadCurrent().method) }
+
     static var defaultURL: URL {
         let dir = KiteloopHome.url.appending(path: ".kiteloop")
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -346,9 +353,12 @@ final class DailySpendLedger {
         storageURL: URL? = nil,
         calendar: Calendar = .current,
         clock: @escaping () -> Date = { Date() },
-        reporter: StoreProblemReporter = .shared
+        reporter: StoreProblemReporter = .shared,
+        spendLedger: SpendLedger? = nil
     ) {
         self.storageURL = storageURL ?? Self.defaultURL
+        self.spendLedger = spendLedger ?? SpendLedger(
+            url: self.storageURL.deletingLastPathComponent().appending(path: "spend-ledger.jsonl"))
         self.calendar = calendar
         self.clock = clock
         self.reporter = reporter
@@ -410,12 +420,17 @@ final class DailySpendLedger {
     /// nobody could attribute — it still counts against the portfolio, because
     /// the alternative is a ceiling that stops bounding the moment attribution
     /// fails.
+    ///
+    /// `attribution` names what spent it; given, the charge is also written to
+    /// the spend ledger as one row of exactly the amount charged. Nil writes no
+    /// row — the caller's spend is recorded there some other way, or not at all.
     @discardableResult
     func charge(
         costUSD: Double?,
         estimateUSD: Double? = nil,
         evidence: RunWorkEvidence.Verdict? = nil,
-        project: String? = nil
+        project: String? = nil,
+        attribution: SpendAttribution? = nil
     ) -> Charge {
         let charge = Self.resolveCharge(costUSD: costUSD, estimateUSD: estimateUSD, evidence: evidence)
         let key = Self.dayKey(clock(), calendar: calendar)
@@ -426,10 +441,19 @@ final class DailySpendLedger {
         }
         if charge.wasUnknown { today.unknownRuns += 1 }
         save()
+        if let attribution { record(charge, project: project, attribution: attribution) }
         dailyBudgetLog.info(
             "charge basis=\(charge.basis.rawValue, privacy: .public) amountUSD=\(String(format: "%.4f", charge.amountUSD), privacy: .public) day=\(self.today.day, privacy: .public) spentUSD=\(String(format: "%.4f", self.today.spentUSD), privacy: .public) project=\(Self.projectKey(project) ?? "-", privacy: .public)"
         )
         return charge
+    }
+
+    private func record(_ charge: Charge, project: String?, attribution: SpendAttribution) {
+        let now = clock()
+        spendLedger.append(SpendRow(
+            at: now, day: Self.dayKey(now, calendar: calendar), source: attribution.source,
+            project: Self.projectKey(project), agent: attribution.agent, routine: attribution.routine,
+            model: attribution.model, costUSD: charge.amountUSD, basis: spendBasis()))
     }
 
     /// The charge a cost + estimate pair resolves to, read against what the run

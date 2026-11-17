@@ -576,7 +576,7 @@ final class CoordinatorQueueRefill {
         // Grooming draws from the same pool running does — the portfolio's
         // daily ledger — so "what bounds tonight" has one answer. The local
         // figure above remains what the GET reports as grooming's own draw.
-        _ = spendLedger?.charge(costUSD: spent)
+        _ = spendLedger?.charge(costUSD: spent, attribution: SpendAttribution(source: .planner))
     }
 
     /// Set the day's ceilings. Nil leaves that ceiling alone.

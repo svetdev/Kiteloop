@@ -92,6 +92,9 @@ final class KiteloopControlServer {
     var defaults: UserDefaults = .standard
     /// The app's updater, for the update-check switch in `/v1/settings`.
     weak var updater: SoftwareUpdater?
+    /// The spend ledger `GET /v1/spend` reads. Set by the app; a server
+    /// without one answers 503.
+    var spendLedger: SpendLedger?
     /// The fleet-wide hold — "stop taking new work everywhere, and tell me when the
     /// last run has finished". Owned here because the gate it keeps is read on the
     /// path that starts runs, and the autonomous scheduler reaches it through
@@ -601,7 +604,7 @@ final class KiteloopControlServer {
              .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine,
              .fireHook, .mintHook, .revokeHook:
             return loopsRoute(route, req)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .appEvents:
             return await fleetRoute(route, req)
         case .startRun, .listRuns, .runStatus, .runResult, .runEvents, .runLog,
              .approveRun, .cancelRun, .steerRun, .manage:
@@ -853,6 +856,7 @@ final class KiteloopControlServer {
         case .quiesceFleet: return await quiesceFleet(body: req.body)
         case .resumeFleet: return await resumeFleet()
         case .usage: return usage()
+        case .spend: return await spend(req.query)
         case .appEvents: return appEvents(req)
         default: return Self.notThisArea(route)
         }
