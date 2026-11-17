@@ -345,6 +345,7 @@ through the local control API.
 |--------|---------|--------|------|
 | [x] | Definition-of-Ready (groomed What/How/Validation, a `verify:` command, size ≤ M, `needs:<id>` done) | `Services/DefinitionOfReady.swift` | `Services/DefinitionOfReadyTests.swift` |
 | [x] | Grounding check (refuses a draft whose backticked paths/symbols, or `verify:` command, name nothing in the repo) | `Services/GroundingCheck.swift` | `Services/GroundingCheckTests.swift`, `Services/GroundingCheckHardeningTests.swift` |
+| [x] | Grooming correction (a grooming the grounding check refuses goes back to the groomer with the refusal to reword, for a bounded number of rounds; one still refused is not written) | `Services/GroomingCorrection.swift`, `Services/BacklogGroomer.swift` | `Services/GroomingCorrectionTests.swift`, `Services/Backlog/BacklogGroomerTests.swift` |
 | [x] | Retry ceiling (bounds no-work attempts on an item across runs, not per run) | `Services/RetryCeiling.swift` | `Services/Autopilot/RetryCeilingTests.swift` |
 
 ### Done Gates

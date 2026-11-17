@@ -318,3 +318,10 @@ Entry format:
 **Why:** The inspection is what a person reads before letting someone else's setup in, and it is shown on screen and will be returned over the API, so a value in it is a value leaked. Listing every part by path means a pack holds exactly what its manifest says and cannot reach a file beside it.
 **Evidence:** `PackManifest`, `PackInspector.resolve`, `PackInspectorTests.testNoSecretValueAppearsAnywhereInTheInspection`, `testAListedPathThatLeavesThePackThroughASymlinkIsRefused`.
 **Status:** holds — a secret written into a connector's command line or URL is still shown, as part of what the connector runs.
+
+## [2026-11-17] A grooming the grounding check refuses is corrected by the groomer, and never written
+**Kind:** decision
+**What:** A grooming pass judges its proposal with `GroundingCheck` and hands a refusal back to the model to reword, for as many rounds as a failing pull-request check gets fix rounds (`GroomingCorrection.maxRounds` is `PullRequestChecks.maxFixRounds`). A proposal still refused is not written — by Apply or by the unattended pass. The rule and the pickup check are unchanged.
+**Why:** The verdict was computed at grooming and acted on only at pickup, when the model that wrote the citation was gone and the only one left to fix it was a person finding a parked draft. The bound is borrowed because the case is the same one — a machine check refused the work and its author gets the refusal — and a second number would have to be argued for separately.
+**Evidence:** `BacklogGroomer.propose`, `BacklogViewModel.writeGrooming`, `GroomingCorrectionTests.testTheRewordingThePromptAsksForClearsTheCheck`.
+**Status:** holds

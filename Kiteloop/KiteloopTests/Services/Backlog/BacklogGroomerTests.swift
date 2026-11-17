@@ -40,6 +40,42 @@ final class BacklogGroomerTests: XCTestCase {
                                resolvesExecutable: { _ in false })
     }
 
+    /// A repo where no cited path or symbol exists, so a citation stands or
+    /// falls on how it is worded; the `verify:` executable resolves.
+    private var nothingExists: GroundingCheck.Sources {
+        GroundingCheck.Sources(pathExists: { _ in false }, definesSymbol: { _ in false },
+                               resolvesExecutable: { _ in true })
+    }
+
+    /// Cites a file that is not there as though it were.
+    private let ungroundedReply = """
+        {"items": [{"id": "a", "title": "t", "size": "s", "verify": "/bin/echo ok",
+          "what": "Update `Services/NotAFile.swift` to do the thing.", "how": "Edit it.",
+          "validation": ["It does the thing"]}]}
+        """
+
+    /// The same grooming with the file introduced as one the item creates.
+    private let correctedReply = """
+        {"items": [{"id": "a", "title": "t", "size": "s", "verify": "/bin/echo ok",
+          "what": "Add `Services/NotAFile.swift` to do the thing.", "how": "Write it.",
+          "validation": ["It does the thing"]}]}
+        """
+
+    /// A scripted `runOneShot`: answers its replies in order, the last one
+    /// for every call past them, and records each prompt it was sent.
+    @MainActor
+    private final class Script {
+        private let replies: [String]
+        private(set) var prompts: [String] = []
+
+        init(_ replies: [String]) { self.replies = replies }
+
+        func reply(_ prompt: String) async throws -> String {
+            prompts.append(prompt)
+            return replies[min(prompts.count, replies.count) - 1]
+        }
+    }
+
     // MARK: - The id and title are the item's, never the model's
 
     /// A proposal for `cache-index` must never be mistaken for one about
@@ -149,20 +185,95 @@ final class BacklogGroomerTests: XCTestCase {
                       proposal.readiness.summary)
     }
 
+    /// A model that never rewords the citation still gets a proposal back to
+    /// preview — the last one, with the verdict that refuses it.
     @MainActor
     func testAnUngroundedProposalFailsTheGroundingCheckButStillPreviews() async throws {
-        let ungroundedReply = """
-            {"items": [{"id": "a", "title": "t", "size": "s", "verify": "/bin/echo ok",
-              "what": "Update `Services/NotAFile.swift` to do the thing.", "how": "Edit it.",
-              "validation": ["It does the thing"]}]}
-            """
+        let script = Script([ungroundedReply])
+
         let proposal = try await BacklogGroomer.propose(
-            item: item(), detail: nil, backlog: backlog(), sources: ungroundedSources,
-            runOneShot: { _ in ungroundedReply })
+            item: item(), detail: nil, backlog: backlog(), sources: nothingExists,
+            runOneShot: script.reply)
 
         XCTAssertFalse(proposal.grounding.isGrounded)
         XCTAssertTrue(proposal.grounding.summary.contains("NotAFile.swift"),
                       proposal.grounding.summary)
+        XCTAssertEqual(script.prompts.count, 1 + BacklogGroomer.maxGroundingCorrections)
+    }
+
+    // MARK: - A refused citation goes back to the groomer to reword
+
+    /// The grounding check's refusal reaches the model that wrote the
+    /// citation, in the check's own words, and the pass ends at the first
+    /// proposal the check accepts.
+    @MainActor
+    func testAnUngroundedProposalIsHandedBackWithTheVerdictAndTheCorrectionIsReturned() async throws {
+        let script = Script([ungroundedReply, correctedReply])
+
+        let proposal = try await BacklogGroomer.propose(
+            item: item(), detail: nil, backlog: backlog(), sources: nothingExists,
+            runOneShot: script.reply)
+
+        XCTAssertTrue(proposal.grounding.isGrounded, proposal.grounding.summary)
+        XCTAssertTrue(proposal.draft.what.hasPrefix("Add `Services/NotAFile.swift`"), proposal.draft.what)
+        XCTAssertEqual(proposal.draft.id, "cache-index", "a correction is forced onto the item like the first reply")
+        XCTAssertEqual(proposal.draft.title, "Cache the index")
+        XCTAssertEqual(script.prompts.count, 2)
+        let refused = try await BacklogGroomer.propose(
+            item: item(), detail: nil, backlog: backlog(), sources: nothingExists,
+            runOneShot: Script([ungroundedReply, "   "]).reply)
+        XCTAssertFalse(refused.grounding.summary.isEmpty)
+        XCTAssertTrue(script.prompts[1].contains(refused.grounding.summary), script.prompts[1])
+        XCTAssertTrue(script.prompts[1].hasPrefix(script.prompts[0]), "the original request is asked again")
+        XCTAssertTrue(script.prompts[1].contains("Update `Services/NotAFile.swift` to do the thing."),
+                      "the refused proposal is quoted back")
+    }
+
+    /// The rounds are bounded: a model that never fixes the citation is asked
+    /// once, then `maxGroundingCorrections` more times, and no more.
+    @MainActor
+    func testCorrectionRoundsStopAtTheBoundAndTheLastVerdictIsReturned() async throws {
+        let script = Script([ungroundedReply,
+                             ungroundedReply.replacingOccurrences(of: "NotAFile", with: "StillNotAFile")])
+
+        let proposal = try await BacklogGroomer.propose(
+            item: item(), detail: nil, backlog: backlog(), sources: nothingExists,
+            runOneShot: script.reply)
+
+        XCTAssertEqual(script.prompts.count, 1 + BacklogGroomer.maxGroundingCorrections)
+        XCTAssertFalse(proposal.grounding.isGrounded)
+        XCTAssertTrue(proposal.grounding.summary.contains("StillNotAFile.swift"),
+                      "the verdict is the last proposal's: \(proposal.grounding.summary)")
+    }
+
+    @MainActor
+    func testAGroundedFirstReplyMakesOneModelCall() async throws {
+        let script = Script([goodReply])
+
+        let proposal = try await BacklogGroomer.propose(
+            item: item(), detail: nil, backlog: backlog(), sources: groundedSources,
+            runOneShot: script.reply)
+
+        XCTAssertTrue(proposal.grounding.isGrounded, proposal.grounding.summary)
+        XCTAssertEqual(script.prompts.count, 1)
+    }
+
+    /// A correction that comes back empty or with nothing usable ends the
+    /// rounds and keeps the proposal there was — it is not an error to show
+    /// instead of the preview.
+    @MainActor
+    func testACorrectionReplyWithNoUsableDraftKeepsTheLastProposal() async throws {
+        for unusable in ["   ", "{\"items\": []}"] {
+            let script = Script([ungroundedReply, unusable])
+
+            let proposal = try await BacklogGroomer.propose(
+                item: item(), detail: nil, backlog: backlog(), sources: nothingExists,
+                runOneShot: script.reply)
+
+            XCTAssertEqual(script.prompts.count, 2, "no further round after \(unusable.debugDescription)")
+            XCTAssertFalse(proposal.grounding.isGrounded)
+            XCTAssertTrue(proposal.draft.what.hasPrefix("Update `Services/NotAFile.swift`"), proposal.draft.what)
+        }
     }
 
     // MARK: - The prompt carries an existing detail's Out of Scope and Premise

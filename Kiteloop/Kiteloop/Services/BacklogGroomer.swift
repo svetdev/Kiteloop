@@ -41,10 +41,24 @@ enum BacklogGroomer {
         }
     }
 
-    /// Runs one agent pass over `item` and checks what it proposes against the
+    /// How many times a proposal the grounding check refuses is handed back
+    /// to the model to reword — `GroomingCorrection.maxRounds`, the bound a
+    /// failing check already gets when it goes back to a worker.
+    static let maxGroundingCorrections = GroomingCorrection.maxRounds
+
+    /// Runs an agent pass over `item` and checks what it proposes against the
     /// repo. Throws rather than returning a proposal there is no reason to
     /// preview: an empty reply or a reply with nothing `QueueRefill.Draft.parse`
     /// can use is not something to show for approval.
+    ///
+    /// A proposal the grounding check refuses goes back to the model with the
+    /// check's own summary, up to `maxGroundingCorrections` times, and the
+    /// pass ends at the first grounded one. Pickup refuses the same citations
+    /// and parks the item for a person; here the model that wrote them is
+    /// still at hand to reword them. A correction reply that is empty or holds
+    /// no usable draft ends the rounds and keeps the last proposal, with its
+    /// own verdicts — `BacklogViewModel.writeGrooming` refuses to write one
+    /// that is still ungrounded.
     ///
     /// - Parameter sources: what the repo actually contains, built once by the
     ///   caller (`GroundingCheck.Sources.repository(root:vault:)`) rather than
@@ -64,32 +78,70 @@ enum BacklogGroomer {
         sources: GroundingCheck.Sources,
         runOneShot: (String) async throws -> String
     ) async throws -> Proposal {
-        let response = try await runOneShot(buildPrompt(item: item, detail: detail, backlog: backlog))
+        let prompt = buildPrompt(item: item, detail: detail, backlog: backlog)
+        let response = try await runOneShot(prompt)
         guard !response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GroomError.emptyResponse
         }
-        guard var draft = QueueRefill.Draft.parse(response).first else {
+        guard let draft = QueueRefill.Draft.parse(response).first else {
             throw GroomError.noDraft
         }
-        // The id and title are `item`'s, not whatever the model echoed back —
-        // overriding is simpler than reconciling a mismatch, and it is what
-        // keeps a proposal from ever landing on the wrong item: there is
-        // nothing for a caller to compare against and get wrong.
-        draft.id = item.id
-        draft.title = item.title
-        // And the repositories it spans: the model is not asked for them, and
-        // a rewrite that dropped the line would make the item single-repository.
-        draft.repos = detail?.repos
+        let subject = Subject(item: item, repos: detail?.repos,
+                              dependencies: DefinitionOfReady.Dependencies(file: backlog), sources: sources)
+        var proposal = subject.proposal(from: draft)
+        var rounds = 0
+        while GroomingCorrection.isOwed(after: proposal.grounding, roundsUsed: rounds) {
+            rounds += 1
+            let reply = try await runOneShot(correctionPrompt(original: prompt, refused: proposal.draft,
+                                                              summary: proposal.grounding.summary))
+            guard let corrected = QueueRefill.Draft.parse(reply).first else { break }
+            proposal = subject.proposal(from: corrected)
+        }
+        return proposal
+    }
 
-        var groomedItem = item
-        groomedItem.verify = draft.verify
-        groomedItem.size = ItemSize(rawValue: draft.size.uppercased())
+    /// The item a pass is about and what its proposals are judged against —
+    /// the same for the first proposal and every correction of it.
+    private struct Subject {
+        let item: BacklogItem
+        let repos: [String]?
+        let dependencies: DefinitionOfReady.Dependencies
+        let sources: GroundingCheck.Sources
 
-        let dependencies = DefinitionOfReady.Dependencies(file: backlog)
-        let readiness = DefinitionOfReady.evaluate(item: groomedItem, detail: draft.detail,
-                                                   dependencies: dependencies)
-        let grounding = GroundingCheck.evaluate(item: groomedItem, detail: draft.detail, sources: sources)
-        return Proposal(itemID: item.id, draft: draft, readiness: readiness, grounding: grounding)
+        /// One parsed reply as a proposal about `item`, with both gates' verdicts.
+        func proposal(from parsed: QueueRefill.Draft) -> Proposal {
+            var draft = parsed
+            // The id and title are `item`'s, not whatever the model echoed back —
+            // overriding is simpler than reconciling a mismatch, and it is what
+            // keeps a proposal from ever landing on the wrong item: there is
+            // nothing for a caller to compare against and get wrong.
+            draft.id = item.id
+            draft.title = item.title
+            // And the repositories it spans: the model is not asked for them, and
+            // a rewrite that dropped the line would make the item single-repository.
+            draft.repos = repos
+
+            var groomedItem = item
+            groomedItem.verify = draft.verify
+            groomedItem.size = ItemSize(rawValue: draft.size.uppercased())
+
+            let readiness = DefinitionOfReady.evaluate(item: groomedItem, detail: draft.detail,
+                                                       dependencies: dependencies)
+            let grounding = GroundingCheck.evaluate(item: groomedItem, detail: draft.detail, sources: sources)
+            return Proposal(itemID: item.id, draft: draft, readiness: readiness, grounding: grounding)
+        }
+    }
+
+    /// The prompt for one correction round: `original`, the proposal the
+    /// grounding check refused, and the check's `summary` of why, verbatim.
+    static func correctionPrompt(original: String, refused: QueueRefill.Draft, summary: String) -> String {
+        var proposal = "verify: \(refused.verify)\nSize: \(refused.size.uppercased())\n"
+            + "\nWhat:\n\(refused.what)\n\nHow:\n\(refused.how)\n"
+            + "\nValidation:\n" + refused.validation.map { "- \($0)" }.joined(separator: "\n")
+        if !refused.outOfScope.isEmpty {
+            proposal += "\n\nOut of Scope:\n" + refused.outOfScope.map { "- \($0)" }.joined(separator: "\n")
+        }
+        return GroomingCorrection.prompt(original: original, refused: proposal, summary: summary)
     }
 
     /// The one-shot's system prompt, appended after whatever persona and repo
