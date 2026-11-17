@@ -2571,6 +2571,12 @@ package enum ControlAPISpec {
             id: "startRun",
             summary: "Start a backlog item",
             description: """
+            Starts `item`, or — given `items` instead — runs that list one item after \
+            another in the order posted, as one run: each item goes through the same \
+            pickup gates, review and approval gate, an item that is refused or ends \
+            blocked does not stop the ones behind it, nothing outside the list is \
+            picked up, and the run ends at the end of the list or at the budget. \
+            Autonomy is neither needed nor changed. \
             One run at a time per project. A request arriving while the previous run is \
             still tearing down waits up to 30s for it rather than 409ing immediately. \
             Answers 202 with the workflow execution id — the runId every other run \
@@ -2587,12 +2593,15 @@ package enum ControlAPISpec {
             requestBody: object([
                 "project": described(string, "Project identifier."),
                 "item": described(string, "Backlog item id."),
-                "itemId": described(string, "Accepted as an alias for \"item\".")
-            ], required: ["project"], anyOfRequired: [["item"], ["itemId"]]),
+                "itemId": described(string, "Accepted as an alias for \"item\"."),
+                "items": described(array(of: string), "Backlog item ids to run one after another, in this "
+                                                    + "order — instead of \"item\", never beside it. At "
+                                                    + "least one id, none repeated.")
+            ], required: ["project"], anyOfRequired: [["item"], ["itemId"], ["items"]]),
             responses: [
                 Status(code: 202, description: "The run has started: its workflow execution exists and runId names it.", schema: ref("RunStarted")),
-                errorStatus(400, "Body is missing \"project\" or \"item\"."),
-                errorStatus(404, "No such backlog item in this project."),
+                errorStatus(400, "Body is missing \"project\", or names no item; or gives both \"item\" and \"items\"; or \"items\" is empty, repeats an id or is not an array of ids."),
+                errorStatus(404, "No such backlog item in this project — for a list, the first id it does not hold. Nothing is started."),
                 errorStatus(409, "A condition of the moment, not a verdict on the item: project not open, autopilot still busy, worker/reviewer not configured, agents without a session, a spent daily ceiling, or a queue that was accepted and ended before any workflow execution was created. Come back."),
                 errorStatus(422, "The pickup gates refused this item — not ready (Definition-of-Ready), not grounded, retired by the retry ceiling, or in a status autopilot doesn't run. True until the item is re-groomed, so a driver may drop it.")
             ]
@@ -3200,9 +3209,16 @@ package enum ControlAPISpec {
                                                  + "of the watchdog actually firing.")
             ], required: ["currentStep", "stepsDone", "attempt", "lastOutputAgeSeconds", "warnAtSeconds"])),
                 "Null while running/reviewing has not logged its first phase yet, and always null "
-              + "for `held` and `idle`.")
+              + "for `held` and `idle`."),
+            "order": described(array(of: string), "The ids of the run's queue in the order it runs — "
+                                                + "for a list handed to POST /v1/runs, that list less "
+                                                + "what the pickup gates turned away. The last run's "
+                                                + "queue until the next start replaces it."),
+            "orderIndex": described(nullable(boundedInteger(min: 0)), "Where the item in flight sits in "
+                                                                    + "`order`, from 0; null when nothing "
+                                                                    + "is in flight.")
         ], required: ["state", "running", "item", "itemTitle", "runId", "startedAt",
-                      "status", "heldItems", "detail", "phaseRail"],
+                      "status", "heldItems", "detail", "phaseRail", "order", "orderIndex"],
         description: "What a project's autopilot is running, derived from the same check the "
                    + "run guard makes so the two always agree."),
 
@@ -3585,9 +3601,12 @@ package enum ControlAPISpec {
 
         "RunStarted": object([
             "runId": described(string, "The workflow execution id — the runId every other run endpoint takes."),
-            "item": string,
+            "item": described(string, "The item this execution is running. For a list, the first in "
+                                    + "the order that the pickup gates let through."),
             "title": string,
-            "status": described(enumOf(["running"]), "Always \"running\": a 202 is sent only once the execution exists.")
+            "status": described(enumOf(["running"]), "Always \"running\": a 202 is sent only once the execution exists."),
+            "items": described(array(of: string), "Only for a request that posted `items`: the list, in "
+                                                + "the order it was posted.")
         ], required: ["runId", "item", "title", "status"]),
 
         "RunSummary": object(withRunCost([

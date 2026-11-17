@@ -478,7 +478,9 @@ curl -s -H "$H" $B/projects
           "attempt": 2,
           "lastOutputAgeSeconds": 40.2,
           "warnAtSeconds": 600
-        }
+        },
+        "order": ["stale-cache-key", "flaky-verify-command", "docs-control-api"],
+        "orderIndex": 1
       },
       "queue": {
         "ready": 7,
@@ -1515,7 +1517,9 @@ curl -s -H "$H" "$B/autopilot?project=kiteloop"
     "status": "idle",
     "heldItems": 0,
     "detail": null,
-    "phaseRail": null
+    "phaseRail": null,
+    "order": [],
+    "orderIndex": null
   }
 }
 ```
@@ -1795,6 +1799,8 @@ The same block appears on every entry of [`GET /v1/projects`](#get-v1projects).
 | `heldItems` | integer | Items still queued from the current one on, it included. For `held`, exactly what a resume picks up |
 | `detail` | string \| null | Why, for `starting`, `held` and `inconsistent`; `null` otherwise |
 | `phaseRail` | object \| null | Where the run is inside the pipeline — see [The phase rail](#the-phase-rail) |
+| `order` | string[] | The ids of the run's queue in the order it runs. For a list handed to [`POST /v1/runs`](#a-list-of-items), that list less what the pickup gates turned away. It stays the last run's queue until the next start replaces it |
+| `orderIndex` | integer \| null | Where the item in flight sits in `order`, counting from 0; `null` when nothing is in flight |
 
 The five states:
 
@@ -4527,13 +4533,15 @@ keyboard.
 
 ### POST /v1/runs
 
-Starts one backlog item through the autopilot workflow and returns its `runId`.
+Starts one backlog item through the autopilot workflow and returns its `runId` —
+or, given a list, runs those items one after another in the order posted.
 One run at a time per project.
 
 | Field | Type | Notes |
 |---|---|---|
 | `project` | string | **Required** |
-| `item` | string | **Required** (`itemId` also accepted) |
+| `item` | string | The item to run (`itemId` also accepted). **Required** unless `items` is given |
+| `items` | string[] | Items to run one after another, in this order — see [A list of items](#a-list-of-items). Instead of `item`, never beside it |
 
 ```bash
 RUN=$(curl -s -H "$H" \
@@ -4615,8 +4623,54 @@ Behaviour worth knowing:
   the run is *allowed* to spend. That line reported as a cause, with a 422 behind it,
   is what silently dropped live runs from a headless queue.
 
-**Status:** 202 (started — `runId` names the execution) · 400 (malformed body) · 401 ·
-404 (no such item in this project) · 409 (project not open; autopilot still busy;
+#### A list of items
+
+`items` hands the autopilot several chosen items as **one run**, so nothing
+outside the app has to start one, wait for it and start the next:
+
+```bash
+curl -s -H "$H" \
+  -d '{"project":"kiteloop","items":["second-thing","first-thing","third-thing"]}' \
+  $B/runs
+```
+
+```json
+{ "runId": "F0A2…", "item": "second-thing", "title": "The second thing",
+  "status": "running", "items": ["second-thing", "first-thing", "third-thing"] }
+```
+
+- The items run **in the order posted**, one at a time. That order wins over the
+  lane and over the order the backlog file is written in, which is what a start
+  from the Autopilot tab follows.
+- It is a start you asked for, exactly as a single `item` is: the project's
+  `autonomy` is neither consulted nor changed, and **nothing outside the list is
+  picked up** when the list ends.
+- Each item still passes the same pickup gates (its status, the
+  Definition-of-Ready, the retry ceiling, the grounding check), the same review
+  and the same approval gate. An item a pickup gate refuses is skipped and
+  recorded as it would be on any start, and an item that ends `blocked` does not
+  stop the ones behind it. The request answers **422** only when the gates refuse
+  *every* item in the list.
+- The run stops at the **end of the list or at the budget**, whichever comes
+  first: once the project's budget (`budgetUSD`) is spent the queue pauses before
+  its next item, as it does on any run, and [`POST /v1/autopilot/resume`](#post-v1autopilotresume) picks the
+  rest up in the same order.
+- The 202 carries the first execution: `runId`, with `item` and `title` naming
+  the item it is running — the first id, unless a pickup gate turned that one
+  away — and `items` echoing the list as posted. Each later item gets an
+  execution of its own as the run reaches it, listed by
+  [`GET /v1/runs`](#get-v1runs). How far the list has got is
+  [`run.order` and `run.orderIndex`](#run-state).
+- The list is checked whole before anything starts. Posting `item` and `items`
+  together, an empty `items`, an id given twice or anything that is not an array
+  of ids answers **400**; an id the backlog does not hold answers **404** naming
+  the first such id. None of these starts a run.
+- Any token that may start a single item may hand over a list — the route and
+  its scope (`operate`) are the same.
+
+**Status:** 202 (started — `runId` names the execution) · 400 (malformed body; `item`
+and `items` both given; `items` empty, repeating an id or not an array of ids) · 401 ·
+404 (no such item in this project — for a list, the first id it does not hold) · 409 (project not open; autopilot still busy;
 worker/reviewer not configured; start refused by a condition of the moment; queue
 accepted but no workflow execution created) · 422
 (the pickup gates refused this item).
