@@ -155,6 +155,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/fleet/resume` | Lift the hold and pick the held queues back up |
 | GET | `/v1/usage` | How close the agents are to their rate limit, and the last day's spend per project |
 | GET | `/v1/spend` | What was spent over the last days, grouped by agent, project, routine, model or day |
+| GET | `/v1/spend/forecast` | What each routine's next run and each project's month will probably cost, from the spend ledger |
 | GET | `/v1/attention` | Everything waiting on you across every open project, oldest first, each row naming the call that answers it |
 | GET | `/v1/events` | Every open project's inbox notices as one live, resumable SSE stream |
 | GET | `/v1/memory/proposals?project=` | List a project's pending memory proposals |
@@ -2334,6 +2335,59 @@ curl -s -H "$H" "$B/spend?by=project&days=1"
 | `rows` | One per key, costliest first: `key`, `costUSD` and `count` (how many ledger rows it sums). A row with nothing to group by — no routine, no model — is under `unknown` |
 
 **Status:** 200; 400 when `by` is missing or not one of the five; 503 on a build that keeps no ledger.
+
+---
+
+### GET /v1/spend/forecast
+
+What the **spend ledger** says is coming: what the next run of each routine will
+probably cost, and what each project will have spent by the end of this calendar
+month. Every figure is read off rows the ledger already holds — the same rows
+[`GET /v1/spend`](#get-v1spend) totals — with no price list behind it, and a
+routine with too little history says so instead of guessing. Read-only: nothing
+is refused or delayed because of a forecast, and no budget is compared to it.
+
+| Query | Default | Notes |
+|---|---|---|
+| `project` | — | A project's root path. Narrows `projects` to that one; `routines` is unaffected |
+
+```bash
+curl -s -H "$H" "$B/spend/forecast"
+```
+
+```json
+{
+  "month": "2026-11",
+  "asOf": "2026-11-10T19:42:10Z",
+  "projects": [
+    { "project": "/Users/me/code/kiteloop", "monthToDateUSD": 20, "daysElapsed": 10,
+      "daysInMonth": 30, "projectedMonthEndUSD": 60, "basis": "token-equivalent" }
+  ],
+  "routines": [
+    { "routine": "morning-brief", "runs": 5, "expectedUSD": 3, "lowUSD": 1, "highUSD": 10, "basis": "token-equivalent" },
+    { "routine": "weekly-digest", "runs": 2, "expectedUSD": null, "lowUSD": null, "highUSD": null, "basis": "usd" }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `month`, `asOf` | The month projected, `yyyy-MM` in local time, and when the forecast was made (ISO 8601) |
+| `projects` | One per project charged since the start of this calendar month, highest projection first; spend nobody could attribute is under `unknown`. A project with no spend this month is absent |
+| `projects[].monthToDateUSD` | Every ledger row of the project from the first of the month through now, summed |
+| `projects[].daysElapsed`, `daysInMonth` | The days of the month begun so far — today counts, so never under 1 — and how many the month has |
+| `projects[].projectedMonthEndUSD` | A **straight line**: `monthToDateUSD ÷ daysElapsed × daysInMonth`. Early in a month one costly day moves it a long way |
+| `routines` | One per routine the ledger has ever charged, costliest expected run first, those with no forecast last |
+| `routines[].runs` | How many past runs the figures are read off: the routine's latest, at most 20 |
+| `routines[].expectedUSD` | The **median** cost of those runs — the middle one, or the mean of the middle two |
+| `routines[].lowUSD`, `highUSD` | The cheapest and the costliest of those runs (min–max) |
+| `basis` | On each project and routine, what kind of figure its dollars are: `usd`, `token-equivalent` or `mixed`, as on [`GET /v1/spend`](#get-v1spend) |
+
+A routine with **fewer than 3** charged runs has too little history to forecast:
+`expectedUSD`, `lowUSD` and `highUSD` are `null` and `runs` says how many there
+are. A run that cost nothing writes no ledger row, so it is not counted.
+
+**Status:** 200; 503 on a build that keeps no ledger.
 
 ---
 

@@ -202,7 +202,7 @@ package enum ControlAPISpec {
              .listMetrics, .listEstimates, .listGrooming, .portfolioReport:
             return backlogDetail(for: route)
         case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot,
-             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .attention, .appEvents:
+             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents:
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
@@ -1952,7 +1952,7 @@ package enum ControlAPISpec {
         case .getAutopilot, .setAutopilot, .resetAutopilot,
              .pauseAutopilot, .resumeAutopilot:
             return autopilotDetail(for: route)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .attention, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents:
             return fleetDetail(for: route)
         default:
             preconditionFailure("\(route) is not a queue route")
@@ -2108,6 +2108,7 @@ package enum ControlAPISpec {
         switch route {
         case .usage: return usageDetail()
         case .spend: return spendDetail()
+        case .spendForecast: return spendForecastDetail()
         case .attention: return attentionDetail()
         case .appEvents: return appEventsDetail()
         default:
@@ -2254,6 +2255,52 @@ package enum ControlAPISpec {
                     "rows": array(of: row)
                 ], required: ["by", "from", "to", "basis", "rateLimit", "totalUSD", "rows"])),
                 errorStatus(400, "`by` is missing or not one of agent, project, routine, model, day.")
+            ]
+        )
+    }
+
+    private static func spendForecastDetail() -> Detail {
+        let basis = enumOf(["usd", "token-equivalent", "mixed"])
+        let project = object([
+            "project": described(string, "The project's root path; unknown for spend nobody could attribute."),
+            "monthToDateUSD": number,
+            "daysElapsed": described(integer, "Days of the month begun so far; today counts."),
+            "daysInMonth": integer,
+            "projectedMonthEndUSD": described(number, "monthToDateUSD ÷ daysElapsed × daysInMonth."),
+            "basis": basis
+        ], required: ["project", "monthToDateUSD", "daysElapsed", "daysInMonth", "projectedMonthEndUSD", "basis"])
+        let routine = object([
+            "routine": described(string, "The routine's id."),
+            "runs": described(integer, "How many past runs the figures are read off, at most 20."),
+            "expectedUSD": described(nullable(number), "The median of those runs; null under 3 runs."),
+            "lowUSD": described(nullable(number), "The cheapest of those runs; null under 3 runs."),
+            "highUSD": described(nullable(number), "The costliest of those runs; null under 3 runs."),
+            "basis": basis
+        ], required: ["routine", "runs", "expectedUSD", "lowUSD", "highUSD", "basis"])
+        return Detail(
+            id: "spendForecast",
+            summary: "What each routine's next run and each project's month will probably cost",
+            description: """
+            Read off the spend ledger alone — no price list, no model. `routines` is one \
+            per routine that has been charged: `expectedUSD` is the median cost of its \
+            latest runs (at most 20), `lowUSD` and `highUSD` their cheapest and costliest. \
+            A routine with fewer than 3 charged runs has too little history to forecast: \
+            the three figures are null and `runs` says how many there are. `projects` is \
+            one per project charged this calendar month: the month to date, divided by \
+            the days begun, times the days in the month — a straight line, compared to \
+            no budget. `basis` is as on GET /v1/spend. Both lists are costliest first.
+            """,
+            query: [
+                QueryParameter(name: "project", required: false, schema: string,
+                               description: "A project's root path; narrows `projects` to that one.")
+            ],
+            responses: [
+                Status(code: 200, description: "The forecast.", schema: object([
+                    "month": described(string, "The month projected, yyyy-MM, local time."),
+                    "asOf": described(string, "When the forecast was made, ISO 8601."),
+                    "projects": array(of: project),
+                    "routines": array(of: routine)
+                ], required: ["month", "asOf", "projects", "routines"]))
             ]
         )
     }

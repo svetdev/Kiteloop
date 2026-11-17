@@ -604,7 +604,7 @@ final class KiteloopControlServer {
              .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine,
              .fireHook, .mintHook, .revokeHook:
             return loopsRoute(route, req)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .attention, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents:
             return await fleetRoute(route, req)
         case .startRun, .listRuns, .runStatus, .runResult, .runEvents, .runLog,
              .approveRun, .cancelRun, .steerRun, .manage:
@@ -856,12 +856,19 @@ final class KiteloopControlServer {
         case .quiesceFleet: return await quiesceFleet(body: req.body)
         case .resumeFleet: return await resumeFleet()
         case .usage: return usage()
-        case .spend:
-            return await SpendEndpoints(ledger: spendLedger, readings: rateLimitReadings()).answer(req.query)
+        case .spend, .spendForecast: return await spendRoute(route, req)
         case .attention: return await attention()
         case .appEvents: return appEvents(req)
         default: return Self.notThisArea(route)
         }
+    }
+
+    /// The spend ledger: what was spent, and what that history says is coming.
+    private func spendRoute(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
+        if route == .spendForecast {
+            return await SpendEndpoints(ledger: spendLedger).forecast(req.query)
+        }
+        return await SpendEndpoints(ledger: spendLedger, readings: rateLimitReadings()).answer(req.query)
     }
 
     /// `GET /v1/events`: every open project's inbox notices as one stream. A
