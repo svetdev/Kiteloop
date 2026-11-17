@@ -60,6 +60,13 @@ final class ControlSessionRegistry {
     var adoptRun: (@MainActor (_ projectID: String, _ itemID: String, _ title: String,
                                _ executionID: String, _ startedAt: Date) -> Void)?
 
+    /// Set by `KiteloopControlServer`, and called when a sitting of runs in a
+    /// project ends — by the scheduler when it holds after starting runs
+    /// there, and by `MainWindow` when an autopilot run over several items
+    /// closes. The server reads the sitting back off its run records and files
+    /// the summary.
+    var sittingEnded: (@MainActor (_ projectID: String, _ from: Date, _ to: Date) async -> Void)?
+
     /// Called once a project is registered — a routine that was waiting on
     /// this project to open can run now.
     var projectOpened: (@MainActor () -> Void)?

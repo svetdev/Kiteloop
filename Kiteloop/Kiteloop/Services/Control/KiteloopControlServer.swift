@@ -144,6 +144,10 @@ final class KiteloopControlServer {
     /// Optional because only the app attaches one — a test server keeps its runs
     /// in memory alone rather than writing into the developer's real history.
     private let runRecords: RunRecordStore?
+    /// Each project's last sitting summary, by project id — what
+    /// `GET /v1/autopilot/sitting-summary` answers with. In memory only: the
+    /// run records it was read from are the durable half.
+    private var sittingSummaries: [String: SittingSummary] = [:]
     /// What `/health` reads beyond liveness — main-thread latency, resident
     /// memory, subprocess count. Defaulted to the live monitor's own reading;
     /// injected in tests so both the `ok` and `degraded` verdicts can be
@@ -333,6 +337,9 @@ final class KiteloopControlServer {
         registry.adoptRun = { [weak self] projectID, itemID, title, executionID, startedAt in
             self?.adoptRun(projectID: projectID, itemID: itemID, title: title,
                            executionID: executionID, startedAt: startedAt)
+        }
+        registry.sittingEnded = { [weak self] projectID, from, to in
+            await self?.reportSitting(projectID: projectID, from: from, to: to)
         }
     }
 
@@ -596,7 +603,7 @@ final class KiteloopControlServer {
              .groomBacklogItem, .moveBacklogItem, .setBacklogItemLane, .stampTemplate, .fileBacklogItem,
              .listMetrics, .listEstimates, .listGrooming, .portfolioReport:
             return await backlogRoute(route, req)
-        case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot:
+        case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot, .sittingSummary:
             return await autopilotRoute(route, req)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
@@ -831,6 +838,7 @@ final class KiteloopControlServer {
         case .resetAutopilot: return resetAutopilot(body: req.body)
         case .pauseAutopilot: return pauseAutopilot(body: req.body)
         case .resumeAutopilot: return resumeAutopilot(body: req.body)
+        case .sittingSummary: return sittingSummary(project: req.query["project"])
         default: return Self.notThisArea(route)
         }
     }
@@ -2088,6 +2096,37 @@ final class KiteloopControlServer {
             "causes": causes,
             "text": row.text
         ]
+    }
+
+    /// A sitting of runs in a project has ended: read it back off the run
+    /// records, keep the summary for `GET /v1/autopilot/sitting-summary` and
+    /// file it in the project's inbox. A sitting that landed nothing and
+    /// stalled nothing files nothing and leaves the previous summary standing.
+    ///
+    /// The finalization pass comes first because a run started from the app
+    /// or over `POST /v1/runs` is closed by that pass, not by its caller, and
+    /// an open record has no outcome to report.
+    func reportSitting(projectID: String, from: Date, to: Date) async {
+        await finalizeEndedRuns()
+        guard let runRecords, let entry = registry.entries[projectID] else { return }
+        let summary = SittingSummary.build(records: runRecords.records, projectID: projectID, from: from, to: to)
+        guard let notice = summary.notice else { return }
+        sittingSummaries[projectID] = summary
+        entry.session.orchestrator.notify(
+            agentID: "", type: notice.type, title: notice.title, body: notice.body,
+            projectPath: entry.session.project.rootURL.path(percentEncoded: false))
+    }
+
+    /// `GET /v1/autopilot/sitting-summary`: the project's last sitting summary.
+    private func sittingSummary(project: String?) -> HTTPServer.Response {
+        guard let project else { return .error("Missing ?project=", status: 400) }
+        guard let entry = registry.entry(forProject: project) else {
+            return .error("Project not open in Kiteloop: \(project)", status: 409)
+        }
+        guard let summary = sittingSummaries[entry.session.project.id] else {
+            return .error("No sitting has ended in \(project) since Kiteloop launched", status: 404)
+        }
+        return .json(summary.payload)
     }
 
     private func getAutopilot(project: String?) async -> HTTPServer.Response {

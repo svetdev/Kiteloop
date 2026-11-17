@@ -201,7 +201,7 @@ package enum ControlAPISpec {
              .listTemplates, .stampTemplate, .fileBacklogItem,
              .listMetrics, .listEstimates, .listGrooming, .portfolioReport:
             return backlogDetail(for: route)
-        case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot,
+        case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot, .sittingSummary,
              .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents:
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
@@ -1957,7 +1957,7 @@ package enum ControlAPISpec {
     private static func queueDetail(for route: ControlRoute) -> Detail {
         switch route {
         case .getAutopilot, .setAutopilot, .resetAutopilot,
-             .pauseAutopilot, .resumeAutopilot:
+             .pauseAutopilot, .resumeAutopilot, .sittingSummary:
             return autopilotDetail(for: route)
         case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .spendForecast, .attention, .appEvents:
             return fleetDetail(for: route)
@@ -1974,9 +1974,55 @@ package enum ControlAPISpec {
         case .resetAutopilot: return resetAutopilotDetail()
         case .pauseAutopilot: return pauseAutopilotDetail()
         case .resumeAutopilot: return resumeAutopilotDetail()
+        case .sittingSummary: return sittingSummaryDetail()
         default:
             preconditionFailure("\(route) is not an autopilot route")
         }
+    }
+
+    private static func sittingSummaryDetail() -> Detail {
+        let landed = object([
+            "itemId": string, "title": string,
+            "mergeCommit": described(nullable(string), "The commit the run's own merge made, when it made one.")
+        ], required: ["itemId", "title"])
+        let stalled = object([
+            "itemId": string, "title": string,
+            "reason": described(string, "The recorded reason, cut to one line."),
+            "action": described(string, "What clears it.")
+        ], required: ["itemId", "title", "reason", "action"])
+        return Detail(
+            id: "getSittingSummary",
+            summary: "What a project's last sitting landed, what stalled and what it spent",
+            description: """
+            A sitting is the unbroken stretch of starts the scheduler made in a project \
+            until it next held, or one autopilot run over more than one item. When one \
+            ends with anything to report, its summary is filed in the project's inbox \
+            and kept here until the next: the items that landed, the ones that blocked, \
+            were refused at pickup or wait at the approval gate — each with its recorded \
+            reason on one line and what clears it — and the sum of the run costs. Read \
+            off the run records GET /v1/runs lists; held in memory, so a restart \
+            forgets it.
+            """,
+            query: [projectQuery(required: true)],
+            responses: [
+                Status(code: 200, description: "The last sitting's summary.", schema: object([
+                    "project": described(string, "The project's path."),
+                    "from": described(string, "When the sitting began, ISO 8601."),
+                    "to": described(string, "When it ended, ISO 8601."),
+                    "summary": described(string, "The counts and the spend, in a sentence."),
+                    "landed": array(of: landed),
+                    "blocked": array(of: stalled),
+                    "refusedAtPickup": array(of: stalled),
+                    "atGate": array(of: stalled),
+                    "totalSpendUSD": number,
+                    "text": described(string, "The whole summary as the inbox notice words it.")
+                ], required: ["project", "from", "to", "summary", "landed", "blocked",
+                              "refusedAtPickup", "atGate", "totalSpendUSD", "text"])),
+                errorStatus(400, "Missing ?project=."),
+                errorStatus(404, "No sitting has ended in this project since Kiteloop launched."),
+                errorStatus(409, "Project not open in Kiteloop.")
+            ]
+        )
     }
 
     private static func getAutopilotDetail() -> Detail {

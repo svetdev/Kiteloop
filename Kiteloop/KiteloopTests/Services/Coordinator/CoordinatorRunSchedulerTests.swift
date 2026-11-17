@@ -21,6 +21,8 @@ final class CoordinatorRunSchedulerTests: XCTestCase {
     private var controlServer: KiteloopControlServer!
     private var recordsURL: URL!
     private var startsURL: URL!
+    /// The sittings the scheduler reported as ended, by project id.
+    private var endedSittings: [String] = []
 
     override func setUp() async throws {
         tempDir = try makeTemporaryDirectory(prefix: "run-scheduler")
@@ -588,6 +590,46 @@ final class CoordinatorRunSchedulerTests: XCTestCase {
                        "the refused tick reports the other tick's decision, not its own")
         XCTAssertFalse(refused.first?.taken ?? true,
                        "a decision of .start on a refused tick must not read as having looked")
+    }
+
+    // MARK: - Sittings
+
+    /// The look that holds after a run is where the sitting ends: the project
+    /// the run was in is reported once, with the window from its first start,
+    /// and a later hold with nothing started since reports nothing.
+    func testAHoldAfterAStartEndsTheSittingOnce() async throws {
+        let project = try registerProject(named: "alpha", backlog: "- [ ] alpha-1 | Ship the thing | ready")
+        var windows: [(from: Date, to: Date)] = []
+        registry.sittingEnded = { [weak self] projectID, from, to in
+            self?.endedSittings.append(projectID)
+            windows.append((from, to))
+        }
+        armForStarting()
+
+        let started = await scheduler.tick()
+        let held = await scheduler.tick()
+        XCTAssertNotNil(started.decision.target)
+        XCTAssertNotNil(held.decision.hold)
+        try await eventually("the sitting to be reported") { @MainActor in !self.endedSittings.isEmpty }
+        _ = await scheduler.tick()
+        for _ in 0..<10 { await Task.yield() }
+
+        XCTAssertEqual(endedSittings, [project])
+        let startedAt = try XCTUnwrap(scheduler.startHistory.first?.at)
+        XCTAssertEqual(windows.first?.from, startedAt, "the sitting begins with its first start")
+        XCTAssertGreaterThanOrEqual(try XCTUnwrap(windows.first?.to), startedAt)
+    }
+
+    /// A hold with nothing started before it is not the end of anything.
+    func testAHoldWithNothingStartedReportsNoSitting() async {
+        registry.sittingEnded = { [weak self] projectID, _, _ in self?.endedSittings.append(projectID) }
+        armForStarting()
+
+        _ = await scheduler.tick()
+        for _ in 0..<10 { await Task.yield() }
+
+        XCTAssertNotNil(scheduler.lastDecision?.hold)
+        XCTAssertEqual(endedSittings, [])
     }
 
     // MARK: - Holds

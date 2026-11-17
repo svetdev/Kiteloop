@@ -359,3 +359,10 @@ Entry format:
 **Why:** A fixed wait is a guess at how long deciding takes, and each time it was short the caller was told "don't know" and left to find out some other way whether a run existed. The pickup gates and the base check routinely decide later than any window worth holding.
 **Evidence:** `AttemptDecisions`, `BacklogAutopilot.awaitStartDecision(afterAttempt:)`, `settleStartDecision(since:)`; `AttemptDecisionsTests`, `KiteloopControlServerStartRunTests`.
 **Status:** holds — a second `start()` refused as `run-in-flight` while the first is still spinning up decides nothing; the first one's outcome answers both callers.
+
+## [2026-11-17] A sitting ends on an event, and one item is not a sitting
+**Kind:** decision
+**What:** A sitting of runs in a project is the scheduler's unbroken stretch of starts there, ended by its next look that holds with none of its runs in flight, or one autopilot run over more than one item, ended by its record closing. A run of a single item is not a sitting. The summary of one is read off `PersistedRunRecord` rows over the sitting's window and nothing is recorded for it.
+**Why:** The scheduler and `POST /v1/runs` both start one item per autopilot run, so taking every autopilot run as a sitting would file a summary after each item — the item-by-item reading the summary exists to replace. The hold is the event at which the scheduler has stopped; a quiet period measured on a clock would be a guess at how long a night is.
+**Evidence:** `OpenSittings`, `SittingSummary.build`, `CoordinatorRunScheduler.endSittings(at:)`, `MainWindow.wireRunEnds`; `SittingSummaryTests`.
+**Status:** holds — a queue that empties and is refilled minutes later is two sittings and two notices.
