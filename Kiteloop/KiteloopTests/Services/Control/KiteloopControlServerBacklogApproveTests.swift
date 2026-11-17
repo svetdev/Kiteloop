@@ -1136,6 +1136,76 @@ final class KiteloopControlServerBacklogApproveTests: XCTestCase {
         XCTAssertEqual(vm.backlogFile?.sections.first?.items.first?.lane, .later)
     }
 
+    // MARK: - Built outside a run
+
+    /// Work merged by hand: the item goes from draft to done on the person's
+    /// word, the reason is in its Notes, and the answer says nothing was merged
+    /// or verified.
+    func testAnItemBuiltOutsideARunIsMarkedDoneWithTheReasonInItsNotes() async throws {
+        let vm = try registerProject(
+            named: "alpha",
+            items: ["- [ ] item-1 | Built by hand | draft → [detail](backlog/item-1.md)"],
+            details: ["backlog/item-1.md": "# item-1\n\n## What\n\nShip it.\n"]
+        )
+
+        let (status, body) = try await harness.post("/v1/backlog/approve", [
+            "project": "alpha", "item": "item-1", "builtOutsideARun": true, "reason": "merged by hand in 4f1c2ab"
+        ])
+
+        XCTAssertEqual(status, 200, "\(body)")
+        XCTAssertEqual(item("item-1", in: vm)?.status, .done)
+        XCTAssertEqual(body["was"] as? String, "draft")
+        XCTAssertEqual(body["status"] as? String, "done")
+        XCTAssertEqual(body["merged"] as? Bool, false)
+        XCTAssertEqual(body["verified"] as? Bool, false)
+        XCTAssertEqual(body["noteRecorded"] as? Bool, true)
+        let detail = try String(contentsOf: tempDir.appending(path: "alpha/backlog/item-1.md"), encoding: .utf8)
+        XCTAssertTrue(detail.contains("marked done by hand, built outside a run: merged by hand in 4f1c2ab"), detail)
+    }
+
+    /// The reason is the whole record of an unverified done, so there is no
+    /// marking without one — and the item is left as it was.
+    func testMarkingDoneOutsideARunWithoutAReasonIsRefusedAndChangesNothing() async throws {
+        let vm = try registerProject(named: "alpha", items: ["- [ ] item-1 | Built by hand | blocked"])
+
+        let (status, body) = try await harness.post("/v1/backlog/approve", [
+            "project": "alpha", "item": "item-1", "builtOutsideARun": true
+        ])
+
+        XCTAssertEqual(status, 400, "\(body)")
+        XCTAssertEqual(item("item-1", in: vm)?.status, .blocked)
+    }
+
+    /// An item a run holds, or one at its gate, has its own way to done.
+    func testAnItemARunOrItsGateHoldsIsNotMarkedDoneOutsideARun() async throws {
+        let vm = try registerProject(named: "alpha", items: [
+            "- [ ] running | In a run | active",
+            "- [ ] gated | Needs sign-off | awaiting-approval"
+        ])
+
+        for (id, was) in [("running", BacklogItemStatus.active), ("gated", .awaitingApproval)] {
+            let (status, body) = try await harness.post("/v1/backlog/approve", [
+                "project": "alpha", "item": id, "builtOutsideARun": true, "reason": "merged by hand"
+            ])
+            XCTAssertEqual(status, 409, "\(id): \(body)")
+            XCTAssertTrue((body["error"] as? String ?? "").contains("is \(was.rawValue)"), "\(body)")
+            XCTAssertEqual(item(id, in: vm)?.status, was)
+        }
+    }
+
+    /// Without the field the endpoint is what it was: an item that is not at
+    /// its gate is refused, reason or no reason.
+    func testAnApprovalOfAnItemNotAtItsGateIsStillRefusedWithoutTheField() async throws {
+        let vm = try registerProject(named: "alpha", items: ["- [ ] item-1 | Built by hand | draft"])
+
+        let (status, _) = try await harness.post("/v1/backlog/approve", [
+            "project": "alpha", "item": "item-1", "approve": true, "reason": "merged by hand"
+        ])
+
+        XCTAssertEqual(status, 409)
+        XCTAssertEqual(item("item-1", in: vm)?.status, .draft)
+    }
+
     private func registerProject(
         named name: String,
         items: [String],

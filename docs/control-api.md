@@ -310,7 +310,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | GET | `/v1/preview/screenshot?project=` | The Mac's web preview for the project, as a PNG |
 | GET | `/v1/backlog/detail?project=&item=` | One item, drilled into: line fields plus the groomed detail |
 | GET | `/v1/backlog/diff?project=&item=` | The item's unmerged branch as a reviewable diff — what approving merges |
-| POST | `/v1/backlog/approve` | Approve/reject an item at its human gate |
+| POST | `/v1/backlog/approve` | Approve/reject an item at its human gate, or mark one built outside a run done |
 | POST | `/v1/backlog/land` | Merge a done item's branch that never landed |
 | POST | `/v1/backlog/groom` | Promote a groomed draft to `ready`, send one back to `draft`, or lift a `blocked` item to either |
 | POST | `/v1/backlog/move` | Reorder an item — in front of another, or to the top of its epic; position is the queue's priority |
@@ -3920,7 +3920,8 @@ the rejected run's branch tip — until a run of the item passes review.
 | `project` | string | — | **Required** |
 | `item` | string | — | **Required** (`itemId` also accepted) |
 | `approve` | bool | `true` | `approved` also accepted |
-| `reason` | string | `""` | Recorded as feedback on rejection |
+| `reason` | string | `""` | Recorded as feedback on rejection; **required** with `builtOutsideARun` |
+| `builtOutsideARun` | bool | `false` | Marks an item that is **not** at its gate `done` — see [Marking an item done that was built outside a run](#marking-an-item-done-that-was-built-outside-a-run) |
 
 ```bash
 curl -s -H "$H" \
@@ -4007,12 +4008,53 @@ endpoint with `approve: false` and the reason and output as `reason` — it land
 in the item's detail file as the feedback the next run reads. (The Autopilot
 panel's **Reject with this failure** button does exactly this.)
 
-Only valid from `awaiting-approval`.
+Only valid from `awaiting-approval` — except with `builtOutsideARun`, below.
 
-**Status:** 200 · 400 (missing `project`/`item`) · 401 · 403 (authenticated with
+#### Marking an item done that was built outside a run
+
+Work merged by hand leaves its item reading `draft`, `ready` or `blocked`:
+[`POST /v1/backlog/groom`](#post-v1backloggroom) only moves an item between
+`draft` and `ready`, and an approval needs a gate a run brought the item to.
+`"builtOutsideARun": true` is the person saying the work is in. It needs a
+`reason`, which is written to the item's Notes with the date, and it **merges
+nothing and runs no verify** — the response says so.
+
+```bash
+curl -s -H "$H" \
+  -d '{"project":"kiteloop","item":"docs-control-api","builtOutsideARun":true,"reason":"merged by hand in 4f1c2ab"}' \
+  $B/backlog/approve
+```
+
+```json
+{ "item": "docs-control-api", "was": "draft", "status": "done",
+  "resolved": "marked done", "merged": false, "verified": false, "noteRecorded": true,
+  "detail": "Marked done on your word that the work was built outside a run: nothing was merged and no verify ran." }
+```
+
+`noteRecorded` is `false` when the item has no detail file to hold a Notes
+section — the item is still marked done, and the reason is in this response
+only.
+
+It is refused:
+
+- **400** without a non-blank `reason`, or beside `"approve": false`.
+- **409** when the item is `active` or `in-review` (a run holds it — cancel the
+  run or let it finish), `awaiting-approval` (approve or reject it at its gate,
+  without this field) or already `done`; the message names the status.
+- **409** when the item's branch `kiteloop/<item>` has commits the project's
+  base branch does not hold: that work is not merged, and the message names the
+  branch. Merge or delete it first.
+
+Like every other use of this endpoint it is a human gate: 403 for the operator
+token and for scoped tokens, allowed for the control token and a paired phone.
+
+**Status:** 200 · 400 (missing `project`/`item`; `builtOutsideARun` without a
+`reason` or beside `approve: false`) · 401 · 403 (authenticated with
 the [operator token](#authentication) — this gate takes the operator's own) ·
 404 (no such item) · 409 (project not open, the item isn't awaiting approval —
-the message includes its current status — or the merge could not be kept).
+the message includes its current status — the merge could not be kept, or
+`builtOutsideARun` on an item a run or a gate holds, a done one, or one with an
+unmerged branch).
 
 ---
 

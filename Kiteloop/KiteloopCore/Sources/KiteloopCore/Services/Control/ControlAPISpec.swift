@@ -1606,13 +1606,22 @@ package enum ControlAPISpec {
         return Detail(
             id: "approveBacklogItem",
             summary: "Resolve an item's human gate",
-            description: "Approve moves the item to done; reject returns it to ready with the reason as feedback. Only valid from awaiting-approval.",
+            description: """
+            Approve moves the item to done; reject returns it to ready with the reason as feedback. \
+            Only valid from awaiting-approval — except with `builtOutsideARun: true`, which is \
+            the person saying an item was built and merged by hand: it moves a draft, ready or \
+            blocked item to done and writes the required `reason` to its Notes with the date. \
+            That merges nothing and runs no verify. It is refused with 409 for an item a run \
+            holds (active, in-review), one at its gate, a done one, and one whose branch has \
+            commits the base branch does not hold — the message names the branch.
+            """,
             requestBody: itemGateBody,
             responses: [
-                Status(code: 200, description: "Gate resolved.", schema: ref("ItemGateResolution")),
-                errorStatus(400, "Body is missing \"project\" or \"item\"."),
+                Status(code: 200, description: "Gate resolved, or the item marked done.",
+                       schema: ["oneOf": [ref("ItemGateResolution"), ref("ItemDoneOutsideARun")]]),
+                errorStatus(400, "Body is missing \"project\" or \"item\"; or builtOutsideARun was sent without a reason, or beside approve: false."),
                 errorStatus(404, "No such backlog item in this project."),
-                errorStatus(409, "Project not open, or the item isn't awaiting approval.")
+                errorStatus(409, "Project not open, or the item isn't awaiting approval; with builtOutsideARun, the item is held by a run or its gate, is already done, or has an unmerged branch.")
             ]
         )
     }
@@ -2910,7 +2919,8 @@ package enum ControlAPISpec {
         "itemId": described(string, "Accepted as an alias for \"item\"."),
         "approve": described(bool, "Defaults to true when absent."),
         "approved": described(bool, "Accepted as an alias for \"approve\"."),
-        "reason": described(string, "Feedback recorded on the item when rejecting.")
+        "reason": described(string, "Feedback recorded on the item when rejecting. Required with builtOutsideARun, and written to the item's Notes."),
+        "builtOutsideARun": described(bool, "True marks a draft, ready or blocked item done on the person's word that it was built and merged outside a run. Merges nothing, runs no verify.")
     ], required: ["project"], anyOfRequired: [["item"], ["itemId"]]) }
 
     private static var itemLandBody: [String: Any] { object([
@@ -3848,6 +3858,17 @@ package enum ControlAPISpec {
             "resolved": enumOf(["approved", "rejected"]),
             "status": described(string, "The item's status afterwards: done on approval, ready on rejection.")
         ], required: ["item", "resolved", "status"]),
+
+        "ItemDoneOutsideARun": object([
+            "item": string,
+            "was": described(string, "The status it held before the call: draft, ready or blocked."),
+            "status": described(string, "Always done."),
+            "resolved": enumOf(["marked done"]),
+            "merged": described(bool, "Always false: marking an item done merges nothing."),
+            "verified": described(bool, "Always false: no verify ran."),
+            "noteRecorded": described(bool, "Whether the reason reached the item's Notes; false when the item has no detail file to hold them."),
+            "detail": described(string, "What was and was not done, in a sentence.")
+        ], required: ["item", "was", "status", "resolved", "merged", "verified", "noteRecorded", "detail"]),
 
         "ItemLanding": object([
             "item": string,

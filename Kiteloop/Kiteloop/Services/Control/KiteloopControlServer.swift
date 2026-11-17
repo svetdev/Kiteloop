@@ -5032,14 +5032,58 @@ final class KiteloopControlServer {
         guard let entry = registry.entry(forProject: project) else {
             return .error("Project not open in Kiteloop: \(project)", status: 409)
         }
-        let approve: Bool
+        let approve: Bool?
         switch Self.boolField(json, "approve", alias: "approved") {
-        case .absent: approve = true
+        case .absent: approve = nil
         case .invalid(let key): return Self.invalidBool(key)
         case .value(let value): approve = value
         }
         let reason = json["reason"] as? String
-        return await approveItem(entry: entry, itemId: itemId, approve: approve, reason: reason)
+        // Asked for by name, never inferred from the item's status: an approval
+        // sent to an item that is not at its gate stays the 409 it always was.
+        switch Self.boolField(json, DoneOutsideARun.field) {
+        case .invalid(let key): return Self.invalidBool(key)
+        case .value(true): return await markDoneOutsideARun(entry: entry, itemId: itemId, approve: approve, reason: reason)
+        default: return await approveItem(entry: entry, itemId: itemId, approve: approve ?? true, reason: reason)
+        }
+    }
+
+    /// Marks a `draft`, `ready` or `blocked` item done on the person's word
+    /// that it was built outside a run — `DoneOutsideARun` decides, and names
+    /// what it refuses. Nothing is merged and no verify runs: the reason goes
+    /// to the item's Notes and the status changes, and the answer says that is
+    /// all that happened.
+    private func markDoneOutsideARun(entry: ControlSessionRegistry.Entry, itemId: String,
+                                     approve: Bool?, reason: String?) async -> HTTPServer.Response {
+        guard let item = itemFor(entry: entry, itemId: itemId) else {
+            return .error("No backlog item '\(itemId)' in this project", status: 404)
+        }
+        func verdict(unmergedBranch: String?) -> DoneOutsideARun.Verdict {
+            DoneOutsideARun.decide(itemID: itemId, status: item.status, approve: approve, reason: reason,
+                                   unmergedBranch: unmergedBranch)
+        }
+        // Everything the request and the item's status can refuse is refused
+        // before git is asked anything.
+        if case .refused(let status, let why) = verdict(unmergedBranch: nil) {
+            return .error(why, status: status)
+        }
+        let manager = WorktreeManager(projectRoot: entry.session.project.rootURL)
+        let unmerged = await manager.hasUnmergedCommits(for: itemId, base: entry.autopilot.baseBranch)
+        switch verdict(unmergedBranch: unmerged ? WorktreeSession.branchName(for: itemId) : nil) {
+        case .refused(let status, let why):
+            return .error(why, status: status)
+        case .allowed(let note):
+            let backlog = entry.session.backlogViewModel
+            // The note first, as `unblock` does: it is the record of why, and
+            // the status is what makes the item stop being looked at.
+            let recorded = backlog.appendNote(itemID: itemId, note)
+            backlog.markDone(itemID: itemId, queries: item.queries, cost: item.cost)
+            return .json([
+                "item": itemId, "was": item.status.rawValue, "status": BacklogItemStatus.done.rawValue,
+                "resolved": "marked done", "merged": false, "verified": false,
+                "noteRecorded": recorded, "detail": DoneOutsideARun.detail
+            ])
+        }
     }
 
     /// Merges a `done` item's branch that never landed — the merge half of an
