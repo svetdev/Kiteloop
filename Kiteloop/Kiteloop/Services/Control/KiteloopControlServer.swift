@@ -125,6 +125,9 @@ final class KiteloopControlServer {
     /// simply re-read, so replacing it on disk is enough to change it.
     private let operatorToken: String
     private var runs: [String: RunInfo] = [:]
+    /// The starts `POST /v1/runs` is still waiting on a decision for, by
+    /// project — what a second request for the same project is refused on.
+    private var startsInChecks = StartsInChecks()
     /// How each ended run ended, keyed by run id — the autopilot's own result when
     /// there is one, otherwise the ending reconstructed from what the run left
     /// behind. A run is **open** exactly while it has no entry here, so this is
@@ -3906,10 +3909,7 @@ final class KiteloopControlServer {
         if let unknown = request.firstUnknown(among: Set(items.map(\.id))) {
             return .error("No backlog item '\(unknown)' in this project", status: 404)
         }
-        // What blocks this run is another run, not a flag — see `waitOutTail`.
-        if let inFlight = await waitOutTail(autopilot) {
-            return .error("Autopilot is still busy for this project — \(inFlight.summary)", status: 409)
-        }
+        if let busy = await busyRefusal(entry) { return busy }
         // Nothing is running, so nothing may claim to be: a run request is one of
         // the two places a stale claim is put right (the other is opening the
         // project), and leaving it would keep the Autopilot tab's Start disabled.
@@ -3920,12 +3920,38 @@ final class KiteloopControlServer {
         return await begin(request, entry: entry, backlog: items)
     }
 
+    /// The 409 for a project that is already doing what this request asks to
+    /// begin, or nil when it is free.
+    ///
+    /// A start still in its pickup checks is refused at once: it has no run in
+    /// flight to wait out, and it is asked about before anything else here
+    /// touches the autopilot, so nothing about that first start changes. What
+    /// blocks otherwise is another run, not a flag — see `waitOutTail`.
+    private func busyRefusal(_ entry: ControlSessionRegistry.Entry) async -> HTTPServer.Response? {
+        if let deciding = startsInChecks.refusal(project: entry.session.project.id) {
+            return .error(deciding, status: 409)
+        }
+        if let inFlight = await waitOutTail(entry.autopilot) {
+            return .error("Autopilot is still busy for this project — \(inFlight.summary)", status: 409)
+        }
+        return nil
+    }
+
     /// Hands the autopilot what was asked for and answers with what it
     /// decided: the execution it created, or the refusal that means there is
     /// none. Every check about the request and the moment is behind it.
     private func begin(_ request: RunRequest, entry: ControlSessionRegistry.Entry,
                        backlog items: [BacklogItem]) async -> HTTPServer.Response {
         let autopilot = entry.autopilot
+        // Claimed with nothing suspending before the start is asked for, and
+        // held until it is decided: two requests that both got this far — each
+        // waited out the same run's tail — are told apart here, and the second
+        // is refused rather than entering the start the first is still in.
+        let projectID = entry.session.project.id
+        if let deciding = startsInChecks.claim(project: projectID, items: request.ids) {
+            return .error(deciding, status: 409)
+        }
+        defer { startsInChecks.release(project: projectID) }
         // Stamped before the queue moves, not after the execution id arrives a few
         // seconds later: `GET /v1/runs/{id}/log` slices the autopilot's log by this
         // instant, and the opening lines ("Executing: …", the cost-cap line) are
@@ -5032,14 +5058,58 @@ final class KiteloopControlServer {
         guard let entry = registry.entry(forProject: project) else {
             return .error("Project not open in Kiteloop: \(project)", status: 409)
         }
-        let approve: Bool
+        let approve: Bool?
         switch Self.boolField(json, "approve", alias: "approved") {
-        case .absent: approve = true
+        case .absent: approve = nil
         case .invalid(let key): return Self.invalidBool(key)
         case .value(let value): approve = value
         }
         let reason = json["reason"] as? String
-        return await approveItem(entry: entry, itemId: itemId, approve: approve, reason: reason)
+        // Asked for by name, never inferred from the item's status: an approval
+        // sent to an item that is not at its gate stays the 409 it always was.
+        switch Self.boolField(json, DoneOutsideARun.field) {
+        case .invalid(let key): return Self.invalidBool(key)
+        case .value(true): return await markDoneOutsideARun(entry: entry, itemId: itemId, approve: approve, reason: reason)
+        default: return await approveItem(entry: entry, itemId: itemId, approve: approve ?? true, reason: reason)
+        }
+    }
+
+    /// Marks a `draft`, `ready` or `blocked` item done on the person's word
+    /// that it was built outside a run — `DoneOutsideARun` decides, and names
+    /// what it refuses. Nothing is merged and no verify runs: the reason goes
+    /// to the item's Notes and the status changes, and the answer says that is
+    /// all that happened.
+    private func markDoneOutsideARun(entry: ControlSessionRegistry.Entry, itemId: String,
+                                     approve: Bool?, reason: String?) async -> HTTPServer.Response {
+        guard let item = itemFor(entry: entry, itemId: itemId) else {
+            return .error("No backlog item '\(itemId)' in this project", status: 404)
+        }
+        func verdict(unmergedBranch: String?) -> DoneOutsideARun.Verdict {
+            DoneOutsideARun.decide(itemID: itemId, status: item.status, approve: approve, reason: reason,
+                                   unmergedBranch: unmergedBranch)
+        }
+        // Everything the request and the item's status can refuse is refused
+        // before git is asked anything.
+        if case .refused(let status, let why) = verdict(unmergedBranch: nil) {
+            return .error(why, status: status)
+        }
+        let manager = WorktreeManager(projectRoot: entry.session.project.rootURL)
+        let unmerged = await manager.hasUnmergedCommits(for: itemId, base: entry.autopilot.baseBranch)
+        switch verdict(unmergedBranch: unmerged ? WorktreeSession.branchName(for: itemId) : nil) {
+        case .refused(let status, let why):
+            return .error(why, status: status)
+        case .allowed(let note):
+            let backlog = entry.session.backlogViewModel
+            // The note first, as `unblock` does: it is the record of why, and
+            // the status is what makes the item stop being looked at.
+            let recorded = backlog.appendNote(itemID: itemId, note)
+            backlog.markDone(itemID: itemId, queries: item.queries, cost: item.cost)
+            return .json([
+                "item": itemId, "was": item.status.rawValue, "status": BacklogItemStatus.done.rawValue,
+                "resolved": "marked done", "merged": false, "verified": false,
+                "noteRecorded": recorded, "detail": DoneOutsideARun.detail
+            ])
+        }
     }
 
     /// Merges a `done` item's branch that never landed — the merge half of an
