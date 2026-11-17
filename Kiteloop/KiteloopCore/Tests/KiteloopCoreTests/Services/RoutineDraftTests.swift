@@ -110,25 +110,177 @@ final class RoutineDraftTests: XCTestCase {
         XCTAssertEqual(draft.problems, ["Choose at least one day."])
     }
 
-    func testEditingARoutineKeepsItsBudget() {
+    // MARK: - The budget
+
+    func testEditingARoutineKeepsItsBudgetIncludingWhatTheFormHasNoFieldFor() {
         var capped = routine(.init(at: "07:00"))
-        capped.budget = SpendBudget(ceilingUSD: 5, period: .day, consequence: .refuse)
+        capped.budget = SpendBudget(ceilingUSD: 5, period: .month, warnAtFraction: 0.5, consequence: .refuse)
         var draft = RoutineDraft(routine: capped)
         draft.prompt = "Shorter."
 
+        XCTAssertTrue(draft.limitsSpend)
+        XCTAssertEqual(draft.ceiling, "5.00")
+        XCTAssertEqual(draft.period, .month)
         XCTAssertEqual(draft.routine(id: "ignored", project: "ignored", existing: capped).budget, capped.budget)
-        XCTAssertNil(draft.routine(id: "new", project: "vault").budget)
     }
 
-    /// The form has no field for a watched folder, so it must not lose one.
-    func testEditingAWatchedRoutineKeepsItsFolderAndGivesItNoSchedule() {
+    func testARoutineWithoutABudgetOpensWithNoneAndIsSavedWithNone() {
+        let plain = routine(.init(at: "07:00"))
+        let draft = RoutineDraft(routine: plain)
+        XCTAssertFalse(draft.limitsSpend)
+        XCTAssertNil(draft.budget)
+        XCTAssertEqual(draft.routine(id: "brief", project: "vault", existing: plain), plain)
+        XCTAssertNil(RoutineDraft(agent: "Claude").routine(id: "new", project: "vault").budget)
+    }
+
+    func testABudgetIsSetChangedAndCleared() {
+        var capped = routine(.init(at: "07:00"))
+        var draft = RoutineDraft(routine: capped)
+        draft.limitsSpend = true
+        draft.ceiling = " 2,50 "
+        draft.period = .month
+        XCTAssertEqual(draft.budgetProblems, [])
+        capped = draft.routine(id: "brief", project: "vault", existing: capped)
+        XCTAssertEqual(capped.budget, SpendBudget(ceilingUSD: 2.5, period: .month, consequence: .refuse))
+        XCTAssertEqual(capped.budgetWords, "up to $2.50 a month")
+
+        draft = RoutineDraft(routine: capped)
+        draft.ceiling = "0.125"
+        XCTAssertEqual(draft.routine(id: "brief", project: "vault", existing: capped).budget?.ceilingUSD, 0.125)
+        XCTAssertEqual(RoutineDraft(routine: draft.routine(id: "brief", project: "vault", existing: capped)).ceiling, "0.125")
+
+        draft.limitsSpend = false
+        let cleared = draft.routine(id: "brief", project: "vault", existing: capped)
+        XCTAssertNil(cleared.budget)
+        XCTAssertNil(cleared.budgetWords)
+    }
+
+    /// The form refuses a ceiling in the words the API refuses it in.
+    func testACeilingThatIsNotAboveZeroIsRefusedAsTheAPIRefusesIt() {
+        var draft = RoutineDraft(agent: "Claude")
+        draft.name = "Brief"
+        draft.prompt = "Brief me."
+        draft.limitsSpend = true
+        for typed in ["", "0", "-3", "a lot"] {
+            draft.ceiling = typed
+            let api = SpendBudget.parse(["ceilingUSD": Double(typed) ?? 0]).problems
+            XCTAssertEqual(draft.budgetProblems, api, typed)
+            XCTAssertEqual(draft.problems, api, typed)
+        }
+        draft.ceiling = "3"
+        XCTAssertEqual(draft.problems, [])
+        draft.ceiling = ""
+        draft.limitsSpend = false
+        XCTAssertEqual(draft.problems, [], "a budget switched off is not checked")
+    }
+
+    // MARK: - An event
+
+    func testAnEventRoutineIsReadAndWrittenBackUnchanged() {
+        let onError = routine(Routine.Trigger(on: "error"))
+        let draft = RoutineDraft(routine: onError)
+        XCTAssertEqual(draft.kind, .event)
+        XCTAssertEqual(draft.event, "error")
+        XCTAssertEqual(draft.trigger, Routine.Trigger(on: "error"))
+        XCTAssertEqual(draft.routine(id: "ignored", project: "ignored", existing: onError), onError)
+        XCTAssertEqual(draft.problems, [])
+        XCTAssertEqual(draft.scheduleWords, "When something fails")
+    }
+
+    func testChoosingAnEventWritesOnlyTheEvent() {
+        var draft = RoutineDraft(routine: routine(Routine.Trigger(every: 20, from: "08:00", days: ["mon"])))
+        draft.kind = .event
+        draft.event = "question"
+        XCTAssertEqual(draft.trigger, Routine.Trigger(on: "question"))
+        draft.kind = .clock
+        XCTAssertEqual(draft.trigger, Routine.Trigger(every: 20, from: "08:00", days: ["mon"]),
+                       "the schedule is still there to go back to")
+    }
+
+    /// The kinds offered are the feed's own, each with words of its own.
+    func testTheEventKindsOfferedAreTheOnesTheFeedPublishes() {
+        let kinds = NotificationItem.NotificationType.allCases.map(\.rawValue)
+        XCTAssertEqual(RoutineDraft.eventKinds, kinds)
+        XCTAssertEqual(RoutineDraft.eventChoices(current: "error"), kinds)
+        XCTAssertEqual(Set(kinds.map(RoutineDraft.eventLabel)).count, kinds.count)
+        XCTAssertEqual(RoutineDraft.eventLabel("approval"), "An approval is needed")
+        for kind in kinds {
+            var draft = RoutineDraft()
+            draft.kind = .event
+            draft.event = kind
+            XCTAssertEqual(draft.triggerProblems, [], kind)
+            XCTAssertNotNil(draft.scheduleWords, kind)
+        }
+        XCTAssertEqual(RoutineDraft().event, kinds.first)
+    }
+
+    /// A kind the feed does not publish — written in the file by hand — is
+    /// kept, offered, and refused in the words the API refuses it in.
+    func testAnUnknownEventKindIsKeptAndRefusedAsTheAPIRefusesIt() throws {
+        let odd = routine(Routine.Trigger(on: "deploy"))
+        let draft = RoutineDraft(routine: odd)
+        XCTAssertEqual(draft.event, "deploy")
+        XCTAssertEqual(RoutineDraft.eventChoices(current: "deploy").last, "deploy")
+        XCTAssertEqual(RoutineDraft.eventLabel("deploy"), "deploy (not an event kind)")
+        XCTAssertNil(draft.scheduleWords)
+
+        let body: [String: Any] = ["project": "vault", "agent": "Claude", "prompt": "Brief me.", "trigger": ["on": "deploy"]]
+        guard case .failure(let refusal) = Routine.parse(body, id: "brief", existing: nil) else {
+            return XCTFail("the API takes an unknown event kind")
+        }
+        XCTAssertEqual(draft.triggerProblems, refusal.problems)
+        XCTAssertEqual(draft.problems, refusal.problems)
+    }
+
+    // MARK: - A folder
+
+    func testAWatchedRoutineIsReadAndWrittenBackUnchanged() {
         let watched = routine(Routine.Trigger(watch: "notes/inbox"))
         var draft = RoutineDraft(routine: watched)
         draft.prompt = "File what arrived."
 
+        XCTAssertEqual(draft.kind, .folder)
+        XCTAssertEqual(draft.watch, "notes/inbox")
         XCTAssertEqual(draft.trigger, Routine.Trigger(watch: "notes/inbox"))
         XCTAssertEqual(draft.routine(id: "ignored", project: "ignored", existing: watched).trigger,
                        Routine.Trigger(watch: "notes/inbox"))
-        XCTAssertNil(RoutineDraft(routine: routine(.init(at: "07:00"))).watch)
+        XCTAssertEqual(draft.problems, [])
+        XCTAssertEqual(draft.scheduleWords, "When the folder notes/inbox changes")
+        XCTAssertEqual(RoutineDraft(routine: routine(.init(at: "07:00"))).kind, .clock)
+    }
+
+    /// A folder outside the project, or none, is refused in the words the API
+    /// refuses it in — and a new routine can be given one.
+    func testAFolderOutsideTheProjectIsRefusedAsTheAPIRefusesIt() throws {
+        var draft = RoutineDraft(agent: "Claude")
+        draft.name = "Inbox"
+        draft.prompt = "File what arrived."
+        draft.kind = .folder
+        for outside in ["", "/etc", "~/notes", "notes/../../elsewhere"] {
+            draft.watch = outside
+            let body: [String: Any] = ["project": "vault", "agent": "Claude", "prompt": "File.", "trigger": ["watch": outside]]
+            guard case .failure(let refusal) = Routine.parse(body, id: "inbox", existing: nil) else {
+                return XCTFail("the API takes the folder \(outside)")
+            }
+            XCTAssertEqual(draft.triggerProblems, refusal.problems, outside)
+            XCTAssertEqual(draft.problems, refusal.problems, outside)
+            XCTAssertNil(draft.scheduleWords, outside)
+        }
+        draft.watch = " notes/inbox "
+        XCTAssertEqual(draft.problems, [])
+        let made = draft.routine(id: "inbox", project: "vault")
+        XCTAssertEqual(made.trigger, Routine.Trigger(watch: "notes/inbox"))
+        XCTAssertEqual(made.problems, [])
+    }
+
+    /// Days left unchosen on the schedule do not stop an event or a folder.
+    func testAScheduleProblemDoesNotStopAnotherKindOfTrigger() {
+        var draft = RoutineDraft(agent: "Claude")
+        draft.name = "Inbox"
+        draft.prompt = "File what arrived."
+        draft.days = []
+        XCTAssertEqual(draft.problems, ["Choose at least one day."])
+        draft.kind = .event
+        XCTAssertEqual(draft.problems, [])
     }
 }

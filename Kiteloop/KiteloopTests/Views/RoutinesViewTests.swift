@@ -70,6 +70,23 @@ final class RoutinesViewTests: XCTestCase {
         XCTAssertEqual(RoutineCard.caption(for: routine("a", trigger: .init(at: "whenever"))), "No schedule · Chief")
     }
 
+    func testACardSaysAnEventOrAFolderInWordsAndItsBudgetWhenItHasOne() {
+        XCTAssertEqual(RoutineCard.caption(for: routine("a", trigger: .init(on: "error"))), "When something fails · Chief")
+        var watched = routine("a", trigger: .init(watch: "notes/inbox"))
+        XCTAssertEqual(RoutineCard.caption(for: watched), "When the folder notes/inbox changes · Chief")
+        watched.budget = SpendBudget(ceilingUSD: 5, period: .day, consequence: .refuse)
+        XCTAssertEqual(RoutineCard.caption(for: watched), "When the folder notes/inbox changes · Chief · up to $5.00 a day")
+        XCTAssertEqual([Routine.Trigger(at: "07:00"), .init(every: 30), .init(on: "error"), .init(watch: "notes")]
+            .map(RoutineCard.symbol(for:)), ["clock", "arrow.triangle.2.circlepath", "bolt", "folder"])
+    }
+
+    func testTheEditorSaysWhatArmingDoesForEachKindAndWhichWebhooksFireTheRoutine() {
+        XCTAssertEqual(Set(RoutineDraft.Kind.allCases.map(RoutineEditorFields.armedLabel)).count, RoutineDraft.Kind.allCases.count)
+        XCTAssertEqual(RoutineEditorFields.webhookWords([]), "No webhook fires this routine.")
+        XCTAssertEqual(RoutineEditorFields.webhookWords(["deploys"]), "Fired by the webhook deploys.")
+        XCTAssertEqual(RoutineEditorFields.webhookWords(["deploys", "builds"]), "Fired by the webhooks deploys, builds.")
+    }
+
     func testAnArmedRoutineSaysWhenItNextFallsAndAnUnarmedOneThatItIsOff() {
         let next = Date().addingTimeInterval(3 * 60 * 60 + 60)
 
@@ -204,5 +221,32 @@ final class RoutinesViewTests: XCTestCase {
         XCTAssertGreaterThan(interval, 300)
         XCTAssertGreaterThan(daily, 300)
         XCTAssertTrue(saved.isEmpty)
+    }
+
+    /// The editor draws for an event, for a folder with something wrong with
+    /// it, with a budget, and with a webhook to name — each taller than the
+    /// one before it by what it adds.
+    func testTheEditorDrawsForAnEventAFolderABudgetAndAWebhook() async throws {
+        var draft = RoutineDraft(routine: routine("alerts", trigger: .init(on: "error")))
+        var hooks: [String]?
+        func height() async throws -> CGFloat {
+            try await drawnHeight(of: RoutineEditorFields(draft: Binding(get: { draft }, set: { draft = $0 }),
+                                                          agentNames: ["Chief"], hookNames: hooks), width: 540)
+        }
+        let event = try await height()
+        draft.kind = .folder
+        draft.watch = "../elsewhere"
+        let refused = try await height()
+        draft.watch = "notes/inbox"
+        let folder = try await height()
+        draft.limitsSpend = true
+        let budget = try await height()
+        hooks = ["deploys"]
+        let webhook = try await height()
+
+        XCTAssertGreaterThan(event, 300)
+        XCTAssertGreaterThan(refused, folder, "what is wrong with the folder is under its field")
+        XCTAssertGreaterThan(budget, folder)
+        XCTAssertGreaterThan(webhook, budget)
     }
 }

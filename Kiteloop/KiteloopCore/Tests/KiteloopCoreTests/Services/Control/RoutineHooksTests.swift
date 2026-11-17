@@ -78,4 +78,17 @@ final class RoutineHooksTests: XCTestCase {
         }
         XCTAssertEqual(store.hooks.count, 1)
     }
+
+    /// What the Routines page shows of a routine's webhooks: their names.
+    func testTheNamesOfTheHooksThatFireARoutineAreReadFromTheFile() throws {
+        XCTAssertEqual(RoutineHooks.names(firing: "brief", at: url), [], "no file yet")
+        let store = RoutineHooks(url: url)
+        _ = try mint(store, "deploys")
+        _ = try mint(store, "alerts", routine: "poll")
+        _ = try mint(store, "builds")
+
+        XCTAssertEqual(RoutineHooks.names(firing: "brief", at: url), ["deploys", "builds"])
+        XCTAssertEqual(RoutineHooks.names(firing: "poll", at: url), ["alerts"])
+        XCTAssertEqual(RoutineHooks.names(firing: "nobody", at: url), [])
+    }
 }
