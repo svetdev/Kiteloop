@@ -6123,6 +6123,7 @@ final class KiteloopControlServer {
         do {
             let proposal = try await BacklogGroomer.propose(
                 item: item, detail: backlog.loadDetail(for: item), backlog: file, sources: sources,
+                turns: entry.autopilot.groomingTurnHistory,
                 runOneShot: { prompt in try await oneShot(prompt, root, system, grant) })
             if let refusal = backlog.writeGrooming(proposal) {
                 Self.noteUnwrittenGrooming(refusal, itemID: id, in: backlog)

@@ -27,6 +27,10 @@ enum BacklogGroomer {
         let grounding: GroundingCheck.Verdict
     }
 
+    /// The worker's turn budget and what this project's runs of each declared
+    /// size took — what a size is measured against.
+    typealias TurnHistory = GroomingTurnHistory
+
     enum GroomError: LocalizedError, Equatable {
         case emptyResponse
         case noDraft
@@ -63,6 +67,9 @@ enum BacklogGroomer {
     /// - Parameter sources: what the repo actually contains, built once by the
     ///   caller (`GroundingCheck.Sources.repository(root:vault:)`) rather than
     ///   here — building it walks the tree, and this stays pure.
+    /// - Parameter turns: the worker's turn budget and what this project's
+    ///   runs of each size took, for the prompt to size against; nil says
+    ///   nothing about either.
     /// - Parameter runOneShot: the model call itself, already scoped to this
     ///   project by the caller.
     ///
@@ -76,9 +83,10 @@ enum BacklogGroomer {
         detail: BacklogItemDetail?,
         backlog: BacklogFile,
         sources: GroundingCheck.Sources,
+        turns: TurnHistory? = nil,
         runOneShot: (String) async throws -> String
     ) async throws -> Proposal {
-        let prompt = buildPrompt(item: item, detail: detail, backlog: backlog)
+        let prompt = buildPrompt(item: item, detail: detail, backlog: backlog, turns: turns)
         let response = try await runOneShot(prompt)
         guard !response.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw GroomError.emptyResponse
@@ -155,11 +163,13 @@ enum BacklogGroomer {
         code fences.
         """
 
-    static func buildPrompt(item: BacklogItem, detail: BacklogItemDetail?, backlog: BacklogFile) -> String {
+    static func buildPrompt(item: BacklogItem, detail: BacklogItemDetail?, backlog: BacklogFile,
+                            turns: TurnHistory? = nil) -> String {
         var current = "Item id: \(item.id)\nTitle: \(item.title)\n"
         if let verify = item.verify, !verify.isEmpty { current += "Current verify: \(verify)\n" }
         if let size = item.size { current += "Current size: \(size.rawValue)\n" }
         current += existingDetailSection(detail)
+        current += turnsSection(turns)
 
         return """
         Groom this draft backlog item for the "\(backlog.project)" project, so an unattended \
@@ -174,6 +184,13 @@ enum BacklogGroomer {
                     "verify": "cd … && …", "what": "…", "how": "…",
                     "validation": ["…", "…"], "outOfScope": ["…"]}]}
         """
+    }
+
+    /// The worker's turn budget and this project's measured turns per size, as
+    /// `buildPrompt` folds them in — empty when the caller gave none.
+    private static func turnsSection(_ turns: TurnHistory?) -> String {
+        guard let turns else { return "" }
+        return "\n\(turns.promptSection)\n"
     }
 
     /// The "Existing …" block `buildPrompt` folds into the prompt for a
@@ -198,5 +215,25 @@ enum BacklogGroomer {
                 + detail.premise.map { "- \($0)" }.joined(separator: "\n") + "\n"
         }
         return section
+    }
+}
+
+extension GroomingTurnHistory {
+
+    /// This project's runs out of the ledger: the records for `projectPath`
+    /// (the filter `BacklogAutopilot.landedPhaseSamples` applies) that carry
+    /// both a declared size and a worker turn count. A record missing either
+    /// measured nothing a size can be held against.
+    init(records: [TaskMetricRecord], projectPath: String?, budget: Int) {
+        guard let projectPath else {
+            self.init(samples: [], budget: budget)
+            return
+        }
+        let samples = records.compactMap { record -> Sample? in
+            guard KiteloopProject.isSamePath(record.projectPath, projectPath),
+                  let size = record.declaredSize, let turns = record.workerTurns else { return nil }
+            return Sample(size: size, turns: turns, cutShort: record.workerCutShort == true)
+        }
+        self.init(samples: samples, budget: budget)
     }
 }

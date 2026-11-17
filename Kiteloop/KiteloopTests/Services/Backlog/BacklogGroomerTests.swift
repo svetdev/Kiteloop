@@ -297,4 +297,100 @@ final class BacklogGroomerTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Existing Premise:\n- The index is rebuilt on every run today"),
                       prompt)
     }
+
+    // MARK: - The worker's turn budget and what each size took
+
+    private func run(size: String? = "S", turns: Int? = 30, cutShort: Bool? = nil,
+                     project: String = "/tmp/alpha") -> TaskMetricRecord {
+        let end = Date(timeIntervalSince1970: 1_780_000_000)
+        var record = TaskMetricRecord(
+            projectPath: project, projectName: "alpha", itemID: "cache-index", title: "Cache the index",
+            epic: nil, declaredSize: size, startedAt: end.addingTimeInterval(-600),
+            completedAt: end, durationSeconds: 600, costUSD: 0, reviewerRetries: 0,
+            outcome: "done", workerAgent: "worker", reviewerAgent: "reviewer",
+            executionID: "e-1", toolErrors: nil)
+        record.workerTurns = turns
+        record.workerCutShort = cutShort
+        return record
+    }
+
+    func testTurnHistoryHasOneRowPerDeclaredSizeOfThisProjectsRuns() {
+        let history = BacklogGroomer.TurnHistory(records: [
+            run(size: "M", turns: 50, cutShort: true), run(size: "S", turns: 31, cutShort: false),
+            run(size: "S", turns: 12), run(size: "M", turns: 44, cutShort: false),
+            run(size: "S", turns: 48), run(size: "M", turns: 50, cutShort: true),
+        ], projectPath: "/tmp/alpha", budget: 50)
+
+        XCTAssertEqual(history.budget, 50)
+        XCTAssertEqual(history.rows, [
+            GroomingTurnHistory.Row(size: "S", runs: 3, median: 31, most: 48, cutShort: 0),
+            GroomingTurnHistory.Row(size: "M", runs: 3, median: 50, most: 50, cutShort: 2),
+        ])
+    }
+
+    func testTurnHistoryLeavesOutAnotherProjectAndRunsMissingTurnsOrASize() {
+        let history = BacklogGroomer.TurnHistory(records: [
+            run(size: "S", turns: 20),
+            run(size: "S", turns: 90, cutShort: true, project: "/tmp/beta"),
+            run(size: "S", turns: nil, cutShort: true),
+            run(size: nil, turns: 70, cutShort: true),
+        ], projectPath: "/tmp/alpha", budget: 50)
+
+        XCTAssertEqual(history.rows, [
+            GroomingTurnHistory.Row(size: "S", runs: 1, median: 20, most: 20, cutShort: 0),
+        ])
+    }
+
+    func testTurnHistoryForNoProjectHasTheBudgetAndNoRows() {
+        let history = BacklogGroomer.TurnHistory(records: [run()], projectPath: nil, budget: 50)
+
+        XCTAssertEqual(history.budget, 50)
+        XCTAssertTrue(history.rows.isEmpty)
+    }
+
+    func testBuildPromptStatesTheTurnBudgetWhatEachSizeTookAndToSplitWhatWillNotFit() {
+        let turns = BacklogGroomer.TurnHistory(
+            records: [run(size: "S", turns: 31), run(size: "M", turns: 50, cutShort: true)],
+            projectPath: "/tmp/alpha", budget: 50)
+
+        let prompt = BacklogGroomer.buildPrompt(item: item(), detail: nil, backlog: backlog(), turns: turns)
+
+        XCTAssertTrue(prompt.contains("A worker gets 50 turns on one item"), prompt)
+        XCTAssertTrue(prompt.contains("S: 1 run, median 31, most 31, 0 cut short at the turn limit"), prompt)
+        XCTAssertTrue(prompt.contains("M: 1 run, median 50, most 50, 1 cut short at the turn limit"), prompt)
+        XCTAssertTrue(prompt.contains("propose a first slice that does"), prompt)
+        XCTAssertTrue(prompt.contains("list the rest under Out of Scope"), prompt)
+        XCTAssertTrue(prompt.contains("Return ONLY JSON"), prompt)
+    }
+
+    func testBuildPromptWithNoMeasuredRunsStillStatesTheBudget() {
+        let turns = BacklogGroomer.TurnHistory(records: [], projectPath: "/tmp/alpha", budget: 50)
+
+        let prompt = BacklogGroomer.buildPrompt(item: item(), detail: nil, backlog: backlog(), turns: turns)
+
+        XCTAssertTrue(prompt.contains("A worker gets 50 turns on one item"), prompt)
+        XCTAssertTrue(prompt.contains("no measured runs yet"), prompt)
+    }
+
+    func testBuildPromptWithoutTurnsSaysNothingAboutABudget() {
+        let plain = BacklogGroomer.buildPrompt(item: item(), detail: nil, backlog: backlog())
+
+        XCTAssertEqual(plain, BacklogGroomer.buildPrompt(item: item(), detail: nil, backlog: backlog(),
+                                                         turns: nil))
+        XCTAssertFalse(plain.contains("turns on one item"), plain)
+        XCTAssertFalse(plain.contains("first slice"), plain)
+    }
+
+    @MainActor
+    func testProposeSendsTheTurnHistoryInItsPrompt() async throws {
+        let script = Script([goodReply])
+        let turns = BacklogGroomer.TurnHistory(records: [], projectPath: "/tmp/alpha", budget: 50)
+
+        _ = try await BacklogGroomer.propose(item: item(), detail: nil, backlog: backlog(),
+                                             sources: groundedSources, turns: turns,
+                                             runOneShot: script.reply)
+
+        XCTAssertEqual(script.prompts.count, 1)
+        XCTAssertTrue(script.prompts[0].contains("A worker gets 50 turns on one item"), script.prompts[0])
+    }
 }
