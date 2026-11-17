@@ -91,6 +91,7 @@ Legend: `[x]` = implemented + tested, `[~]` = implemented, no test, `[ ]` = plan
 | [~] | Agent state machine (idle/working/waitingForHuman/crashed) | `Models/Agent.swift` | — |
 | [~] | Agent catalog (8 predefined: Coder, Reviewer, Researcher, Frontend, Infra, QA, Designer, Data) | `Models/PredefinedTemplates.swift` | — |
 | [~] | hire_agent / fire_agent tools (dynamic team composition) | `ViewModels/ChatViewModel.swift` | — |
+| [x] | Team changes wait on a person — with `"agentChangesNeedingApproval": ["team"]` in `~/.kiteloop/global-config.json`, an agent's `hire_agent` / `fire_agent` call stops on an approval card in its chat (who asked, the team before and after, Approve / Deny) and applies only if approved, one change waiting at a time and no other route to those tools applying one; each decision is one line in `<project>/.kiteloop/config-changes.jsonl`. Unset, the default, they apply at once | `ViewModels/ChatViewModel.swift`, `Views/Chat/ConfigChangeCard.swift`, `Services/ConfigChangeLog.swift` | `ViewModels/ChatViewModelConfigChangeTests.swift`, `Services/ConfigChangeLogTests.swift` |
 | [~] | Tool interception (publish_event, propose_memory, ask_human) | `Services/ToolInterceptor.swift` | — |
 | [~] | Agent-triggered notifications | `Services/Orchestrator.swift` | — |
 

@@ -15,6 +15,26 @@ final class MessageTests: XCTestCase {
         XCTAssertFalse(opened.isCollapsed)
     }
 
+    /// A chat saved before approval cards carried a before and an after still
+    /// loads, its card without either.
+    func testAnApprovalCardSavedWithoutBeforeAndAfterStillDecodes() throws {
+        let json = ##"{"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","timestamp":0,"sender":{"type":"agent","agentID":"a"},"content":{"type":"approval","approval":{"id":"r1","action":"Run it","tool":"ask_human","status":"approved"}}}"##
+        let message = try JSONDecoder().decode(Message.self, from: Data(json.utf8))
+        guard case .approval(let req) = message.content else { return XCTFail("Expected an approval card") }
+        XCTAssertEqual(req.status, .approved)
+        XCTAssertNil(req.before)
+        XCTAssertNil(req.after)
+    }
+
+    func testAnApprovalCardKeepsItsBeforeAndAfterAcrossASave() throws {
+        let card = Message(id: UUID(), timestamp: .now, sender: .agent("a"),
+                           content: .approval(Message.ApprovalRequest(id: "r1", action: "Hire", tool: "hire_agent",
+                                                                       before: "Lead", after: "Lead, Coder")))
+        let decoded = try JSONDecoder().decode(Message.self, from: JSONEncoder().encode(card))
+        guard case .approval(let req) = decoded.content else { return XCTFail("Expected an approval card") }
+        XCTAssertEqual(req.before, "Lead")
+        XCTAssertEqual(req.after, "Lead, Coder")
+    }
 }
 
 final class MessagePlanProposalCodingTests: XCTestCase {

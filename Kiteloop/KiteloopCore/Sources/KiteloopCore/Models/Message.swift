@@ -241,6 +241,11 @@ package struct Message: Identifiable, Codable {
         package let action: String
         package let tool: String
         package var status: ApprovalStatus = .pending
+        /// What the change a card asks about leaves in place, and what it
+        /// would make of it — for a team change, the roster's names. Nil on
+        /// every other card, and on a card saved before they existed.
+        package var before: String?
+        package var after: String?
 
         package enum ApprovalStatus: String, Codable {
             case pending
@@ -250,11 +255,14 @@ package struct Message: Identifiable, Codable {
     
         /// The memberwise init, spelled out: a `package` type's synthesised one is
         /// internal to the package, and the app constructs this.
-        package init(id: String, action: String, tool: String, status: ApprovalStatus = .pending) {
+        package init(id: String, action: String, tool: String, status: ApprovalStatus = .pending,
+                     before: String? = nil, after: String? = nil) {
             self.id = id
             self.action = action
             self.tool = tool
             self.status = status
+            self.before = before
+            self.after = after
         }
     }
 

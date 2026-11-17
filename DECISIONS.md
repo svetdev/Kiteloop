@@ -387,3 +387,10 @@ Entry format:
 **Why:** The repo holds no characters-per-token ratio and no tokenizer, so a token count would be an invented constant presented beside `contextTokens`, which is measured. Bytes are measured and still show which part is heavy.
 **Evidence:** `FirstTurnCost`, `MemoryManager.systemContextSections`; `FirstTurnCostTests`. `composeSystemContext` is those sections joined, so the two cannot drift.
 **Status:** holds — MCP tool schemas, built-in tools and the CLI's own prompt are outside the figure.
+
+## [2026-11-17] A team change that waits on a person is applied only from its approved card
+**Kind:** rule
+**What:** While `agentChangesNeedingApproval` lists `team`, an agent's `hire_agent` or `fire_agent` takes effect only from the card a person approved. A call that reaches the tools by any other route, and so has no request to hold open, is refused, and a second change asked for while one waits is refused rather than replacing it. The control API's `POST` and `DELETE /v1/agents` are not covered: a caller holding the operator token still changes the team with no card.
+**Why:** A gate checked at one entry point holds only until a second entry point appears, so the refusal sits where the tools are dispatched and the approval is the single place that applies the change. The log records the team the approval left, since a hire can still fail after it is approved.
+**Evidence:** `ChatViewModel.teamChangeWithoutCard`, `applyTeamChange`, `holdConfigChange`; `ChatViewModelConfigChangeTests`.
+**Status:** holds
