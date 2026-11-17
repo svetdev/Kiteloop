@@ -71,8 +71,8 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
 
     /// When a routine fires, as it is written down: either `at` a time of day,
     /// or `every` so many minutes between `from` and `until`, or `on` an event
-    /// of a kind the app's event feed publishes. `days` narrows a schedule to
-    /// some weekdays.
+    /// of a kind the app's event feed publishes, or when a folder it is told
+    /// to `watch` changes. `days` narrows a schedule to some weekdays.
     package struct Trigger: Codable, Equatable, Sendable {
         /// A time of day, `HH:mm`, in the Mac's own time zone.
         package var at: String?
@@ -89,15 +89,20 @@ package struct Routine: Codable, Equatable, Sendable, Identifiable {
         /// that fires the routine when its project publishes one. Nil for a
         /// routine on a schedule.
         package var on: String?
+        /// A folder inside the routine's project, written relative to it,
+        /// whose direct entries fire the routine when one is added, removed
+        /// or replaced. Nil for a routine nothing on disk fires.
+        package var watch: String?
 
         package init(at: String? = nil, every: Int? = nil, from: String? = nil,
-                     until: String? = nil, days: [String]? = nil, on: String? = nil) {
+                     until: String? = nil, days: [String]? = nil, on: String? = nil, watch: String? = nil) {
             self.at = at
             self.every = every
             self.from = from
             self.until = until
             self.days = days
             self.on = on
+            self.watch = watch
         }
     }
 
@@ -132,6 +137,7 @@ extension Routine.Trigger {
         if let until { out["until"] = until }
         if let days { out["days"] = days }
         if let on { out["on"] = on }
+        if let watch { out["watch"] = watch }
         return out
     }
 }
@@ -156,6 +162,9 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
     package var hook: String?
     /// The kind of event that fired it; nil for a run nothing published started.
     package var event: String?
+    /// The watched folder whose change fired it, as the trigger writes it;
+    /// nil for a run no folder started.
+    package var watch: String?
 
     package enum Outcome: String, Codable, Sendable {
         /// The turn began; `finishedAt` says when it ended.
@@ -175,7 +184,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
     package init(id: String = UUID().uuidString, routine: String, scheduledFor: Date?, at: Date,
                  outcome: Outcome, reason: String? = nil, finishedAt: Date? = nil,
                  reply: String? = nil, costUSD: Double? = nil, hook: String? = nil,
-                event: String? = nil) {
+                event: String? = nil, watch: String? = nil) {
         self.id = id
         self.routine = routine
         self.scheduledFor = scheduledFor
@@ -187,6 +196,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
         self.costUSD = costUSD
         self.hook = hook
         self.event = event
+        self.watch = watch
     }
 
     /// The run as the API returns it.
@@ -201,6 +211,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
         if let costUSD { out["costUSD"] = costUSD }
         if let hook { out["hook"] = hook }
         if let event { out["event"] = event }
+        if let watch { out["watch"] = watch }
         return out
     }
 }

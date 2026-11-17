@@ -407,4 +407,63 @@ final class RoutineStoreTests: XCTestCase {
         XCTAssertEqual(run.json["event"] as? String, "error")
         XCTAssertNil(RoutineRun(id: "b", routine: "x", scheduledFor: nil, at: .now, outcome: .started).json["event"])
     }
+
+    // MARK: - A watched folder
+
+    private func watching(_ trigger: [String: Any]) -> Result<Routine, Routine.Refusal> {
+        Routine.parse(["project": "vault", "agent": "Chief", "prompt": "File it.", "trigger": trigger],
+                      id: "inbox", existing: nil)
+    }
+
+    func testABodyNamingAWatchedFolderIsTakenAndWrittenBack() throws {
+        let routine = try watching(["watch": "notes/inbox"]).get()
+
+        XCTAssertEqual(routine.trigger, .init(watch: "notes/inbox"))
+        XCTAssertEqual(routine.json["trigger"] as? [String: String], ["watch": "notes/inbox"])
+    }
+
+    func testAWatchedRoutineSurvivesASaveAndReload() throws {
+        let store = try store()
+        let routine = try watching(["watch": "inbox"]).get()
+        try store.save([routine])
+
+        XCTAssertEqual(store.routines(), [routine])
+    }
+
+    func testTheClockNeverFiresAWatchedRoutine() throws {
+        var routine = try watching(["watch": "inbox"]).get()
+        routine.armed = true
+        routine.armedAt = Date(timeIntervalSince1970: 0)
+
+        XCTAssertNil(routine.schedule)
+        XCTAssertNil(routine.owed(at: .distantFuture, lastHandled: nil, calendar: Calendar(identifier: .gregorian)))
+    }
+
+    func testAWatchedFolderOutsideTheProjectIsRefusedByName() {
+        let outside = "\"watch\" is a folder inside the project, written relative to it: "
+            + "no leading \"/\" or \"~\" and no \"..\""
+        for path in ["/tmp/inbox", "~/Downloads", "../elsewhere", "inbox/../../elsewhere", "", "  "] {
+            XCTAssertEqual(watching(["watch": path]), .failure(Routine.Refusal(problems: [outside])), path)
+        }
+    }
+
+    func testAWatchedFolderBesideAnotherTriggerIsRefusedByName() {
+        let one = "the trigger takes one of \"at\", \"every\", \"on\" or \"watch\""
+        let others: [[String: Any]] = [["at": "07:00"], ["every": 30], ["on": "error"], ["days": ["mon"]],
+                                       ["from": "08:00"], ["until": "18:00"]]
+        for other in others {
+            let trigger = other.merging(["watch": "inbox"]) { first, _ in first }
+            XCTAssertEqual(watching(trigger), .failure(Routine.Refusal(problems: [one])), "\(other)")
+        }
+    }
+
+    func testARunAWatchedFolderFiredNamesItAndNoOtherRunDoes() throws {
+        let run = RoutineRun(id: "a", routine: "inbox", scheduledFor: nil, at: .now, outcome: .started,
+                             watch: "inbox")
+
+        XCTAssertEqual(run.json["watch"] as? String, "inbox")
+        XCTAssertNil(RoutineRun(id: "b", routine: "x", scheduledFor: nil, at: .now, outcome: .started).json["watch"])
+        let old = #"{"id":"r1","routine":"brief","at":0,"outcome":"started"}"#
+        XCTAssertNil(try JSONDecoder().decode(RoutineRun.self, from: Data(old.utf8)).watch)
+    }
 }

@@ -117,7 +117,8 @@ extension Routine {
             prompt: json["prompt"] as? String ?? "",
             trigger: Trigger(at: trigger["at"] as? String, every: trigger["every"] as? Int,
                              from: trigger["from"] as? String, until: trigger["until"] as? String,
-                             days: trigger["days"] as? [String], on: trigger["on"] as? String),
+                             days: trigger["days"] as? [String], on: trigger["on"] as? String,
+                             watch: trigger["watch"] as? String),
             precheck: (json["precheck"] as? String).flatMap { $0.isEmpty ? nil : $0 },
             armed: json["armed"] as? Bool ?? existing?.armed ?? false,
             armedAt: existing?.armedAt,
@@ -172,7 +173,9 @@ extension Routine {
         where value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             found.append("\"\(field)\" is required")
         }
-        if trigger.on != nil {
+        if let watch = trigger.watch {
+            found += WatchedFolder.problems(watch, beside: trigger)
+        } else if trigger.on != nil {
             found += eventProblems
         } else if case .failure(let refusal) = RoutineSchedule.parse(trigger) {
             found += refusal.problems
@@ -195,9 +198,10 @@ extension Routine {
     }
 
     /// The parsed trigger; nil for a routine whose trigger does not parse,
-    /// which `problems` would have named, and for one fired by an event.
+    /// which `problems` would have named, and for one fired by an event or
+    /// by a watched folder.
     package var schedule: RoutineSchedule? {
-        guard trigger.on == nil else { return nil }
+        guard trigger.on == nil, trigger.watch == nil else { return nil }
         return try? RoutineSchedule.parse(trigger).get()
     }
 

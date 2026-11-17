@@ -1,8 +1,8 @@
 # knowledge/
 
 Agent packages live here. `agents/` starts empty on purpose — the app also
-loads the bundled packages from `Kiteloop/examples/agents/` — two examples and
-`project-setup` — so a fresh clone has a working pair without anything in this
+loads the bundled packages from `Kiteloop/examples/agents/` — two examples,
+`project-setup` and `watch` — so a fresh clone has a working pair without anything in this
 directory.
 
 This `knowledge/` is the repo's own; it is not inside any project you open.
