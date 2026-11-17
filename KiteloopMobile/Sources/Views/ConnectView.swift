@@ -27,7 +27,7 @@ struct ConnectView: View {
                     if claiming {
                         HStack(spacing: 8) {
                             ProgressView().controlSize(.small)
-                            Text("Pairing with the Mac…").font(.caption).foregroundStyle(.secondary)
+                            Text("Waiting for Allow on the Mac…").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     if let problem = scanProblem {

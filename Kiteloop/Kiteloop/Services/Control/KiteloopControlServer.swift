@@ -660,7 +660,7 @@ final class KiteloopControlServer {
         switch route {
         case .health: return health()
         case .openAPIDocument: return openAPIDocument()
-        case .claimPairingCode: return claimPairingCode(body: req.body)
+        case .claimPairingCode: return await claimPairingCode(req)
         case .listQuickReplies: return .json(["replies": quickReplies()])
         case .registerPushDevice: return await registerPushDevice(req)
         case .registerLiveActivity: return registerLiveActivity(body: req.body)
@@ -1148,7 +1148,17 @@ final class KiteloopControlServer {
     /// Takes a code off offer — the pairing sheet closing.
     func withdrawPairingCode(_ code: String) {
         deviceTokens?.withdraw(code: code)
+        pairingRequests.withdraw(code: code)
         pairingClaims[code] = nil
+    }
+
+    /// The devices that sent a code on offer and wait for the person to allow
+    /// them on the sheet showing it. A code alone pairs nothing.
+    let pairingRequests = PairingRequests()
+
+    /// The person's answer, on the pairing sheet, to the device waiting on `code`.
+    func answerPairingRequest(code: String, allow: Bool) {
+        pairingRequests.answer(code: code, allow: allow)
     }
 
     /// The one-tap replies `GET /v1/quick-replies` serves. The app points it
@@ -1159,20 +1169,51 @@ final class KiteloopControlServer {
     /// showing a code can say it has been used.
     private(set) var pairingClaims: [String: String] = [:]
 
-    /// `POST /v1/pair`: a code on offer, traded once for the phone's own token.
-    private func claimPairingCode(body: Data) -> HTTPServer.Response {
-        let json = Self.jsonBody(body)
+    /// `POST /v1/pair`: a code on offer, traded once for the phone's own token
+    /// — after the person allows the device on the sheet showing the code.
+    /// The route takes no bearer token, so the code is all a caller needs to
+    /// ask; it is the person's answer that issues the token.
+    private func claimPairingCode(_ req: HTTPServer.Request) async -> HTTPServer.Response {
+        let json = Self.jsonBody(req.body)
         guard let code = json["code"] as? String, !code.isEmpty else {
             return .error("Body must include the pairing \"code\"", status: 400)
         }
         guard let deviceTokens else { return .error("This Mac keeps no paired phones", status: 404) }
+        guard deviceTokens.isOnOffer(code: code) else { return Self.pairingCodeNotOnOffer }
         let sent = (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let name = sent.isEmpty ? "Paired \(Date.now.formatted(date: .abbreviated, time: .shortened))" : sent
-        guard let (token, device) = deviceTokens.claim(code: code, name: name) else {
-            return .error("That pairing code is not on offer — show a new one on the Mac", status: 403)
+        let request = PairingRequest(code: code, name: name)
+        let requests = pairingRequests
+        req.whenClientGone? { Task { @MainActor in requests.callerLeft(request) } }
+        return pairingAnswer(to: request, await requests.outcome(of: request), deviceTokens)
+    }
+
+    private static let pairingCodeNotOnOffer = HTTPServer.Response.error(
+        "That pairing code is not on offer — show a new one on the Mac", status: 403)
+
+    /// What the device is told once its request is over. Only `.allowed`
+    /// uses the code up and issues a token.
+    private func pairingAnswer(to request: PairingRequest, _ outcome: PairingRequests.Outcome,
+                               _ deviceTokens: ControlDeviceTokens) -> HTTPServer.Response {
+        switch outcome {
+        case .allowed:
+            guard let (token, device) = deviceTokens.claim(code: request.code, name: request.name) else {
+                return Self.pairingCodeNotOnOffer
+            }
+            pairingClaims[request.code] = device.name
+            return .json(["token": token, "device": device.id.uuidString])
+        case .declined:
+            return .error("Pairing was declined on the Mac", status: 403)
+        case .withdrawn:
+            return .error("The pairing sheet on the Mac was closed — show a new code and scan it", status: 403)
+        case .callerGone:
+            return .error("the caller hung up before the person answered; nothing was paired", status: 500)
+        case .contested:
+            // The code answers to one device; it is spent without pairing either.
+            deviceTokens.withdraw(code: request.code)
+            return .error("More than one device sent this pairing code, so it was withdrawn — "
+                          + "show a new one on the Mac", status: 409)
         }
-        pairingClaims[code] = device.name
-        return .json(["token": token, "device": device.id.uuidString])
     }
 
     func revokePhone(_ id: UUID) {

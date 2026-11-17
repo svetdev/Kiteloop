@@ -119,7 +119,12 @@ struct AppPreferencesView: View {
         }) {
             PairPhoneSheet(port: pairingPort, serverRunning: controlServer.isRunning,
                            code: pairingCode, token: pairingToken,
-                           pairedName: pairingCode.flatMap { controlServer.pairingClaims[$0] })
+                           pairedName: pairingCode.flatMap { controlServer.pairingClaims[$0] },
+                           request: pairingCode.flatMap { controlServer.pairingRequests.waiting[$0] },
+                           contested: pairingCode.map { controlServer.pairingRequests.contested.contains($0) } ?? false,
+                           answer: { allow in
+                               if let pairingCode { controlServer.answerPairingRequest(code: pairingCode, allow: allow) }
+                           })
         }
     }
 
@@ -802,6 +807,12 @@ private struct PairPhoneSheet: View {
     let token: String?
     /// The phone that claimed `code`, once one has.
     let pairedName: String?
+    /// The device that sent `code` and waits to be allowed, while one does.
+    let request: PairingRequest?
+    /// Whether more than one device sent `code`, which withdrew it.
+    let contested: Bool
+    /// The person's answer to `request`.
+    let answer: (Bool) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var chosenAddress: String?
     @State private var reachability: PairingReachability = .checking
@@ -839,6 +850,10 @@ private struct PairPhoneSheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+            } else if contested {
+                PairingContestedNote()
+            } else if let request {
+                PairingRequestPrompt(request: request, answer: answer)
             } else if let payload, let image = Self.qrImage(for: payload) {
                 Image(nsImage: image)
                     .interpolation(.none)
@@ -849,7 +864,7 @@ private struct PairPhoneSheet: View {
                     .foregroundStyle(.secondary)
                 Text(code == nil
                      ? "http://\(address ?? "?"):\(String(port)) — carries the control token; show it only to your own phone."
-                     : "http://\(address ?? "?"):\(String(port)) — pairs one phone, once; closing this withdraws it.")
+                     : "http://\(address ?? "?"):\(String(port)) — pairs one phone, once you allow it here; closing this withdraws it.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
@@ -926,6 +941,49 @@ private struct PairPhoneSheet: View {
         let image = NSImage(size: rep.size)
         image.addRepresentation(rep)
         return image
+    }
+}
+
+/// What the pairing sheet shows in place of the QR once a device has sent its
+/// code: the name the device gave, and the two answers. The code only asks;
+/// this is what pairs.
+private struct PairingRequestPrompt: View {
+    let request: PairingRequest
+    let answer: (Bool) -> Void
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Label("A device wants to pair", systemImage: "iphone.radiowaves.left.and.right")
+            Text(verbatim: request.name)
+                .font(.title3)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .accessibilityIdentifier("settings-pairing-request-name")
+            Text("Allow it only if this is the phone you just scanned the code with — it gets the same access you have. The name is whatever the device sent.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            HStack {
+                Button("Don't Allow", role: .cancel) { answer(false) }
+                    .accessibilityIdentifier("settings-pairing-request-decline")
+                Button("Allow") { answer(true) }
+                    .accessibilityIdentifier("settings-pairing-request-allow")
+            }
+        }
+    }
+}
+
+/// What the pairing sheet shows once a second device has sent the same code.
+private struct PairingContestedNote: View {
+    var body: some View {
+        VStack(spacing: 8) {
+            Label("Nothing was paired", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+            Text("More than one device sent this code, so it was withdrawn. Close this and show a new one; if you scanned it once, something else on this Mac or network has seen the code.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
     }
 }
 

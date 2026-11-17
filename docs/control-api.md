@@ -348,7 +348,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/agents/mode` | Move an agent to a permission mode, as `/mode` does in its chat |
 | GET | `/v1/agents/tasks?project=&agent=` | The subagents and background shells an agent's session has running |
 | POST | `/v1/agents/tasks/stop` | Stop one of them and leave the session running |
-| POST | `/v1/pair` | Trade the pairing QR's one-time code for a phone's own token (no auth) |
+| POST | `/v1/pair` | Trade the pairing QR's one-time code for a phone's own token, once the person allows it on the Mac (no auth) |
 | GET | `/v1/quick-replies` | The one-tap replies the phone offers above its chat composer |
 | POST | `/v1/devices/push` | Register a phone's push token, so the Mac can tell it when something happens |
 | POST | `/v1/devices/activity` | Register the Live Activity a phone started for an agent's turn |
@@ -3747,7 +3747,9 @@ open, or no such task is running)
 
 How a phone gets its token. **Pair a phone** in Settings → Control API shows a
 QR carrying a one-time `code` instead of a token; the phone posts it here, with
-the name Settings should list it under, and gets back a token of its own:
+the name Settings should list it under. The code only asks: the sheet then shows
+that name with **Allow** and **Don't Allow**, the request stays open until the
+person at the Mac answers, and on Allow the phone gets back a token of its own:
 
 ```bash
 curl -s -d '{"code":"<from the QR>","name":"My iPhone"}' $B/pair
@@ -3765,8 +3767,25 @@ sheet says which phone used its code. Needs no bearer token. On a Mac that keeps
 no paired phones, the QR carries the control token as `token=` instead, as it did
 before codes.
 
+**A code alone pairs nothing.** The route takes no bearer token, so anything
+that learns the code can send it — a process on the Mac included, and every
+caller reaches the server over loopback, the phone too (through the pairing
+forwarder), so the server cannot tell them apart. What issues the token is the
+person's Allow on the sheet. Nothing waits on a clock: the request ends when
+the person answers, when the sheet closes (403), or when the caller hangs up —
+after which the code is still on offer and can be scanned again. A code answers
+to **one** device: a second request for a code that already has one waiting
+ends both with 409 and withdraws the code, and the sheet says so, so a caller
+that raced the phone is not the one allowed. A code that is not on offer is
+refused at once and shows the person nothing. The name on the sheet is whatever
+the caller sent. A client should give this call a long deadline, as for an
+approval; the code, the request and the list of codes on offer are kept in
+memory only — never in a file or a log.
+
 **Status:** 200 · 400 (no `code`) · 403 (the code is not on offer: used,
-withdrawn or never shown) · 404 (this Mac keeps no paired phones)
+withdrawn or never shown; or the person declined; or the sheet was closed
+before they answered) · 404 (this Mac keeps no paired phones) · 409 (more than
+one device sent the code; it is withdrawn and nothing is paired)
 
 ### GET /v1/tokens
 
