@@ -181,33 +181,7 @@ struct MainWindow: View {
     /// wording, never whether a row exists.
     private var waitingOnYou: WaitingOnYou {
         WaitingOnYou.capture(projects: openProjects.compactMap { project in
-            guard let session = sessions[project.id] else { return nil }
-            let items = session.backlogViewModel.backlogFile?.sections.flatMap(\.items) ?? []
-            let agents = session.orchestrator.agents
-            return WaitingOnYou.ProjectReading(
-                id: project.id,
-                name: project.rootURL.lastPathComponent,
-                path: project.rootURL.path(percentEncoded: false),
-                gatedItems: session.backlogViewModel.gatedItemsForDrawer,
-                // An agent holding an `ask_human`, an unanswered plan card or
-                // a card its session is stopped on — the same flags its chat
-                // draws the answer box and the cards' buttons from, so the
-                // row goes the moment each is answered.
-                askingAgents: session.chatViewModels
-                    .filter { $0.value.pendingHumanToolCallID != nil || $0.value.hasOpenPlanCard || $0.value.openPromptCount > 0 }
-                    .map { agentID, _ in
-                        .init(id: agentID,
-                              name: agents.first { $0.id == agentID }?.name ?? agentID)
-                    },
-                // Read from the cache `refreshStaleFlags` keeps current, not
-                // recomputed here: this is `body`'s own path, and a live git
-                // log per open item is exactly the synchronous I/O it must
-                // never do.
-                staleItems: session.backlogViewModel.staleFlags.map { flag in
-                    .init(id: flag.itemID, title: flag.title, status: flag.status, lastTouched: flag.lastTouched)
-                },
-                pending: pendingNotices[project.id] ?? []
-            )
+            sessions[project.id]?.waitingReading(pending: pendingNotices[project.id] ?? [])
         })
     }
 

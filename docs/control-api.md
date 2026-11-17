@@ -154,6 +154,7 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | POST | `/v1/fleet/quiesce` | Stop the whole fleet taking new work, and wait for it to drain |
 | POST | `/v1/fleet/resume` | Lift the hold and pick the held queues back up |
 | GET | `/v1/usage` | How close the agents are to their rate limit, and the last day's spend per project |
+| GET | `/v1/attention` | Everything waiting on you across every open project, oldest first, each row naming the call that answers it |
 | GET | `/v1/events` | Every open project's inbox notices as one live, resumable SSE stream |
 | GET | `/v1/memory/proposals?project=` | List a project's pending memory proposals |
 | POST | `/v1/memory/proposals/approve` | Approve one — applies it to the agent's memory |
@@ -282,6 +283,7 @@ curl -s http://127.0.0.1:4517/health
   "processMemoryMB": 312.5,
   "activeSubprocessCount": 3,
   "holds": [],
+  "routines": [],
   "tools": [
     { "project": "kiteloop", "path": "/Users/me/code/kiteloop",
       "tools": [
@@ -309,6 +311,7 @@ curl -s http://127.0.0.1:4517/health
 | `processMemoryMB` | Resident memory, in MB; `null` when the kernel refused the reading |
 | `activeSubprocessCount` | Live Claude Code subprocesses |
 | `holds` | Projects whose **autonomous** starts are being withheld by their own failed runs. Empty is the healthy state |
+| `routines` | Routines whose last run went badly — `refused`, `waiting` or `skipped` — each with a `severity`. Empty is the healthy state |
 | `tools` | Per open project, every executable its verify commands run and where the app's search path resolved it — or `null` with the directories searched — and, as `exports`, the variables every verify and agent spawn on the project's behalf runs with beyond `PATH` |
 
 Each entry in `holds` carries `project`, `path`, a `reason` naming the failures
@@ -319,6 +322,24 @@ and what would end the hold, the `failures` still standing as evidence, the
 {"holds": [{"project": "kiteloop", "path": "/Users/me/code/kiteloop",
             "reason": "3 autonomous runs in kiteloop failed (last: summary-line blocked: verify failed) — held until its queue changes",
             "failures": 3, "items": 1, "systemic": false}]}
+```
+
+Each entry in `routines` is a routine whose newest ledger entry a monitor
+should act on, carrying `routine` (its id), `project`, `outcome`, `at` (when
+the run was handled, ISO 8601), `severity`, and `reason` when the run gave one.
+A routine whose last run started or queued, or which has never run, is left
+out; `status` does not look at this list.
+
+| `outcome` | `severity` | Meaning |
+|---|---|---|
+| `refused` | `error` | Final — the day's budget, or nobody to send it to; the occurrence is lost |
+| `waiting` | `warning` | Its project is not open or the fleet is held; the occurrence is owed and runs when it can |
+| `skipped` | `info` | The precheck found nothing to do |
+
+```json
+{"routines": [{"routine": "morning-brief", "project": "vault", "outcome": "refused",
+               "reason": "the day's routine budget is spent", "at": "2026-11-17T07:00:04Z",
+               "severity": "error"}]}
 ```
 
 `tools` answers **which tools can this app reach for this project, and where?**
@@ -2254,6 +2275,52 @@ curl -s -H "$H" $B/usage
 | `rateLimit` | Of the readings every open project's agents last reported (the CLI's `rate_limit_event`), the one closest to its limit: a refusal (`rejected`) first, then any other warning, then the highest `utilization`. `null` when no agent has reported one since the app started |
 | `agentsReporting` | How many agents' readings that was chosen from |
 | `spend` | The last 24 hours — the day the shared daily budget covers — per project, busiest first, from the same report as [`GET /v1/report`](#get-v1report), capped as it is, with the rest named in `omittedProjects`. On a subscription these are token-equivalent dollars. `null` on a build that keeps no metrics |
+
+**Status:** 200
+
+---
+
+### GET /v1/attention
+
+Everything **waiting on you** across every open project — the same list the
+app's waiting drawer and menu bar draw, oldest first. A snapshot;
+[`GET /v1/events`](#get-v1events) streams the notices behind it. Read scope.
+
+```bash
+curl -s -H "$H" $B/attention
+```
+
+```json
+{
+  "count": 2,
+  "summary": "1 approval · 1 question",
+  "rows": [
+    { "id": "…#approval:item-1", "kind": "approval",
+      "project": { "id": "…", "name": "kiteloop", "path": "/Users/me/kiteloop" },
+      "itemId": "item-1", "agentId": null, "title": "Needs sign-off", "detail": "item-1 — needs sign-off",
+      "since": "2026-11-17T09:12:00Z", "gateRefusal": null, "staleFileCount": null,
+      "answer": { "method": "POST", "path": "/v1/backlog/approve" } },
+    { "id": "…#question:A1B2…", "kind": "question",
+      "project": { "id": "…", "name": "kiteloop", "path": "/Users/me/kiteloop" },
+      "itemId": null, "agentId": "A1B2…", "title": "Builder needs input", "detail": "Keep the old rounding?",
+      "since": "2026-11-17T09:40:00Z", "gateRefusal": null, "staleFileCount": null,
+      "answer": { "method": "POST", "path": "/v1/agents/answer" } }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `count` | How many rows |
+| `summary` | What is waiting, by kind — `nothing is waiting on you` when the list is empty |
+| `rows` | Longest-waiting first; a row whose notice is gone (`since` null) sorts to the top. Ties break on project name, then row id |
+| `kind` | `approval` — an item at the approval gate; `question` — an agent holding an unanswered `ask_human`; `plan` — an agent with an open plan card; `prompt` — an agent stopped on a permission or choices card; `stale` — an open item nothing has touched in a while |
+| `itemId` / `agentId` | The item (approval, stale) or the agent (question, plan, prompt) the row is about; the other is `null` |
+| `title` / `detail` | What is waiting, and the notice's own words (for an approval refused at the merge gate, the refusal) |
+| `since` | When it started waiting, ISO 8601 — the notice's time, or a stale item's last touch |
+| `gateRefusal` | For an approval row: the merge gate's refusal, verbatim, when it already ran and said no; else `null` |
+| `staleFileCount` | For an approval row: how many files conflict with the base right now; `null` when clean or unchecked |
+| `answer` | The call that deals with the row: approval → `POST /v1/backlog/approve`, question → `POST /v1/agents/answer`, plan → `POST /v1/agents/plan`, prompt → `POST /v1/agents/permission`, stale → `GET /v1/backlog/detail` |
 
 **Status:** 200
 

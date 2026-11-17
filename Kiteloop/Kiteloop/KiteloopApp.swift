@@ -192,7 +192,8 @@ struct KiteloopApp: App {
         let cli = CLIResolver.resolve(globalConfig: globalConfigStore.config)
         let real = ClaudeCodeCLIRuntime(claudePath: cli.claude, nodePath: cli.node,
                                         environmentForSpawn: RunEnvironment.overlay(forWorkingDirectory:),
-                                        globalMCPServers: globalConfigStore.config.mcpServers ?? [:])
+                                        globalMCPServers: globalConfigStore.config.mcpServers ?? [:],
+                                        operatorToolsNote: OperatorToolsKnowledge.note)
         if Self.shouldRecordSessions(environment: ProcessInfo.processInfo.environment) {
             let dir = Self.globalDir.appending(path: "recordings")
             return RecordingAgentRuntime(wrapped: real, outputDirectory: dir)

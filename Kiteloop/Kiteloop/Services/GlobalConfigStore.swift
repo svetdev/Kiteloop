@@ -6,6 +6,8 @@ import KiteloopCore
 class GlobalConfigStore {
     private let storageURL: URL
     private let reporter: StoreProblemReporter
+    /// Where a connector's env and header values live; the file keeps names only.
+    private let secretStore: ConnectorSecretStore
     private(set) var config: GlobalConfig
 
     /// The name this store reports under. A human reads it in a notification
@@ -19,9 +21,11 @@ class GlobalConfigStore {
         return dir.appending(path: "global-config.json")
     }()
 
-    init(storageURL: URL? = nil, reporter: StoreProblemReporter = .shared) {
+    init(storageURL: URL? = nil, reporter: StoreProblemReporter = .shared,
+         secretStore: ConnectorSecretStore = KeychainConnectorSecretStore()) {
         self.storageURL = storageURL ?? Self.defaultURL
         self.reporter = reporter
+        self.secretStore = secretStore
         self.config = GlobalConfig()
         load()
     }
@@ -77,10 +81,14 @@ class GlobalConfigStore {
         save()
     }
 
+    /// Saves the servers with their env and header values moved to the
+    /// secret store. A value left blank keeps the stored one; a server or name
+    /// no longer present has its secret deleted.
     func setMCPServers(_ servers: [String: ClaudeMCPServerEntry]?) {
-        config.mcpServers = servers
+        let stripped = ConnectorSecrets.storing(servers ?? [:], replacing: config.mcpServers ?? [:], in: secretStore)
+        config.mcpServers = servers == nil ? nil : stripped
         save()
-        ClaudeCodeCLIRuntime.broadcastGlobalMCPServers(servers ?? [:])
+        ClaudeCodeCLIRuntime.broadcastGlobalMCPServers(stripped)
     }
 
     /// The portfolio-level statement, or nil when nothing is stated. Whitespace
@@ -176,8 +184,14 @@ class GlobalConfigStore {
             return
         }
         config = decoded.config
+        // A connector value written in plain text by an older build moves to
+        // the secret store once, and the file is written without it.
+        let carriedSecrets = config.mcpServers.map(ConnectorSecrets.holdsSecrets) ?? false
+        if let servers = config.mcpServers, carriedSecrets {
+            config.mcpServers = ConnectorSecrets.storing(servers, replacing: servers, in: secretStore)
+        }
         // A retired key is read once, then the file is written without it.
-        if decoded.carriedRetiredKeys { save() }
+        if decoded.carriedRetiredKeys || carriedSecrets { save() }
     }
 
     private func save() {

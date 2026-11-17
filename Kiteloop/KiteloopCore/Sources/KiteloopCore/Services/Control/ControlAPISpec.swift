@@ -171,6 +171,12 @@ package enum ControlAPISpec {
 
     // MARK: - What each route accepts and returns, by family
 
+    /// A route's one-line summary, as the document gives it — what
+    /// `OperatorToolsKnowledge` lists each endpoint with.
+    package static func summary(for route: ControlRoute) -> String {
+        detail(for: route).summary
+    }
+
     /// Exhaustive over `ControlRoute` on purpose: adding a route without saying
     /// what it does is a compile error, not a silently thin document. What each
     /// route says is one function of its own, reached through the family it
@@ -196,7 +202,7 @@ package enum ControlAPISpec {
              .listMetrics, .listEstimates, .listGrooming, .portfolioReport:
             return backlogDetail(for: route)
         case .getAutopilot, .setAutopilot, .resetAutopilot, .pauseAutopilot, .resumeAutopilot,
-             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .appEvents:
+             .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .attention, .appEvents:
             return queueDetail(for: route)
         case .getCoordinatorRefill, .setCoordinatorRefill,
              .getCoordinatorScheduling, .setCoordinatorScheduling,
@@ -1933,7 +1939,7 @@ package enum ControlAPISpec {
         case .getAutopilot, .setAutopilot, .resetAutopilot,
              .pauseAutopilot, .resumeAutopilot:
             return autopilotDetail(for: route)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .attention, .appEvents:
             return fleetDetail(for: route)
         default:
             preconditionFailure("\(route) is not a queue route")
@@ -2081,6 +2087,7 @@ package enum ControlAPISpec {
         case .resumeFleet: return resumeFleetDetail()
         case .usage: return usageDetail()
         case .spend: return spendDetail()
+        case .attention: return attentionDetail()
         case .appEvents: return appEventsDetail()
         default:
             preconditionFailure("\(route) is not a fleet route")
@@ -2109,6 +2116,46 @@ package enum ControlAPISpec {
                        description: "An SSE stream of inbox notices.",
                        schema: described(string, "SSE frames, newline-delimited."),
                        contentType: "text/event-stream")
+            ]
+        )
+    }
+
+    private static func attentionDetail() -> Detail {
+        let project = object(["id": string, "name": string, "path": string], required: ["id", "name", "path"])
+        let answer = object([
+            "method": string,
+            "path": described(string, "The control call that answers this row.")
+        ], required: ["method", "path"])
+        let row = object([
+            "id": string,
+            "kind": described(string, "approval, question, plan, prompt or stale."),
+            "project": project,
+            "itemId": described(nullable(string), "For approval and stale rows."),
+            "agentId": described(nullable(string), "For question, plan and prompt rows."),
+            "title": string,
+            "detail": nullable(string),
+            "since": described(nullable(string), "When it started waiting, ISO 8601; null when its notice is gone."),
+            "gateRefusal": described(nullable(string), "The merge gate's refusal, for an approval row it refused."),
+            "staleFileCount": described(nullable(integer), "Files that conflict with the base, for an approval row."),
+            "answer": answer
+        ], required: ["id", "kind", "project", "title", "since", "answer"])
+        return Detail(
+            id: "attention",
+            summary: "Everything waiting on you, across every open project",
+            description: """
+            The same list the app's waiting drawer draws, oldest first — a row whose \
+            notice is gone (`since` null) at the top: items at the approval gate, agents \
+            holding an unanswered `ask_human` (question), an open plan card (plan) or an \
+            open permission or choices card (prompt), and items nothing has touched in a \
+            while (stale). Each row's `answer` names the call that deals with it. A \
+            snapshot; GET /v1/events streams the notices behind it.
+            """,
+            responses: [
+                Status(code: 200, description: "The list.", schema: object([
+                    "count": integer,
+                    "summary": described(string, "What is waiting, by kind — \"nothing is waiting on you\" when empty."),
+                    "rows": array(of: row)
+                ], required: ["count", "summary", "rows"]))
             ]
         )
     }
@@ -2768,10 +2815,22 @@ package enum ControlAPISpec {
             "activeSubprocessCount": described(boundedInteger(min: 0), "Live Claude Code subprocesses."),
             "holds": described(array(of: ref("SchedulerHold")),
                                "Projects whose autonomous starts are being withheld by their own failed runs. Empty is the healthy state."),
+            "routines": described(array(of: ref("RoutineAttention")),
+                                  "Routines whose last run was refused (error), waiting (warning) or skipped (info). Empty is the healthy state."),
             "tools": described(array(of: ref("ProjectTools")),
                                "Per open project, the executables its verify commands run and where each resolved on the app's search path.")
         ], required: ["status", "version", "apiVersion", "uptimeSeconds", "projectsOpen", "activeRuns",
-                     "mainThreadLatencyMs", "hitchCount", "processMemoryMB", "activeSubprocessCount", "holds", "tools"]),
+                     "mainThreadLatencyMs", "hitchCount", "processMemoryMB", "activeSubprocessCount", "holds", "routines", "tools"]),
+
+        "RoutineAttention": object([
+            "routine": described(string, "The routine's id."),
+            "project": string,
+            "outcome": enumOf(["refused", "waiting", "skipped"]),
+            "reason": described(string, "Why it was refused, is waiting or was skipped; absent when the run gave none."),
+            "at": described(string, "When the run was handled, ISO 8601."),
+            "severity": described(enumOf(["error", "warning", "info"]),
+                                  "error for refused (the occurrence is lost), warning for waiting (it is owed), info for skipped.")
+        ], required: ["routine", "project", "outcome", "at", "severity"]),
 
         "ProjectTools": object([
             "project": string,

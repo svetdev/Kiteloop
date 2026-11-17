@@ -181,14 +181,28 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     /// arrives from the store while sessions spawn elsewhere.
     private var globalMCPServers: [String: ClaudeMCPServerEntry]
     private let globalMCPLock = NSLock()
+    /// Where the global servers' env and header values are read from when a
+    /// session's config file is written; Settings keeps the names only.
+    private let connectorSecrets: ConnectorSecretStore
+
+    /// The note an agent with the operator-tools grant gets appended to its
+    /// system prompt — `OperatorToolsKnowledge.note`, handed over because it is
+    /// built from the control API's routing table in the services layer this
+    /// one may not reach. Empty appends nothing, which is what a test runtime
+    /// wants.
+    private let operatorToolsNote: String
 
     init(claudePath: String? = nil, nodePath: String? = nil,
          environmentForSpawn: (@Sendable (URL) -> [String: String])? = nil,
-         globalMCPServers: [String: ClaudeMCPServerEntry] = [:]) {
+         globalMCPServers: [String: ClaudeMCPServerEntry] = [:],
+         operatorToolsNote: String = "",
+         connectorSecrets: ConnectorSecretStore = KeychainConnectorSecretStore()) {
         self.claudePath = claudePath ?? CLIResolver.claude ?? "/usr/local/bin/claude"
         self.nodePath = nodePath ?? CLIResolver.node ?? "/usr/local/bin/node"
         self.environmentForSpawn = environmentForSpawn
         self.globalMCPServers = globalMCPServers
+        self.operatorToolsNote = operatorToolsNote
+        self.connectorSecrets = connectorSecrets
         Self.globalLock.lock()
         Self.allInstances.append(WeakRuntime(instance: self))
         Self.globalLock.unlock()
@@ -490,7 +504,8 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
         let auth = ClaudeAuthConfig.loadCurrent()
         process.environment = processEnvironment(agent: agent, auth: auth, cwd: cwd, unattended: options.unattended)
 
-        var args = Self.launchArguments(agent: agent, auth: auth, options: options)
+        var args = Self.launchArguments(agent: agent, auth: auth, options: options,
+                                         operatorToolsNote: operatorToolsNote)
 
         let toolBridge = setupToolBridge(sessionID: sessionID, agent: agent)
 
@@ -572,7 +587,8 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
 
     /// The agent-derived CLI arguments: protocol, model, limits, permissions,
     /// tuning, tool scope, system prompt and workspace directory.
-    private static func launchArguments(agent: Agent, auth: ClaudeAuthConfig, options: SessionOptions) -> [String] {
+    private static func launchArguments(agent: Agent, auth: ClaudeAuthConfig, options: SessionOptions,
+                                        operatorToolsNote: String) -> [String] {
         var args = streamProtocolArguments + [
             "--model", ModelCatalog.launchModel(for: agent.model, auth: auth),
             "--max-turns", maxTurnsArgument(for: agent),
@@ -585,7 +601,7 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
         let resolvedScope = ToolScopeResolver.resolve(profile: profileScope, layers: [])
         args += buildAllowedToolsArgs(from: resolvedScope, asking: options.asksBeforeListedTools)
 
-        args += appendedSystemPromptArguments(for: agent)
+        args += appendedSystemPromptArguments(for: agent, operatorToolsNote: operatorToolsNote)
 
         if let workspacePath = agent.workspacePath, !workspacePath.isEmpty {
             args += ["--add-dir", workspacePath]
@@ -611,12 +627,12 @@ final class ClaudeCodeCLIRuntime: AgentRuntime, @unchecked Sendable {
     /// than needing a knowledge package: an agent with no package at all —
     /// most chat agents — would otherwise get the credential and no idea
     /// what it is for.
-    private static func appendedSystemPromptArguments(for agent: Agent) -> [String] {
+    private static func appendedSystemPromptArguments(for agent: Agent, operatorToolsNote: String) -> [String] {
         var appendedSystemPrompt = agent.systemPrompt
-        if agent.operatorToolsEnabled {
+        if agent.operatorToolsEnabled, !operatorToolsNote.isEmpty {
             appendedSystemPrompt = appendedSystemPrompt.isEmpty
-                ? OperatorToolsKnowledge.note
-                : appendedSystemPrompt + "\n\n" + OperatorToolsKnowledge.note
+                ? operatorToolsNote
+                : appendedSystemPrompt + "\n\n" + operatorToolsNote
         }
         guard !appendedSystemPrompt.isEmpty else { return [] }
         return ["--append-system-prompt", appendedSystemPrompt]
@@ -1554,14 +1570,15 @@ extension ClaudeCodeCLIRuntime {
         return globalPath
     }
 
-    /// Writes the app-wide MCP servers to this session's own config file.
-    /// Nil when there are none, or when the file could not be written — the
+    /// Writes the app-wide MCP servers to this session's own config file, with
+    /// their secrets filled in from the store. Nil when there are none, or when the file could not be written — the
     /// session then spawns without them rather than not at all.
     private func writeGlobalMCPConfig(sessionID: String) -> String? {
         let servers = globalMCPLock.withLock { globalMCPServers }
         guard !servers.isEmpty else { return nil }
         let path = SessionTempFiles.path(for: .globalMCPConfig, sessionID: sessionID)
-        guard let data = try? JSONEncoder().encode(ClaudeMCPConfig(mcpServers: servers)),
+        let resolved = ConnectorSecrets.resolvingSecrets(servers, from: connectorSecrets)
+        guard let data = try? JSONEncoder().encode(ClaudeMCPConfig(mcpServers: resolved)),
               FileManager.default.createFile(atPath: path, contents: data) else { return nil }
         return path
     }

@@ -604,7 +604,7 @@ final class KiteloopControlServer {
              .listRoutines, .listRoutineRuns, .putRoutine, .deleteRoutine, .runRoutine,
              .fireHook, .mintHook, .revokeHook:
             return loopsRoute(route, req)
-        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .appEvents:
+        case .fleetStatus, .quiesceFleet, .resumeFleet, .usage, .spend, .attention, .appEvents:
             return await fleetRoute(route, req)
         case .startRun, .listRuns, .runStatus, .runResult, .runEvents, .runLog,
              .approveRun, .cancelRun, .steerRun, .manage:
@@ -857,6 +857,7 @@ final class KiteloopControlServer {
         case .resumeFleet: return await resumeFleet()
         case .usage: return usage()
         case .spend: return await spend(req.query)
+        case .attention: return await attention()
         case .appEvents: return appEvents(req)
         default: return Self.notThisArea(route)
         }
@@ -879,6 +880,29 @@ final class KiteloopControlServer {
                 writer.send(event.json, id: String(event.seq))
             }
         }
+    }
+
+    /// `GET /v1/attention`: what is waiting on a person across every open
+    /// project — the waiting drawer's list, read through the same
+    /// `ProjectSession.waitingReading(pending:)` the drawer reads.
+    private func attention() async -> HTTPServer.Response {
+        var readings: [WaitingOnYou.ProjectReading] = []
+        var waits: [String: [String: AttentionReport.AgentWait]] = [:]
+        for entry in registry.openProjects {
+            let pending = await entry.session.orchestrator.notificationStore?.pending() ?? []
+            readings.append(entry.session.waitingReading(pending: pending))
+            // What each agent's chat holds open, in the order its answer box
+            // takes them: an `ask_human`, then a plan card, then any other card.
+            waits[entry.session.project.id] = entry.session.chatViewModels.mapValues { chat in
+                if chat.pendingHumanToolCallID != nil { return AttentionReport.AgentWait.question }
+                return chat.hasOpenPlanCard ? .plan : .prompt
+            }
+        }
+        let waiting = WaitingOnYou.capture(projects: readings)
+        return .json(AttentionReport.payload(waiting) { row in
+            guard case .question(let agentID) = row.gate else { return .question }
+            return waits[row.projectID]?[agentID] ?? .question
+        })
     }
 
     /// The window `GET /v1/usage` reports spend over: the day the shared
@@ -983,6 +1007,10 @@ final class KiteloopControlServer {
     /// sidebar of a window nobody was in front of, which is how one project's
     /// three retries stopped the fleet for six hours on 2026-08-12 without
     /// anything saying so. Empty is the healthy state and the shipped one.
+    ///
+    /// `routines` asks the same of routines: which last went badly — refused,
+    /// waiting or skipped — each with a severity (`RoutineHealth`). Empty too
+    /// when all is well, and for a server that keeps no routines.
     private func health() -> HTTPServer.Response {
         let snapshot = healthSnapshotProvider()
         let degraded = snapshot.mainThreadLatencyMs >= HealthMonitor.hitchThresholdMs
@@ -998,6 +1026,8 @@ final class KiteloopControlServer {
             "processMemoryMB": snapshot.processMemoryMB as Any,
             "activeSubprocessCount": snapshot.activeSubprocessCount,
             "holds": (runScheduler?.holds.active ?? []).map(Self.holdJSON),
+            "routines": RoutineHealth.attention(routines: routines?.routines ?? [],
+                                                lastRun: { [routines] in routines?.lastRun(of: $0) }).map(\.json),
             "tools": registry.openProjects.map { Self.toolsJSON($0.session.toolReachability()) }
         ])
     }

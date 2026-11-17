@@ -9,7 +9,10 @@ entry — see the changelog convention in `CLAUDE.md`.
 ## 0.7.2 — unreleased
 
 ### Added
+- `GET /health` lists the routines whose last run was refused, is waiting or was skipped, each with a severity (`error`, `warning`, `info`), so a monitor sees a lost or owed routine without a token.
+- `GET /v1/attention` returns everything waiting on you across every open project — approvals, agents' unanswered questions, plan and permission cards, stale items — as the waiting drawer lists them, oldest first, each row naming the API call that answers it.
 - A routine can start its agent a fresh chat for each run instead of continuing the open one, so a daily job's context stops growing; the fresh chat opens with a note of the last run's reply. Chosen in the routine editor or as `conversation` on `/v1/routines`; existing routines keep continuing their chat.
+- An agent with Operator tools is told every control API endpoint it may call — starting and stopping agents, chats, project and app settings, backlog edits, memory, knowledge, MCP servers and routines included — each with a one-line summary, and that `POST /v1/backlog/land` is the operator's call along with the two approvals.
 - The chat header shows how full the agent's context window is as tokens against the window — `42.1k / 200k · 21%` — updated as each turn finishes, and `GET /v1/agents` reports the same figure as `contextTokens` and `contextWindow`.
 - The control API changes and removes agents: `PATCH /v1/agents` replaces an agent's name, model, prompt, avatar, tools, refused and always-ask calls, MCP servers and the teammates it may message, and says whether the change is in effect now, restarted the idle session or waits for the agent's next start; `DELETE /v1/agents` takes an agent off the team. Until now an agent could be hired over the API but only edited or removed in the app.
 - `PATCH /v1/agents` also sets an agent's skills, effort, thinking and session budget.
@@ -22,6 +25,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - `GET /v1/events` streams every open project's inbox notices — approvals waiting, questions, finished agents, errors — as one server-sent-events stream, and a client that reconnects with `Last-Event-ID` or `?after=` picks up the events it missed while they are still held in memory.
 - The Routines page lists every project's routines, grouped under one heading per project — the open tab's project first, then the other open projects, then routines for projects not open — and editing one keeps it in its own project.
 - An outside service can send a routine's prompt by calling that routine's own webhook, `POST /v1/hooks/{name}` with the hook's secret in `X-Kiteloop-Hook-Secret`; the request body goes to the agent under the prompt, the day's budget still applies, and the run is logged naming the hook. The control token alone creates hooks with `POST /v1/hooks` and removes them with `DELETE /v1/hooks/{name}`.
+- Companion repositories are listed, added, edited and removed on a Repositories page of project settings; Save changes only the companions and refuses a bad or duplicate name or an empty path.
 
 ## 0.7.1 — 2026-11-15
 
@@ -35,6 +39,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - The Autopilot tab no longer lists the project's routines; they are on the Routines page.
 
 ### Fixes
+- The environment values and remote-server headers of a connector set up in Settings → MCP Servers (or through `PUT /v1/mcp-servers`) are kept in the login keychain instead of in plain text in `~/.kiteloop/global-config.json`, which now holds only their names; values already in the file move to the keychain the next time Kiteloop starts, and leaving a value blank when saving keeps the stored one.
 - A table in a chat reply lines up when a cell holds ✅/❌, another emoji or CJK text, honours `:---`, `:---:` and `---:` column alignment, and is drawn as a table when written without the outer pipes.
 - A chat follows the conversation again. The list stays on the newest line as a reply is written, as a call's result comes in and when the turn ends, instead of leaving the end of a reply below the window; it still stays put for a reader who scrolled up. Sending a message always takes you to the bottom.
 - A shell command that did not exit 0 is marked red in the chat and shows the first lines of what it printed, where it wore a green mark beside "Exit code 1".
