@@ -179,7 +179,8 @@ package enum ControlAPISpec {
     private static func detail(for route: ControlRoute) -> Detail {
         switch route {
         case .health, .openAPIDocument, .claimPairingCode, .listQuickReplies,
-             .registerPushDevice, .registerLiveActivity:
+             .registerPushDevice, .registerLiveActivity,
+             .listTokens, .mintToken, .revokeToken:
             return metaDetail(for: route)
         case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot,
@@ -385,9 +386,95 @@ package enum ControlAPISpec {
         case .listQuickReplies: return listQuickRepliesDetail()
         case .registerPushDevice: return registerPushDeviceDetail()
         case .registerLiveActivity: return registerLiveActivityDetail()
+        default: return tokenDetail(for: route)
+        }
+    }
+
+    // MARK: - Scoped tokens
+
+    /// `/v1/tokens…` — the scoped tokens only the control token manages.
+    private static func tokenDetail(for route: ControlRoute) -> Detail {
+        switch route {
+        case .listTokens: return listTokensDetail()
+        case .mintToken: return mintTokenDetail()
+        case .revokeToken: return revokeTokenDetail()
         default:
             preconditionFailure("\(route) is not a meta route")
         }
+    }
+
+    private static var scopedTokenSchema: [String: Any] {
+        object([
+            "id": described(string, "The token's id, to revoke it by."),
+            "name": described(string, "What the token is for."),
+            "scope": described(enumOf(["read", "operate", "configure"]), "What the token may do."),
+            "createdAt": described(string, "When it was minted, ISO 8601.")
+        ], required: ["id", "name", "scope", "createdAt"])
+    }
+
+    private static var controlTokenOnly: Status {
+        errorStatus(403, "The caller holds a phone, operator or scoped token, not the control token.")
+    }
+
+    private static func listTokensDetail() -> Detail {
+        return Detail(
+            id: "listTokens",
+            summary: "The scoped tokens",
+            description: """
+            Every scoped token minted and not revoked, oldest first — never the \
+            token or its hash. Only the control token may call this.
+            """,
+            responses: [
+                Status(code: 200, description: "The tokens.", schema: object([
+                    "tokens": array(of: scopedTokenSchema)
+                ], required: ["tokens"])),
+                controlTokenOnly,
+                errorStatus(503, "This Kiteloop keeps no scoped tokens.")
+            ]
+        )
+    }
+
+    private static func mintTokenDetail() -> Detail {
+        return Detail(
+            id: "mintToken",
+            summary: "Mint a scoped token",
+            description: """
+            A bearer token accepted only on routes inside its scope. Scopes nest: \
+            configure includes operate, which includes read. No scoped token \
+            resolves a human gate or manages tokens. The token is in this answer \
+            only; the Mac keeps its SHA-256. Only the control token may call this.
+            """,
+            requestBody: object([
+                "name": described(string, "What the token is for."),
+                "scope": described(enumOf(["read", "operate", "configure"]), "What the token may do.")
+            ], required: ["name", "scope"]),
+            responses: [
+                Status(code: 200, description: "Minted.", schema: object([
+                    "token": described(string, "The bearer token, shown this once."),
+                    "id": described(string, "The token's id, to revoke it by."),
+                    "name": string,
+                    "scope": string,
+                    "createdAt": string
+                ], required: ["token", "id", "name", "scope", "createdAt"])),
+                errorStatus(400, "No name, or a scope that is not read, operate or configure."),
+                controlTokenOnly,
+                errorStatus(503, "This Kiteloop keeps no scoped tokens.")
+            ]
+        )
+    }
+
+    private static func revokeTokenDetail() -> Detail {
+        return Detail(
+            id: "revokeToken",
+            summary: "Revoke a scoped token",
+            description: "The token stops working at once. Only the control token may call this.",
+            responses: [
+                Status(code: 200, description: "Revoked.", schema: object(["revoked": bool], required: ["revoked"])),
+                controlTokenOnly,
+                errorStatus(404, "No scoped token has this id."),
+                errorStatus(503, "This Kiteloop keeps no scoped tokens.")
+            ]
+        )
     }
 
     private static func listQuickRepliesDetail() -> Detail {

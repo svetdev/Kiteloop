@@ -290,11 +290,13 @@ final class KiteloopControlServer {
         inbox: (@MainActor () -> NotificationStoring?)? = nil,
         healthSnapshotProvider: @escaping () -> HealthMonitor.Snapshot = HealthMonitor.shared.snapshot,
         deviceTokens: ControlDeviceTokens? = nil,
+        scopedTokens: ControlScopedTokens? = nil,
         accessLog: ControlAccessLog? = nil,
         startedAt: Date = Date()
     ) {
         self.registry = registry
         self.deviceTokens = deviceTokens
+        self.scopedTokens = scopedTokens
         self.accessLog = accessLog
         self.fleet = FleetQuiesce(registry: registry)
         self.tokenURL = tokenURL
@@ -519,6 +521,7 @@ final class KiteloopControlServer {
         case .full: return "control"
         case .operatorScoped: return "operator"
         case .paired: return pairedDevice(req)?.name ?? "phone"
+        case .scoped(let held): return scopedToken(req).map { "\($0.name) (\(held.rawValue))" } ?? "scoped"
         case .none: return "none"
         }
     }
@@ -550,6 +553,7 @@ final class KiteloopControlServer {
                 status: 403
             )
         }
+        if let refusal = Self.scopeRefusal(scope, matched, req) { return refusal }
 
         // Close whatever has ended before any handler reads a run. Done here, once,
         // rather than at each ending: a handler that forgets would leave a record
@@ -570,7 +574,8 @@ final class KiteloopControlServer {
     private func dispatch(_ route: ControlRoute, _ req: HTTPServer.Request) async -> HTTPServer.Response {
         switch route {
         case .health, .openAPIDocument, .claimPairingCode, .listQuickReplies,
-             .registerPushDevice, .registerLiveActivity:
+             .registerPushDevice, .registerLiveActivity,
+             .listTokens, .mintToken, .revokeToken:
             return await metaRoute(route, req)
         case .listProjects, .openProject, .reorderProjects, .askAboutProject, .pinProjectDocument,
              .workspaceChanges, .workspaceFile, .previewScreenshot,
@@ -627,7 +632,7 @@ final class KiteloopControlServer {
         case .listQuickReplies: return .json(["replies": quickReplies()])
         case .registerPushDevice: return await registerPushDevice(req)
         case .registerLiveActivity: return registerLiveActivity(body: req.body)
-        default: return Self.notThisArea(route)
+        default: return tokenRoute(route, req)
         }
     }
 
@@ -1067,14 +1072,87 @@ final class KiteloopControlServer {
         return deviceTokens?.device(for: String(header.dropFirst("Bearer ".count)))
     }
 
+    /// The scoped tokens minted over `/v1/tokens`; nil for a server that keeps
+    /// none, as tests build by default.
+    let scopedTokens: ControlScopedTokens?
+
+    /// The scoped token a request's bearer token is, if it is one.
+    private func scopedToken(_ req: HTTPServer.Request) -> ControlScopedToken? {
+        guard let header = req.header("Authorization"), header.hasPrefix("Bearer ") else { return nil }
+        return scopedTokens?.token(for: String(header.dropFirst("Bearer ".count)))
+    }
+
+    /// Why a credential may not call `route`, or nil when it may. Managing
+    /// tokens takes the full control token, so no narrower credential can mint
+    /// a wider one; a scoped token never resolves a human gate, and otherwise
+    /// reaches the routes its scope includes — scopes nest, configure over
+    /// operate over read.
+    private static func scopeRefusal(_ scope: AuthScope, _ route: ControlRoute,
+                                     _ req: HTTPServer.Request) -> HTTPServer.Response? {
+        if route.isTokenManagement, scope != .full {
+            return .error("managing scoped tokens takes the control token itself", status: 403)
+        }
+        guard case .scoped(let held) = scope else { return nil }
+        if route.isHumanGate {
+            return .error("the human gate takes the operator's own token; no scoped token resolves it", status: 403)
+        }
+        guard held.includes(route.scope) else {
+            return .error("this token's scope is \(held.rawValue); \(req.method) \(req.path) needs \(route.scope.rawValue)",
+                          status: 403)
+        }
+        return nil
+    }
+
+    /// `/v1/tokens…`: list, mint and revoke scoped tokens. Reached only with
+    /// the control token — `scopeRefusal` has turned every other away.
+    private func tokenRoute(_ route: ControlRoute, _ req: HTTPServer.Request) -> HTTPServer.Response {
+        guard let scopedTokens else { return .error("This Kiteloop keeps no scoped tokens", status: 503) }
+        switch route {
+        case .listTokens:
+            return .json(["tokens": scopedTokens.tokens.map(Self.scopedTokenJSON)])
+        case .mintToken:
+            return mintToken(body: req.body, in: scopedTokens)
+        case .revokeToken(let id):
+            guard let uuid = UUID(uuidString: id), scopedTokens.revoke(uuid) else {
+                return .error("No scoped token has the id \(id)", status: 404)
+            }
+            return .json(["revoked": true])
+        default:
+            return Self.notThisArea(route)
+        }
+    }
+
+    /// `POST /v1/tokens`: `{name, scope}`, answered with the token this once.
+    private func mintToken(body: Data, in store: ControlScopedTokens) -> HTTPServer.Response {
+        let json = Self.jsonBody(body)
+        let name = (json["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !name.isEmpty else { return .error("Body must include the token's \"name\"", status: 400) }
+        guard let scope = (json["scope"] as? String).flatMap(ControlScope.init(rawValue:)) else {
+            return .error("\"scope\" must be read, operate or configure", status: 400)
+        }
+        let (token, entry) = store.mint(name: name, scope: scope)
+        var answer = Self.scopedTokenJSON(entry)
+        answer["token"] = token
+        return .json(answer)
+    }
+
+    /// A scoped token as the API shows it — never the token or its hash.
+    private static func scopedTokenJSON(_ entry: ControlScopedToken) -> [String: Any] {
+        ["id": entry.id.uuidString, "name": entry.name, "scope": entry.scope.rawValue,
+         "createdAt": iso.string(from: entry.createdAt)]
+    }
+
     /// Which of the API's credentials, if any, this request carries.
-    private enum AuthScope {
+    private enum AuthScope: Equatable {
         /// The full control token — every endpoint.
         case full
         /// A paired phone's own token — every endpoint, as the full token.
         case paired
         /// The operator-scoped token — every endpoint except a human gate.
         case operatorScoped
+        /// A token minted over `/v1/tokens` — the routes its scope includes,
+        /// never a human gate or `/v1/tokens` itself.
+        case scoped(ControlScope)
         /// No valid credential.
         case none
     }
@@ -1086,6 +1164,7 @@ final class KiteloopControlServer {
         if header == "Bearer \(token)" { return .full }
         if header == "Bearer \(operatorToken)" { return .operatorScoped }
         if pairedDevice(req) != nil { return .paired }
+        if let scoped = scopedToken(req) { return .scoped(scoped.scope) }
         return .none
     }
 
