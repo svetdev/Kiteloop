@@ -980,6 +980,18 @@ class BacklogAutopilot {
     /// filed on the metric record, and cleared with the gate for each item.
     private var lastWorkerTurns: Int?
     private var workerCutShortTurns: Int?
+    /// The continuation pass this item is on, once a cut-short worker has been
+    /// given one (`CutShortContinuation`): the budget the first pass used, the
+    /// worktree both passes share and how it stood when the continuation
+    /// began. Nil on an item's first pass, and cleared with the gate.
+    private var continuedFrom: (turns: Int, worktree: URL, before: CutShortContinuation.TreeMark?)?
+    /// Set by the pre-review gate when it ended a first pass so that a
+    /// continuation could follow, and taken by `finishingCutShortWork`.
+    private var continuationOwed = false
+    /// What the first pass of a continued item cost — a separate execution of
+    /// the same worker on the same item, so the caps and the item's total
+    /// count it with the continuation's own spend.
+    private var earlierPassCostUSD = 0.0
     /// The paths this run's diff touches, as of the last time the reviewer was
     /// let through (`openReviewGate`) — what a rejecting round's findings are
     /// checked against for drift (`ReviewFindings.markDrift`). Nil until then,
@@ -1530,6 +1542,8 @@ class BacklogAutopilot {
         Working on: {{state.title}}
 
         {{#if state.humanRejection}}{{state.humanRejection}}{{/if}}
+
+        {{#if state.continuationNote}}{{state.continuationNote}}{{/if}}
 
         {{#if state.what}}## What
         {{state.what}}{{/if}}
@@ -3135,6 +3149,9 @@ class BacklogAutopilot {
             lastVerifyVerdict = nil
             lastWorkerTurns = nil
             workerCutShortTurns = nil
+            continuedFrom = nil
+            continuationOwed = false
+            earlierPassCostUSD = 0
             orchestrator.nodeActivationGate = { [weak self] executionID, nodeID in
                 guard let self, Self.isGatedReviewNode(nodeID) else { return true }
                 return await self.allowReviewerToRun(executionID: executionID, session: session)
@@ -3153,11 +3170,16 @@ class BacklogAutopilot {
             defer { orchestrator.workflowOutputRefinement = nil }
 
             do {
-                let execID = try await orchestrator.startWorkflow(graph: graph, initialState: initialState)
-                currentExecutionID = execID
-                onExecutionStarted?(execID)
+                let firstPass = try await orchestrator.startWorkflow(graph: graph, initialState: initialState)
+                currentExecutionID = firstPass
+                onExecutionStarted?(firstPass)
 
-                let result = await awaitWorkflowCompletion(executionID: execID)
+                // A worker cut short with work in its worktree gets one more
+                // pass here, before anything below judges the run or tears
+                // the worktree down — see `CutShortContinuation`.
+                let (execID, result) = try await finishingCutShortWork(
+                    item: item, graph: graph, initialState: initialState, session: session,
+                    firstPass: (firstPass, await awaitWorkflowCompletion(executionID: firstPass)))
                 let duration = Date().timeIntervalSince(startTime)
                 completedExecutionIDs.insert(execID, at: 0)
                 if completedExecutionIDs.count > 50 { completedExecutionIDs.removeLast() }
@@ -3757,7 +3779,7 @@ class BacklogAutopilot {
                 // the item to the session budget, the day's ledger and every
                 // calibration that reads them back.
                 let itemCost = Self.costOfTurnSpans(spans, executionID: execID)
-                             + checksCostUSD + commentsCostUSD
+                             + checksCostUSD + commentsCostUSD + earlierPassCostUSD
                 let costByRole = Self.costByRole(spans, executionID: execID)
                 let runUsage = Self.usageOfTurnSpans(spans, executionID: execID)
                 costGovernor.chargeItem(itemCost)
@@ -3986,6 +4008,11 @@ class BacklogAutopilot {
         // is what the run ends saying.
         await readWorkerTurns(executionID: executionID)
         if let turns = workerCutShortTurns, runQueue.indices.contains(currentIndex) {
+            // Not blocked yet when the worker left work behind and has not
+            // been continued: the run loop starts it once more in this tree.
+            if await continuationIsDue(session: session) {
+                return await endPassForContinuation(turns: turns, executionID: executionID)
+            }
             let cutShort = noteWorkerCutShort(runQueue[currentIndex], turns: turns, backlog: backlogViewModel)
             return await closeReviewGate(cutShort, cause: "worker-turn-cap", executionID: executionID)
         }
@@ -5302,9 +5329,14 @@ class BacklogAutopilot {
     /// `rejection` renders to the same `humanRejection` text on both the
     /// worker's and the reviewer's prompt (`GateRejection.promptBlock`); nil
     /// for an item with nothing outstanding.
+    ///
+    /// `continuation` is true for the one more pass a cut-short worker is
+    /// given (`CutShortContinuation`): it sets `continuationNote`, which opens
+    /// the worker's brief by saying the earlier work is already in the tree.
     nonisolated static func buildInitialState(
         item: BacklogItem, detail: BacklogItemDetail?, worktree: URL?,
-        background: CoordinatorKnowledge.Background? = nil, rejection: GateRejection.Record? = nil
+        background: CoordinatorKnowledge.Background? = nil, rejection: GateRejection.Record? = nil,
+        continuation: Bool = false
     ) -> [String: AnyCodable] {
         var state: [String: AnyCodable] = [
             "itemID": .string(item.id),
@@ -5315,6 +5347,7 @@ class BacklogAutopilot {
         // rendering a bare header over nothing.
         state["projectKnowledge"] = background.map { AnyCodable.string($0.text) }
         state["humanRejection"] = rejection.flatMap(GateRejection.promptBlock).map(AnyCodable.string)
+        state["continuationNote"] = continuationNoteState(continuation)
         state["buildOutputNote"] = worktree.map { AnyCodable.string(runBuildOutputNote(worktree: $0)) }
         state["worktreePath"] = worktree.map { AnyCodable.string($0.path(percentEncoded: false)) }
 
@@ -6233,7 +6266,7 @@ class BacklogAutopilot {
     ) async -> CostSampleOutcome {
         guard pollCount % 8 == 0,
               execution.status == .running || execution.status == .pending else { return .carryOn }
-        let spent = await costForItem(executionID: executionID)
+        let spent = await costForItem(executionID: executionID) + earlierPassCostUSD
         warnOfNearCap(spent: spent, execution: execution, executionID: executionID,
                       itemID: itemID, orchestrator: orchestrator)
 
@@ -7080,6 +7113,114 @@ class BacklogAutopilot {
             steps: execution.steps,
             engineTurns: await engine.turns(executionID: executionID, nodeID: "worker"),
             maxTurns: maxTurns)
+        await judgeContinuation()
+    }
+
+    /// The `continuationNote` state key: the note on a continuation pass, and
+    /// nil — the key unset, the prompt section collapsed — on any other.
+    nonisolated static func continuationNoteState(_ continuation: Bool) -> AnyCodable? {
+        continuation ? .string(CutShortContinuation.note) : nil
+    }
+
+    /// On a continuation pass, holds what `readWorkerTurns` just read against
+    /// the pass before it: a continuation that left the tree as it found it
+    /// is the cut-short worker it continued — so both endings that ask
+    /// `workerCutShortTurns` block the item exactly as they would have
+    /// without a continuation.
+    private func judgeContinuation() async {
+        guard let from = continuedFrom else { return }
+        workerCutShortTurns = CutShortContinuation.blockingTurns(
+            firstPassTurns: from.turns, continuationTurns: workerCutShortTurns,
+            before: from.before, after: await Self.treeMark(from.worktree))
+    }
+
+    private nonisolated static func treeMark(_ worktree: URL) async -> CutShortContinuation.TreeMark? {
+        await Task.detached(priority: .userInitiated) {
+            CutShortContinuation.treeMark(worktree: worktree)
+        }.value
+    }
+
+    /// Whether the pass that just ended on a turn cap is followed by a
+    /// continuation. Only an isolated run can be: its worktree is where the
+    /// work is and what the next pass is started in. Not one a cost cap or
+    /// the stall watchdog ended, not while the account's usage limit stands,
+    /// and not once a stop was asked for — those end the run as they always
+    /// have.
+    private func continuationIsDue(session: WorktreeSession?) async -> Bool {
+        guard let session, lastStallReason == nil, !stopRequested,
+              orchestrator?.usageLimit(standingAt: Date()) == nil else { return false }
+        let verdict = await RunWorkEvidence.inspectInFlight(
+            projectRoot: projectRoot, branch: session.branch, worktree: session.path, isolated: true
+        ).counting(companionWork: await companionWorkInFlight(session))
+        return CutShortContinuation.isDue(cutShortTurns: workerCutShortTurns,
+                                          hasWork: verdict == .produced,
+                                          alreadyContinued: continuedFrom != nil)
+    }
+
+    /// Ends a cut-short first pass at the pre-review gate without blocking the
+    /// item: the reviewer is not run on unfinished work, and the run loop —
+    /// which sees `continuationOwed` — starts the worker once more.
+    private func endPassForContinuation(turns: Int, executionID: String) async -> Bool {
+        continuationOwed = true
+        reviewGate = .closed(signal: Self.workerCutShortReason(turns: turns))
+        logPhase(.itemAbort, [
+            ("item", runQueue.indices.contains(currentIndex) ? runQueue[currentIndex].id : nil),
+            ("execution", executionID),
+            ("node", "reviewer"),
+            ("cause", "worker-turn-cap"),
+            ("reason", "continuing in the same worktree"),
+        ])
+        await orchestrator?.cancelWorkflow(executionID: executionID)
+        return false
+    }
+
+    /// Gives a worker that was cut short with work in its worktree one more
+    /// pass there, and returns the execution the item is judged on and how it
+    /// ended — the first pass's own when no continuation is due.
+    ///
+    /// The second workflow is the same graph over the same state plus the
+    /// continuation note, in the same session, so it runs under the same
+    /// gate, caps and watchdog. What the continuation came to is read by
+    /// `readWorkerTurns`, which leaves `workerCutShortTurns` set when it was
+    /// cut short again or changed nothing; a continuation that changed
+    /// nothing and still walked the graph to its end is handed back as a
+    /// failed run, so it blocks on that rather than being accepted.
+    private func finishingCutShortWork(
+        item: BacklogItem, graph: WorkflowGraph, initialState: [String: AnyCodable],
+        session: WorktreeSession?, firstPass: (executionID: String, status: ExecutionStatus)
+    ) async throws -> (executionID: String, status: ExecutionStatus) {
+        await readWorkerTurns(executionID: firstPass.executionID)
+        let owed = continuationOwed
+        continuationOwed = false
+        guard let turns = workerCutShortTurns, let session, let orchestrator else { return firstPass }
+        guard await continuationIsDue(session: session) else {
+            // The gate ended the pass for a continuation that can no longer
+            // run: say what it would have said had it blocked the item itself.
+            if owed { _ = noteWorkerCutShort(item, turns: turns, backlog: backlogViewModel) }
+            return firstPass
+        }
+        completedExecutionIDs.insert(firstPass.executionID, at: 0)
+        if completedExecutionIDs.count > 50 { completedExecutionIDs.removeLast() }
+        earlierPassCostUSD = await costForItem(executionID: firstPass.executionID)
+        continuedFrom = (turns, session.path, await Self.treeMark(session.path))
+        reviewGate = .pending
+        lastVerifyVerdict = nil
+        lastWorkerTurns = nil
+        workerCutShortTurns = nil
+        appendLog("Continuing: \(item.title) — the worker used its \(turns)-turn budget and left work "
+                  + "in its worktree; one more pass on the same branch")
+        var state = initialState
+        state["continuationNote"] = Self.continuationNoteState(true)
+        let execID = try await orchestrator.startWorkflow(graph: graph, initialState: state)
+        currentExecutionID = execID
+        onExecutionStarted?(execID)
+        let status = await awaitWorkflowCompletion(executionID: execID)
+        await readWorkerTurns(executionID: execID)
+        let unfinished = workerCutShortTurns != nil
+        appendLog(unfinished
+                  ? "Continuation ended: \(item.title) — the work is still unfinished"
+                  : "Continuation ended: \(item.title) — the worker handed off")
+        return (execID, unfinished && status == .completed ? .failed : status)
     }
 
     /// Says a worker ran out of turns, in the run log and as one line in the

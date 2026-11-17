@@ -619,6 +619,7 @@
 		65884F7489CADC0E6D793434 /* KiteloopControlServerListenerStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 211960FE8A27179F2C9A8785 /* KiteloopControlServerListenerStateTests.swift */; };
 		065BCE15A30977B106D8F97E /* BacklogAutopilotCoverageGapRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A366F884DC519737F3109F8 /* BacklogAutopilotCoverageGapRunTests.swift */; };
 		2F65DAC5D0FC2DE1AEAF3CE5 /* BacklogAutopilotPreReviewGateRunTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B43D028F74F758E1BC5496 /* BacklogAutopilotPreReviewGateRunTests.swift */; };
+		9E4B6C2A71D8F3055AC0B9E4 /* BacklogAutopilotCutShortContinuationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A1D0E35B9F4A6288D31F07 /* BacklogAutopilotCutShortContinuationTests.swift */; };
 		008810FA25B909FC781C6BD9 /* BacklogAutopilotVerifyCommandsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49CD372F662919DD078965E5 /* BacklogAutopilotVerifyCommandsTests.swift */; };
 		38909E9ACE3EEC07919B57B7 /* OperatorToolsKnowledgeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13FA10D36385030A12DD8CFF /* OperatorToolsKnowledgeTests.swift */; };
 		65E784F4CAC4763618477A52 /* AutonomyArmingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B12293A28616BB1D8E97758 /* AutonomyArmingTests.swift */; };
@@ -1331,6 +1332,7 @@
 		211960FE8A27179F2C9A8785 /* KiteloopControlServerListenerStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KiteloopControlServerListenerStateTests.swift; sourceTree = "<group>"; };
 		6A366F884DC519737F3109F8 /* BacklogAutopilotCoverageGapRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotCoverageGapRunTests.swift; sourceTree = "<group>"; };
 		B3B43D028F74F758E1BC5496 /* BacklogAutopilotPreReviewGateRunTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotPreReviewGateRunTests.swift; sourceTree = "<group>"; };
+		C7A1D0E35B9F4A6288D31F07 /* BacklogAutopilotCutShortContinuationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotCutShortContinuationTests.swift; sourceTree = "<group>"; };
 		49CD372F662919DD078965E5 /* BacklogAutopilotVerifyCommandsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BacklogAutopilotVerifyCommandsTests.swift; sourceTree = "<group>"; };
 		13FA10D36385030A12DD8CFF /* OperatorToolsKnowledgeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OperatorToolsKnowledgeTests.swift; sourceTree = "<group>"; };
 		6B12293A28616BB1D8E97758 /* AutonomyArmingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutonomyArmingTests.swift; sourceTree = "<group>"; };
@@ -2281,6 +2283,7 @@
 				E0E3E9BA7BC59670C4F4EDFB /* RunSteerNoteTests.swift */,
 				6A366F884DC519737F3109F8 /* BacklogAutopilotCoverageGapRunTests.swift */,
 				B3B43D028F74F758E1BC5496 /* BacklogAutopilotPreReviewGateRunTests.swift */,
+				C7A1D0E35B9F4A6288D31F07 /* BacklogAutopilotCutShortContinuationTests.swift */,
 				49CD372F662919DD078965E5 /* BacklogAutopilotVerifyCommandsTests.swift */,
 				518ED52F0E45C5561863EE55 /* AutopilotSalvageTests.swift */,
 				719335FE862A3BEA753E8EBD /* BacklogAutopilotAutoApprovalTests.swift */,
@@ -2929,6 +2932,7 @@
 				38909E9ACE3EEC07919B57B7 /* OperatorToolsKnowledgeTests.swift in Sources */,
 				065BCE15A30977B106D8F97E /* BacklogAutopilotCoverageGapRunTests.swift in Sources */,
 				2F65DAC5D0FC2DE1AEAF3CE5 /* BacklogAutopilotPreReviewGateRunTests.swift in Sources */,
+				9E4B6C2A71D8F3055AC0B9E4 /* BacklogAutopilotCutShortContinuationTests.swift in Sources */,
 				008810FA25B909FC781C6BD9 /* BacklogAutopilotVerifyCommandsTests.swift in Sources */,
 				5914A372EB15935784A4781A /* KiteloopControlServerInProcessTests.swift in Sources */,
 				65884F7489CADC0E6D793434 /* KiteloopControlServerListenerStateTests.swift in Sources */,

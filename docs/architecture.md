@@ -301,6 +301,17 @@ Reading that table:
   (cost cap, stall, retry ceiling), `salvageVerifyPasses` re-runs the item's own
   `verify:` against the run's tree. Green means it clears the same objective bar
   acceptance uses, so the work is accepted rather than thrown away.
+- **A worker that ran out of turns is continued once.** A turn cap is not a
+  failure of the work, and a re-run starts on a fresh branch, so a cut-short
+  worker that left changes or commits in its worktree is started once more
+  there — same branch, same session, same item run — with a note opening its
+  brief that says the work is already in the tree (`CutShortContinuation`,
+  `finishingCutShortWork`). Only an isolated run is continued, never one a cost
+  cap or the stall watchdog ended, and what the first pass cost is counted
+  with the second against the caps. A continuation that is cut short as well,
+  or that leaves `HEAD`, the diff and the untracked files as it found them,
+  blocks the item with the cut-short note; so does a first pass that left
+  nothing. The salvage re-check below is not run on a cut-short worker's tree.
 - **A blocked run commits and keeps its worktree.** This is the counter-intuitive
   one, and it is deliberate: a blocked run's output used to sit uncommitted in a
   directory nobody was told about, and the next attempt's `begin` force-removed

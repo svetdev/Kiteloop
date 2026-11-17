@@ -318,3 +318,10 @@ Entry format:
 **Why:** The inspection is what a person reads before letting someone else's setup in, and it is shown on screen and will be returned over the API, so a value in it is a value leaked. Listing every part by path means a pack holds exactly what its manifest says and cannot reach a file beside it.
 **Evidence:** `PackManifest`, `PackInspector.resolve`, `PackInspectorTests.testNoSecretValueAppearsAnywhereInTheInspection`, `testAListedPathThatLeavesThePackThroughASymlinkIsRefused`.
 **Status:** holds — a secret written into a connector's command line or URL is still shown, as part of what the connector runs.
+
+## [2026-11-17] A worker cut short by its turn cap is continued once, in the same worktree
+**Kind:** decision
+**What:** A worker that used its whole turn budget and left changes or commits in its worktree gets one more pass there — same branch, same session, same item run — before the item is blocked. One, with no setting: the bound is the pass itself, not a number. A continuation that is cut short again or leaves `HEAD`, the diff and the untracked files unchanged blocks the item with the same note as before, and a first pass that left nothing is not continued.
+**Why:** A blocked item's next run starts on a fresh branch and replaces the work, so a turn cap made the same work be paid for twice. A second continuation would only be a larger turn budget under another name, and that budget is already derived from the project's runs. The cost caps and the budget stay the hard stop: both passes are one item's spend.
+**Evidence:** `CutShortContinuation`, `BacklogAutopilot.finishingCutShortWork`, `CutShortContinuationTests`, `BacklogAutopilotPreReviewGateRunTests.testACutShortWorkerThatLeftWorkIsContinuedInTheSameWorktree`.
+**Status:** holds
