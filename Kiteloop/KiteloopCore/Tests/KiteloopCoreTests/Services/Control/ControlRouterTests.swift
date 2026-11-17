@@ -122,7 +122,10 @@ final class ControlRouterTests: XCTestCase {
             ("POST", "/v1/routines/brief/run",  .runRoutine(id: "brief")),
             ("GET",  "/v1/tokens",              .listTokens),
             ("POST", "/v1/tokens",              .mintToken),
-            ("DELETE", "/v1/tokens/tok-1",      .revokeToken(id: "tok-1"))
+            ("DELETE", "/v1/tokens/tok-1",      .revokeToken(id: "tok-1")),
+            ("POST", "/v1/hooks/deploys",       .fireHook(name: "deploys")),
+            ("POST", "/v1/hooks",               .mintHook),
+            ("DELETE", "/v1/hooks/deploys",     .revokeHook(name: "deploys"))
         ]
         for (method, path, route) in expected {
             XCTAssertEqual(ControlRouter.match(method: method, path: path), route,
@@ -167,10 +170,12 @@ final class ControlRouterTests: XCTestCase {
         XCTAssertFalse(ControlScope.operate.includes(.configure))
     }
 
-    /// Only the /v1/tokens routes are kept to the full control token.
+    /// Only the /v1/tokens routes, and minting and revoking a routine's
+    /// webhook, are kept to the full control token.
     func testOnlyTheTokenRoutesAreTokenManagement() {
-        let managed = ControlRouter.endpoints.filter(\.route.isTokenManagement).map(\.templatedPath)
-        XCTAssertEqual(Set(managed), ["/v1/tokens", "/v1/tokens/{id}"])
+        let managed = ControlRouter.endpoints.filter(\.route.isTokenManagement).map { "\($0.method) \($0.templatedPath)" }
+        XCTAssertEqual(Set(managed), ["GET /v1/tokens", "POST /v1/tokens", "DELETE /v1/tokens/{id}",
+                                      "POST /v1/hooks", "DELETE /v1/hooks/{name}"])
         XCTAssertEqual(ControlRouter.endpoints.first { $0.route == .mintToken }?.scope, .configure)
     }
 
@@ -247,6 +252,18 @@ final class ControlRouterTests: XCTestCase {
                           "\(path) must be behind the bearer token")
         }
         XCTAssertTrue(ControlRouter.requiresAuth(method: "GET", path: "/v1/pair"))
+    }
+
+    /// A webhook's secret stands in for the bearer on firing it, and only
+    /// there: minting and revoking hooks stay behind the token.
+    func testFiringAHookIsTheOnlyHookRouteWithoutTheBearer() {
+        XCTAssertFalse(ControlRouter.requiresAuth(method: "POST", path: "/v1/hooks/x"))
+        XCTAssertTrue(ControlRouter.requiresAuth(method: "POST", path: "/v1/hooks"))
+        XCTAssertTrue(ControlRouter.requiresAuth(method: "DELETE", path: "/v1/hooks/x"))
+        XCTAssertTrue(ControlRouter.requiresAuth(method: "GET", path: "/v1/hooks/x"))
+        XCTAssertEqual(ControlRoute.fireHook(name: "x").scope, .operate)
+        XCTAssertEqual(ControlRoute.mintHook.scope, .configure)
+        XCTAssertEqual(ControlRoute.revokeHook(name: "x").scope, .configure)
     }
 
     /// An unmatched path requires auth too, so an anonymous caller gets a flat 401

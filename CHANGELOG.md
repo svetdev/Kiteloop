@@ -17,6 +17,7 @@ entry — see the changelog convention in `CLAUDE.md`.
 - Kiteloop's per-agent memory is read and written over the API — add, rewrite and archive a fact (`/v1/memory`, `/v1/memory/facts`) — and so are the project's shared context (`/v1/memory/shared`), the notes the Claude CLI keeps (`/v1/memory/claude`) and the knowledge packages (`/v1/knowledge`).
 - The app's MCP servers are listed, added and removed over the API (`/v1/mcp-servers`), with their environment values never returned, and its default model, default effort, sound theme and update check are read and changed (`/v1/settings`).
 - A control token can be narrowed to read, operate or configure: mint one with the control token over `POST /v1/tokens`, list them with `GET /v1/tokens` and revoke one with `DELETE /v1/tokens/{id}`. A scoped token is refused with a 403 naming the scope it lacks on any route outside its scope, and never resolves a human gate.
+- An outside service can send a routine's prompt by calling that routine's own webhook, `POST /v1/hooks/{name}` with the hook's secret in `X-Kiteloop-Hook-Secret`; the request body goes to the agent under the prompt, the day's budget still applies, and the run is logged naming the hook. The control token alone creates hooks with `POST /v1/hooks` and removes them with `DELETE /v1/hooks/{name}`.
 
 ## 0.7.1 — 2026-11-15
 

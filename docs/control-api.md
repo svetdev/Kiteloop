@@ -50,7 +50,7 @@ authorize:
 | **Control token** | `~/.kiteloop/control-token` | The whole API. This is the operator's own credential. |
 | **Operator token** | `~/.kiteloop/operator-token` | The whole API **except** the endpoints that resolve a human gate: [`POST /v1/backlog/approve`](#post-v1backlogapprove), [`POST /v1/runs/{runId}/approve`](#post-v1runsrunidapprove) and [`POST /v1/backlog/land`](#post-v1backlogland), the merge half of an approval taken later. All three answer **403** for this token. |
 | **Phone token** | `~/.kiteloop/control-devices.json` (its SHA-256 only) | The whole API, as the control token. Minted for that one phone when it claims the one-time code **Pair a phone** shows ([`POST /v1/pair`](#post-v1pair)); revoked alone under **Settings → Control API → Paired phones**, leaving the other phones and the control token working. |
-| **Scoped token** | `~/.kiteloop/control-scoped-tokens.json` (its SHA-256 only) | The routes inside its scope: `read`, `operate` or `configure`. Scopes nest — `configure` includes `operate`, which includes `read`. A route outside the scope answers **403** naming the scope the token lacks, e.g. `this token's scope is read; POST /v1/runs needs operate`. No scoped token resolves a human gate or calls `/v1/tokens`: both answer **403**. Minted and revoked with the control token over [`/v1/tokens`](#post-v1tokens). |
+| **Scoped token** | `~/.kiteloop/control-scoped-tokens.json` (its SHA-256 only) | The routes inside its scope: `read`, `operate` or `configure`. Scopes nest — `configure` includes `operate`, which includes `read`. A route outside the scope answers **403** naming the scope the token lacks, e.g. `this token's scope is read; POST /v1/runs needs operate`. No scoped token resolves a human gate, calls `/v1/tokens` or mints or revokes a [routine's webhook](#post-v1hooks): all answer **403**. Minted and revoked with the control token over [`/v1/tokens`](#post-v1tokens). |
 
 Both are minted the same way, at first use, `0600`: `cat ~/.kiteloop/control-token`
 / `cat ~/.kiteloop/operator-token`. The Settings pane shows the control token's
@@ -244,6 +244,9 @@ Status codes used: 200, 201, 202, 400, 401, 403, 404, 409, 413, 422, 500, 503.
 | GET | `/v1/tokens` | The scoped tokens: id, name, scope, when minted (control token only) |
 | POST | `/v1/tokens` | Mint a scoped token; the token is in this answer only (control token only) |
 | DELETE | `/v1/tokens/{id}` | Revoke a scoped token (control token only) |
+| POST | `/v1/hooks/{name}` | An outside service fires a routine; the hook's secret in place of a token |
+| POST | `/v1/hooks` | Give a routine a webhook; its secret is in this answer only (control token only) |
+| DELETE | `/v1/hooks/{name}` | Revoke a routine's webhook (control token only) |
 
 Throughout the examples:
 
@@ -5158,7 +5161,77 @@ curl -s -H "$H" "$B/routines/runs?routine=pr-watch&limit=5"
 | `started` | The turn began; `finishedAt`, `reply` (the agent's first line) and `costUSD` are filled in when it ends. A start with no `finishedAt` is a turn the app did not see end |
 | `queued` | The agent was mid-turn, so the prompt waits behind that turn |
 | `skipped` | The check failed, timed out or printed nothing; `reason` says which |
-| `refused` | The day's budget, or a Run now with nobody to send it to. Final |
+| `refused` | The day's budget, or a Run now or webhook call with nobody to send it to. Final |
 | `waiting` | The agent could not be reached. The occurrence stays owed and a later line records it running |
 
 **Status:** 200 · 401 · 503
+
+A run a webhook fired carries `hook`, the hook's name, whatever its outcome.
+
+### POST /v1/hooks/{name}
+
+How an outside service — a deploy, a monitor, a form — sends a routine's
+prompt. It takes **no bearer token**: the hook's secret goes in the
+`X-Kiteloop-Hook-Secret` header, and it opens this one route for this one
+routine. It is not a control token: sent as a bearer, or to any other route,
+it answers **401**.
+
+The routine's prompt goes to its agent with the request body under it — UTF-8
+text as it is, anything else as a note that it was not text. A webhook call is
+not a person: it needs no arming, but **the daily budget can refuse it** and
+the routine's check can skip it, as a scheduled firing would. Answered at once;
+how the turn went is in [`GET /v1/routines/runs`](#get-v1routinesruns), where
+the run names the hook.
+
+```bash
+curl -s -X POST -H "X-Kiteloop-Hook-Secret: $SECRET" --data-binary @payload.json $B/hooks/deploys
+```
+
+```json
+{ "routine": "morning-brief", "hook": "deploys" }
+```
+
+A missing secret, a wrong one and a name no hook has all get **the same 401**,
+so a caller without the secret cannot learn which hooks exist. A body over
+**64 KB** answers **413** and sends nothing.
+
+**Status:** 202 · 401 (missing or wrong secret, or no such hook) · 404 (the
+hook's routine has been deleted) · 413 (body over 64 KB) · 503 (this Kiteloop
+keeps no routines or no hooks)
+
+### POST /v1/hooks
+
+Gives a routine a webhook. `name` is the hook's path segment — lowercase
+letters, digits and hyphens — and `routine` the id of the routine it fires.
+The secret is in this answer only; the Mac keeps its SHA-256 in
+`~/.kiteloop/routine-hooks.json`, `0600`. To change a secret, revoke the hook
+and mint another. Only the control token may call this: a phone, operator or
+scoped token of any scope, `configure` included, gets **403**.
+
+```bash
+curl -s -H "$H" -d '{"name":"deploys","routine":"morning-brief"}' $B/hooks
+```
+
+```json
+{ "name": "deploys", "routine": "morning-brief", "secret": "<shown this once>", "createdAt": "2026-11-16T09:12:03Z" }
+```
+
+**Status:** 200 · 400 (no routine with this id, or a `name` that is invalid or
+already taken) · 403 (not the control token) · 503 (this Kiteloop keeps no
+routines or no hooks)
+
+### DELETE /v1/hooks/{name}
+
+Revokes the hook, at once: its secret answers **401** from the next call. Only
+the control token may call this.
+
+```bash
+curl -s -X DELETE -H "$H" $B/hooks/deploys
+```
+
+```json
+{ "revoked": "deploys" }
+```
+
+**Status:** 200 · 403 (not the control token) · 404 (no hook has this name) ·
+503 (this Kiteloop keeps no routines or no hooks)

@@ -166,13 +166,24 @@ package enum ControlRoute: Equatable {
     /// `DELETE /v1/tokens/{id}` — revoke one.
     case revokeToken(id: String)
 
+    // Routine webhooks
+    /// `POST /v1/hooks/{name}` — an outside service firing a routine, its
+    /// hook's secret standing in for the bearer token.
+    case fireHook(name: String)
+    /// `POST /v1/hooks` — give a routine a webhook; its secret is in this answer only.
+    case mintHook
+    /// `DELETE /v1/hooks/{name}` — revoke a webhook.
+    case revokeHook(name: String)
+
     /// `/health` is the liveness probe a driver hits before it has a token — or to
     /// find out whether the one it has is stale — and `POST /v1/pair` is how a
-    /// phone gets one, its one-time code standing in for the token. Everything
-    /// else under `/v1` is behind the bearer token.
+    /// phone gets one, its one-time code standing in for the token, and
+    /// `POST /v1/hooks/{name}` is how an outside service fires a routine, its
+    /// hook's secret standing in for it. Everything else under `/v1` is behind
+    /// the bearer token.
     package var requiresAuth: Bool {
         switch self {
-        case .health, .claimPairingCode: return false
+        case .health, .claimPairingCode, .fireHook: return false
         default: return true
         }
     }
@@ -190,12 +201,12 @@ package enum ControlRoute: Equatable {
         }
     }
 
-    /// Whether this route mints, lists or revokes scoped tokens — which only
-    /// the full control token may do, so no narrower credential can mint a
-    /// wider one.
+    /// Whether this route mints, lists or revokes scoped tokens or routine
+    /// webhooks — which only the full control token may do, so no narrower
+    /// credential can mint a wider one.
     package var isTokenManagement: Bool {
         switch self {
-        case .listTokens, .mintToken, .revokeToken: return true
+        case .listTokens, .mintToken, .revokeToken, .mintHook, .revokeHook: return true
         default: return false
         }
     }
@@ -220,12 +231,13 @@ package enum ControlRoute: Equatable {
              .groomBacklogItem, .moveBacklogItem, .setBacklogItemLane, .fileBacklogItem,
              .pauseAutopilot, .resumeAutopilot, .quiesceFleet, .resumeFleet,
              .approveMemoryProposal, .rejectMemoryProposal, .approveProposal, .dismissProposal,
-             .runRoutine, .startRun, .approveRun, .cancelRun, .steerRun:
+             .runRoutine, .fireHook, .startRun, .approveRun, .cancelRun, .steerRun:
             return .operate
         case .reorderProjects, .pinProjectDocument, .hireAgent, .updateAgent, .removeAgent,
              .claimPairingCode, .registerPushDevice, .registerLiveActivity, .stampTemplate,
              .setAutopilot, .resetAutopilot, .setCoordinatorRefill, .setCoordinatorScheduling,
-             .putRoutine, .deleteRoutine, .listTokens, .mintToken, .revokeToken:
+             .putRoutine, .deleteRoutine, .listTokens, .mintToken, .revokeToken,
+             .mintHook, .revokeHook:
             return .configure
         case .manage(let managed):
             return managed.scope
@@ -438,7 +450,11 @@ package enum ControlRouter {
 
         Row("GET",  "/v1/tokens")               { _ in .listTokens },
         Row("POST", "/v1/tokens")               { _ in .mintToken },
-        Row("DELETE", "/v1/tokens/:id")         { .revokeToken(id: $0[0]) }
+        Row("DELETE", "/v1/tokens/:id")         { .revokeToken(id: $0[0]) },
+
+        Row("POST", "/v1/hooks/:name")          { .fireHook(name: $0[0]) },
+        Row("POST", "/v1/hooks")                { _ in .mintHook },
+        Row("DELETE", "/v1/hooks/:name")        { .revokeHook(name: $0[0]) }
     ]
 
     /// One row of the table: a method, a path pattern whose `:` segments capture,

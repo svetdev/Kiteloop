@@ -121,6 +121,8 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
     /// The first line of what the agent said.
     package var reply: String?
     package var costUSD: Double?
+    /// The webhook that fired it; nil for a scheduled run or one started by hand.
+    package var hook: String?
 
     package enum Outcome: String, Codable, Sendable {
         /// The turn began; `finishedAt` says when it ended.
@@ -139,7 +141,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
 
     package init(id: String = UUID().uuidString, routine: String, scheduledFor: Date?, at: Date,
                  outcome: Outcome, reason: String? = nil, finishedAt: Date? = nil,
-                 reply: String? = nil, costUSD: Double? = nil) {
+                 reply: String? = nil, costUSD: Double? = nil, hook: String? = nil) {
         self.id = id
         self.routine = routine
         self.scheduledFor = scheduledFor
@@ -149,6 +151,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
         self.finishedAt = finishedAt
         self.reply = reply
         self.costUSD = costUSD
+        self.hook = hook
     }
 
     /// The run as the API returns it.
@@ -161,6 +164,7 @@ package struct RoutineRun: Codable, Equatable, Sendable, Identifiable {
         if let finishedAt { out["finishedAt"] = stamp.string(from: finishedAt) }
         if let reply { out["reply"] = reply }
         if let costUSD { out["costUSD"] = costUSD }
+        if let hook { out["hook"] = hook }
         return out
     }
 }

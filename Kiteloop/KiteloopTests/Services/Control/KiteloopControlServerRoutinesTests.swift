@@ -12,13 +12,18 @@ final class KiteloopControlServerRoutinesTests: XCTestCase {
     private var server: KiteloopControlServer!
     private var routines: RoutineRunner!
     private var runtime: MockAgentRuntime!
+    private var hooks: RoutineHooks!
+    private var scopedTokens: ControlScopedTokens!
     private let token = "routines-token"
 
     override func setUp() async throws {
         tempDir = try makeTemporaryDirectory(prefix: "control-routines")
         registry = ControlSessionRegistry()
         runtime = MockAgentRuntime()
-        server = KiteloopControlServer(registry: registry, token: token)
+        hooks = RoutineHooks(url: tempDir.appendingPathComponent("routine-hooks.json"))
+        scopedTokens = ControlScopedTokens(url: tempDir.appendingPathComponent("scoped-tokens.json"))
+        server = KiteloopControlServer(registry: registry, token: token, scopedTokens: scopedTokens,
+                                       routineHooks: hooks)
         routines = RoutineRunner(store: RoutineStore(directory: tempDir.appendingPathComponent("home")))
         routines.agent = { [unowned self] in self.server.routineAgent(for: $0) }
         routines.start()
@@ -132,6 +137,123 @@ final class KiteloopControlServerRoutinesTests: XCTestCase {
         XCTAssertEqual(response.status, 404)
     }
 
+    // MARK: - Webhooks
+
+    func testAHookWithItsSecretSendsThePromptAndTheBodyAndTheRunNamesTheHook() async throws {
+        let session = try registerProject(named: "vault")
+        let agentID = addAgent(named: "Chief", to: session)
+        runtime.events = [.assistantText("On it."), .result(Self.done("On it."))]
+        _ = await send("PUT", "/v1/routines/brief", brief)
+        let secret = try await mintHook("deploys", routine: "brief")
+
+        let fired = await fire("deploys", secret: secret, body: Data("deploy 42 finished".utf8))
+
+        XCTAssertEqual(fired.status, 202)
+        XCTAssertEqual(json(fired)["routine"] as? String, "brief")
+        XCTAssertEqual(json(fired)["hook"] as? String, "deploys")
+        try await eventually("the turn ended") { self.routines.lastRun(of: "brief")?.finishedAt != nil }
+        let run = try XCTUnwrap(routines.lastRun(of: "brief"))
+        XCTAssertEqual(run.outcome, .started)
+        XCTAssertEqual(run.hook, "deploys")
+        let chat = try XCTUnwrap(session.chatViewModels[agentID])
+        XCTAssertTrue(chat.messages.contains { message in
+            if case .text(let text) = message.content {
+                return text.contains("Write the brief.") && text.contains("deploy 42 finished")
+            }
+            return false
+        }, "the prompt and the body went into the agent's chat")
+        let ledger = json(await send("GET", "/v1/routines/runs", query: ["routine": "brief"]))["runs"] as? [[String: Any]]
+        XCTAssertEqual(ledger?.first?["hook"] as? String, "deploys")
+    }
+
+    func testAWrongMissingOrUnknownSecretIsOneAndTheSame401() async throws {
+        _ = await send("PUT", "/v1/routines/brief", brief)
+        _ = await send("PUT", "/v1/routines/triage", brief)
+        let secret = try await mintHook("deploys", routine: "brief")
+        let otherSecret = try await mintHook("alerts", routine: "triage")
+
+        let wrong = await fire("deploys", secret: "not-the-secret")
+        let missing = await request("POST", "/v1/hooks/deploys", headers: [:])
+        let unknown = await fire("nobody", secret: secret)
+        let crossed = await fire("deploys", secret: otherSecret)
+
+        for response in [wrong, missing, unknown, crossed] {
+            XCTAssertEqual(response.status, 401)
+            XCTAssertEqual(response.body, wrong.body, "every refusal reads the same, so names do not leak")
+        }
+        XCTAssertEqual(routines.runs, [], "nothing fired")
+    }
+
+    func testAHookSecretOpensNoOtherRoute() async throws {
+        _ = await send("PUT", "/v1/routines/brief", brief)
+        let secret = try await mintHook("deploys", routine: "brief")
+
+        let asHeader = await request("GET", "/v1/routines", headers: ["x-kiteloop-hook-secret": secret])
+        let asBearer = await request("GET", "/v1/routines", headers: ["authorization": "Bearer \(secret)"])
+        let minting = await request("POST", "/v1/hooks", headers: ["x-kiteloop-hook-secret": secret],
+                                    body: Data(#"{"name":"more","routine":"brief"}"#.utf8))
+
+        XCTAssertEqual(asHeader.status, 401)
+        XCTAssertEqual(asBearer.status, 401)
+        XCTAssertEqual(minting.status, 401)
+    }
+
+    func testOnlyTheControlTokenMintsAndRevokesHooks() async throws {
+        _ = await send("PUT", "/v1/routines/brief", brief)
+        let secret = try await mintHook("deploys", routine: "brief")
+        let mintBody = Data(#"{"name":"more","routine":"brief"}"#.utf8)
+
+        for scope in ControlScope.allCases {
+            let scoped = scopedTokens.mint(name: scope.rawValue, scope: scope).token
+            let bearer = ["authorization": "Bearer \(scoped)"]
+            let minted = await request("POST", "/v1/hooks", headers: bearer, body: mintBody)
+            let revoked = await request("DELETE", "/v1/hooks/deploys", headers: bearer)
+            XCTAssertEqual(minted.status, 403, "a \(scope.rawValue) token minted a hook")
+            XCTAssertEqual(revoked.status, 403, "a \(scope.rawValue) token revoked a hook")
+        }
+        XCTAssertEqual(hooks.hooks.map(\.name), ["deploys"])
+
+        let revoked = await send("DELETE", "/v1/hooks/deploys")
+        XCTAssertEqual(revoked.status, 200)
+        XCTAssertEqual(json(revoked)["revoked"] as? String, "deploys")
+        let again = await send("DELETE", "/v1/hooks/deploys")
+        XCTAssertEqual(again.status, 404)
+        let afterRevoke = await fire("deploys", secret: secret)
+        XCTAssertEqual(afterRevoke.status, 401, "a revoked secret fires nothing")
+    }
+
+    func testMintingForAnUnknownRoutineOrWithABadNameIs400() async {
+        _ = await send("PUT", "/v1/routines/brief", brief)
+
+        let unknown = await send("POST", "/v1/hooks", ["name": "deploys", "routine": "nobody"])
+        let badName = await send("POST", "/v1/hooks", ["name": "Not Valid", "routine": "brief"])
+
+        XCTAssertEqual(unknown.status, 400)
+        XCTAssertEqual(json(unknown)["error"] as? String, "No routine 'nobody'")
+        XCTAssertEqual(badName.status, 400)
+        XCTAssertEqual(hooks.hooks, [])
+    }
+
+    func testABodyOver64KBIs413AndSendsNothing() async throws {
+        _ = await send("PUT", "/v1/routines/brief", brief)
+        let secret = try await mintHook("deploys", routine: "brief")
+
+        let response = await fire("deploys", secret: secret, body: Data(repeating: 0x61, count: 64 * 1024 + 1))
+
+        XCTAssertEqual(response.status, 413)
+        XCTAssertEqual(routines.runs, [])
+    }
+
+    func testAHookWhoseRoutineWasDeletedIs404() async throws {
+        _ = await send("PUT", "/v1/routines/brief", brief)
+        let secret = try await mintHook("deploys", routine: "brief")
+        _ = await send("DELETE", "/v1/routines/brief")
+
+        let response = await fire("deploys", secret: secret)
+
+        XCTAssertEqual(response.status, 404)
+    }
+
     // MARK: - Reaching the agent
 
     func testWhatStandsBetweenARoutineAndItsAgentIsNamed() async throws {
@@ -173,6 +295,23 @@ final class KiteloopControlServerRoutinesTests: XCTestCase {
         let data = (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
         return await server.handle(HTTPServer.Request(method: method, path: path, query: query,
                                                       headers: ["authorization": "Bearer \(token)"], body: data))
+    }
+
+    private func request(_ method: String, _ path: String, headers: [String: String],
+                         body: Data = Data()) async -> HTTPServer.Response {
+        await server.handle(HTTPServer.Request(method: method, path: path, query: [:], headers: headers, body: body))
+    }
+
+    private func fire(_ name: String, secret: String, body: Data = Data()) async -> HTTPServer.Response {
+        await request("POST", "/v1/hooks/\(name)", headers: ["x-kiteloop-hook-secret": secret], body: body)
+    }
+
+    /// Mints a hook with the control token and returns its secret.
+    private func mintHook(_ name: String, routine: String) async throws -> String {
+        let minted = await send("POST", "/v1/hooks", ["name": name, "routine": routine])
+        XCTAssertEqual(minted.status, 200)
+        XCTAssertEqual(json(minted)["routine"] as? String, routine)
+        return try XCTUnwrap(json(minted)["secret"] as? String)
     }
 
     private func json(_ response: HTTPServer.Response) -> [String: Any] {
