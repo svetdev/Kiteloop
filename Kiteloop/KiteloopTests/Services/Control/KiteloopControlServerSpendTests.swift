@@ -73,6 +73,66 @@ final class KiteloopControlServerSpendTests: XCTestCase {
         XCTAssertEqual(SpendEndpoints.window(days: "3", now: now, calendar: calendar).to, now)
     }
 
+    // MARK: - The headroom token-equivalent spend is drawn from
+
+    private var readings: [AgentActivityEvent.RateLimitInfo] {
+        [AgentActivityEvent.RateLimitInfo(status: "allowed", window: "seven_day", resetsAt: nil, utilization: 0.3),
+         AgentActivityEvent.RateLimitInfo(status: "allowed_warning", window: "five_hour",
+                                          resetsAt: Date(timeIntervalSince1970: 1_800_000_000), utilization: 0.8)]
+    }
+
+    func testTokenEquivalentSpendCarriesTheReadingClosestToItsLimit() async throws {
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/p/a", costUSD: 1, basis: .tokenEquivalent))
+        ledger.append(SpendRow(at: Date(), source: .autopilot, project: "/p/a", costUSD: 2, basis: .tokenEquivalent))
+
+        let response = await SpendEndpoints(ledger: ledger, readings: readings).answer(["by": "project", "days": "1"])
+
+        XCTAssertEqual(response.status, 200)
+        let body = json(response)
+        XCTAssertEqual(body["basis"] as? String, "token-equivalent")
+        let rateLimit = try XCTUnwrap(body["rateLimit"] as? [String: Any])
+        XCTAssertEqual(rateLimit["status"] as? String, "allowed_warning")
+        XCTAssertEqual(rateLimit["window"] as? String, "five_hour")
+        XCTAssertEqual(rateLimit["resetsAt"] as? String, "2027-01-15T08:00:00Z")
+        XCTAssertEqual(rateLimit["utilization"] as? Double, 0.8)
+    }
+
+    func testMixedSpendCarriesTheReadingToo() async {
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/p/a", costUSD: 1, basis: .tokenEquivalent))
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/p/b", costUSD: 1, basis: .usd))
+
+        let response = await SpendEndpoints(ledger: ledger, readings: readings).answer(["by": "project", "days": "1"])
+
+        let body = json(response)
+        XCTAssertEqual(body["basis"] as? String, "mixed")
+        XCTAssertEqual((body["rateLimit"] as? [String: Any])?["status"] as? String, "allowed_warning")
+    }
+
+    func testBilledSpendHasNoRateLimitEvenWhenAgentsReportOne() async {
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/p/a", costUSD: 1, basis: .usd))
+
+        let response = await SpendEndpoints(ledger: ledger, readings: readings).answer(["by": "project", "days": "1"])
+
+        XCTAssertEqual(response.status, 200)
+        let body = json(response)
+        XCTAssertEqual(body["basis"] as? String, "usd")
+        XCTAssertTrue(body["rateLimit"] is NSNull)
+    }
+
+    func testTokenEquivalentSpendWithNoReadingIsNullAndStill200() async {
+        ledger.append(SpendRow(at: Date(), source: .chat, project: "/p/a", costUSD: 1, basis: .tokenEquivalent))
+
+        let direct = await SpendEndpoints(ledger: ledger).answer(["by": "project", "days": "1"])
+        let routed = await get(["by": "project", "days": "1"])
+
+        for response in [direct, routed] {
+            XCTAssertEqual(response.status, 200)
+            let body = json(response)
+            XCTAssertEqual(body["basis"] as? String, "token-equivalent")
+            XCTAssertTrue(body["rateLimit"] is NSNull)
+        }
+    }
+
     // MARK: - Helpers
 
     private func get(_ query: [String: String]) async -> HTTPServer.Response {
