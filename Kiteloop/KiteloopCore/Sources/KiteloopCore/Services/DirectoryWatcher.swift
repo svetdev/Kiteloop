@@ -12,9 +12,14 @@ package final class DirectoryWatcher: @unchecked Sendable {
     /// rather than by reading the code.
     private let closeDescriptor: @Sendable (Int32) -> Void
 
+    /// How long after the last change `onChange` is called, unless a caller
+    /// says otherwise: a caller that wants to know when the change happened
+    /// takes this off the moment it is told.
+    package static let defaultDebounceInterval: TimeInterval = 0.5
+
     package init(
         directories: [URL],
-        debounceInterval: TimeInterval = 0.5,
+        debounceInterval: TimeInterval = DirectoryWatcher.defaultDebounceInterval,
         closeDescriptor: @escaping @Sendable (Int32) -> Void = { close($0) },
         onChange: @escaping @Sendable () -> Void
     ) {

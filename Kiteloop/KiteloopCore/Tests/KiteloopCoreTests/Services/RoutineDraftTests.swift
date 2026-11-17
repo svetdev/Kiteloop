@@ -119,4 +119,16 @@ final class RoutineDraftTests: XCTestCase {
         XCTAssertEqual(draft.routine(id: "ignored", project: "ignored", existing: capped).budget, capped.budget)
         XCTAssertNil(draft.routine(id: "new", project: "vault").budget)
     }
+
+    /// The form has no field for a watched folder, so it must not lose one.
+    func testEditingAWatchedRoutineKeepsItsFolderAndGivesItNoSchedule() {
+        let watched = routine(Routine.Trigger(watch: "notes/inbox"))
+        var draft = RoutineDraft(routine: watched)
+        draft.prompt = "File what arrived."
+
+        XCTAssertEqual(draft.trigger, Routine.Trigger(watch: "notes/inbox"))
+        XCTAssertEqual(draft.routine(id: "ignored", project: "ignored", existing: watched).trigger,
+                       Routine.Trigger(watch: "notes/inbox"))
+        XCTAssertNil(RoutineDraft(routine: routine(.init(at: "07:00"))).watch)
+    }
 }

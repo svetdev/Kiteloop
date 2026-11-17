@@ -35,6 +35,9 @@ package struct RoutineDraft: Equatable, Sendable {
     package var armed = false
     /// Which chat each run's prompt goes into.
     package var conversation = Routine.Conversation.continues
+    /// The folder a watched routine fires on, kept as it was written: the
+    /// form has no field for it, and saving must not turn it into a schedule.
+    package var watch: String?
 
     package static let everyDay = Set(1...7)
     package static let weekdays = Set(2...6)
@@ -59,6 +62,7 @@ package struct RoutineDraft: Equatable, Sendable {
         armed = routine.armed
         conversation = routine.conversation ?? .continues
         let trigger = routine.trigger
+        watch = trigger.watch
         if let at = trigger.at.flatMap(RoutineSchedule.minuteOfDay) { atMinute = at }
         if let every = trigger.every {
             pattern = .interval
@@ -73,9 +77,11 @@ package struct RoutineDraft: Equatable, Sendable {
 
     // MARK: - Writing it down
 
-    /// The schedule as a routine keeps it. Every day is written as no days at
+    /// The schedule as a routine keeps it, or the folder a watched routine
+    /// fires on. Every day is written as no days at
     /// all, and hours that span the whole day as no hours.
     package var trigger: Routine.Trigger {
+        if let watch { return Routine.Trigger(watch: watch) }
         let named = days == Self.everyDay ? nil : Self.dayOrder.filter(days.contains).map { RoutineSchedule.dayNames[$0 - 1] }
         switch pattern {
         case .daily:
